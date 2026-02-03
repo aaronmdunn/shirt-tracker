@@ -381,10 +381,19 @@
         flex-direction: column;
         gap: 10px;
         justify-content: center;
-        align-items: center;
+        align-items: stretch;
         width: 100%;
         max-width: 420px;
         margin: 0 auto;
+      }
+
+      .danger-zone .header-row {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+        justify-items: stretch;
+        align-items: center;
       }
 
       .header-row {
@@ -428,6 +437,9 @@
         padding: 7px 12px;
         white-space: normal;
         min-width: 0;
+        line-height: 1.1;
+        text-align: center;
+        word-break: break-word;
       }
 
       .header-actions .btn.compact {
@@ -2674,7 +2686,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.919.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-03T15:46:13-05:00";
+      const LAST_COMMIT_DATE = "2026-02-03T15:56:20-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
