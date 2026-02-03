@@ -548,9 +548,22 @@
 
       body[data-auth="signed-out"] .header-actions,
       body[data-auth="signed-out"] .danger-zone {
+        display: flex !important;
         justify-content: center;
         align-items: center;
         justify-items: center;
+      }
+
+      body[data-auth="signed-out"] .sheet-header {
+        display: flex !important;
+      }
+
+      body[data-auth="signed-out"] .auth-row {
+        display: flex !important;
+      }
+
+      body[data-auth="signed-out"] #auth-action {
+        display: inline-flex !important;
       }
 
       body[data-auth="signed-out"] .auth-row {
@@ -3875,6 +3888,8 @@
         if (!footerVersionLine) return;
         footerVersionLine.textContent = `Shirt Tracker ${APP_VERSION} © 2026 Aaron Dunn`;
       };
+
+      updateFooterVersionLine();
 
       const getShortVersion = () => {
         const parts = String(APP_VERSION).split(".");
