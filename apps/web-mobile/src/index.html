@@ -377,8 +377,8 @@
 
       .danger-zone {
         display: grid;
-        row-gap: 8px;
-        justify-items: end;
+        row-gap: 10px;
+        justify-items: center;
         align-items: center;
       }
 
@@ -393,20 +393,59 @@
       .auth-row {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
+        gap: 10px 12px;
         width: 100%;
         justify-items: stretch;
       }
 
       .auth-row .btn {
-        font-size: 0.75rem;
-        padding: 6px 10px;
+        font-size: 0.8rem;
+        padding: 6px 12px;
       }
 
       .columns-row .btn,
       .auth-row .btn {
         width: 100%;
         justify-content: center;
+        border-radius: 999px;
+        min-height: 36px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      }
+
+      .header-actions .btn {
+        font-size: 0.82rem;
+        padding: 7px 12px;
+      }
+
+      .header-actions .btn.compact {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+      }
+
+      #sync-now {
+        background: transparent;
+        color: var(--accent);
+        border: 2px solid var(--accent);
+        box-shadow: none;
+      }
+
+      #sync-now:active {
+        background: rgba(176, 0, 32, 0.12);
+        color: var(--accent);
+      }
+
+      body[data-auth="signed-in"] #auth-action {
+        background: transparent;
+        color: #0b7a2c;
+        border: 2px solid #0b7a2c;
+        box-shadow: none;
+      }
+
+      body[data-auth="signed-in"] #auth-action:active {
+        background: rgba(11, 122, 44, 0.12);
+        color: #0b7a2c;
       }
 
       .columns-row {
@@ -427,7 +466,6 @@
         flex-direction: column;
         align-items: center;
         line-height: 1.1;
-        grid-column: 1 / -1;
       }
 
       #share-columns-button .share-columns-sub {
@@ -1300,6 +1338,11 @@
         min-width: 320px;
       }
 
+      .filter-center .filter-bar {
+        width: 100%;
+        min-width: 0;
+      }
+
       .filter-row {
         display: flex;
         flex-direction: column;
@@ -1320,6 +1363,7 @@
 
       .filter-center {
         display: flex;
+        flex-direction: column;
         gap: 16px;
         align-items: center;
         justify-content: center;
@@ -2303,7 +2347,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2026-02-02T14:41:04.097Z" readonly>
+                <input type="text" id="app-update-date" value="2/3/2026, 12:43:59 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2336,8 +2380,9 @@
             </div>
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
+              <p><a href="#" id="attributes-link">Attributes</a></p>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. This is a personal project made out of love for shirts.</p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
           </div>
@@ -2436,6 +2481,15 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="about-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="icon-credits-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Attributes</h3>
+        <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="icon-credits-close">Close</button>
       </div>
     </dialog>
 
@@ -2592,7 +2646,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.909.0";
       const IS_WEB_BUILD = true;
-      const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
+      const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -2897,6 +2951,9 @@
       const shirtUpdateDateInput = document.getElementById("shirt-update-date");
       const appUpdateDateInput = document.getElementById("app-update-date");
       const footerVersionLine = document.getElementById("footer-version-line");
+      const iconCreditsDialog = document.getElementById("icon-credits-dialog");
+      const iconCreditsCloseButton = document.getElementById("icon-credits-close");
+      const attributesLink = document.getElementById("attributes-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -3952,38 +4009,10 @@
 
       const updateAppUpdateDate = () => {
         if (!appUpdateDateInput) return;
-        if (IS_WEB_BUILD) {
-          if (NETLIFY_DEPLOY_DATE && NETLIFY_DEPLOY_DATE !== "2026-02-02T14:41:04.097Z") {
-            const parsed = new Date(NETLIFY_DEPLOY_DATE);
-            appUpdateDateInput.value = Number.isNaN(parsed.getTime())
-              ? NETLIFY_DEPLOY_DATE
-              : formatDateTimeLocal(parsed);
-            return;
-          }
-          const lastModified = document.lastModified;
-          if (lastModified) {
-            const parsed = new Date(lastModified);
-            appUpdateDateInput.value = Number.isNaN(parsed.getTime())
-              ? lastModified
-              : formatDateTimeLocal(parsed);
-          }
-          return;
-        }
-        if (!canUseLocalStorage()) return;
-        try {
-          const storedVersion = localStorage.getItem(APP_VERSION_KEY);
-          const storedDate = localStorage.getItem(APP_UPDATE_KEY);
-          const today = new Date().toISOString();
-          if (storedVersion !== APP_VERSION || !storedDate) {
-            localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
-            localStorage.setItem(APP_UPDATE_KEY, today);
-            appUpdateDateInput.value = formatDateTimeLocal(today);
-            return;
-          }
-          appUpdateDateInput.value = formatDateTimeLocal(storedDate);
-        } catch (error) {
-          // ignore
-        }
+        const parsed = new Date(LAST_COMMIT_DATE);
+        appUpdateDateInput.value = Number.isNaN(parsed.getTime())
+          ? ""
+          : formatDateTimeLocal(parsed);
       };
 
       const updateFooterVersionLine = () => {
@@ -6081,6 +6110,19 @@
       aboutCloseButton.addEventListener("click", () => {
         closeDialog(aboutDialog);
       });
+
+      if (attributesLink && iconCreditsDialog) {
+        attributesLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(iconCreditsDialog);
+        });
+      }
+
+      if (iconCreditsCloseButton) {
+        iconCreditsCloseButton.addEventListener("click", () => {
+          closeDialog(iconCreditsDialog);
+        });
+      }
 
       authActionButton.addEventListener("click", () => {
         if (currentUser) {

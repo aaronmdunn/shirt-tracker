@@ -2290,7 +2290,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2026-02-02T14:41:04.097Z" readonly>
+                <input type="text" id="app-update-date" value="2/3/2026, 12:43:59 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2573,7 +2573,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.909.0";
       const IS_WEB_BUILD = true;
-      const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
+      const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3933,38 +3933,10 @@
 
       const updateAppUpdateDate = () => {
         if (!appUpdateDateInput) return;
-        if (IS_WEB_BUILD) {
-          if (NETLIFY_DEPLOY_DATE && NETLIFY_DEPLOY_DATE !== "2026-02-02T14:41:04.097Z") {
-            const parsed = new Date(NETLIFY_DEPLOY_DATE);
-            appUpdateDateInput.value = Number.isNaN(parsed.getTime())
-              ? NETLIFY_DEPLOY_DATE
-              : formatDateTimeLocal(parsed);
-            return;
-          }
-          const lastModified = document.lastModified;
-          if (lastModified) {
-            const parsed = new Date(lastModified);
-            appUpdateDateInput.value = Number.isNaN(parsed.getTime())
-              ? lastModified
-              : formatDateTimeLocal(parsed);
-          }
-          return;
-        }
-        if (!canUseLocalStorage()) return;
-        try {
-          const storedVersion = localStorage.getItem(APP_VERSION_KEY);
-          const storedDate = localStorage.getItem(APP_UPDATE_KEY);
-          const today = new Date().toISOString();
-          if (storedVersion !== APP_VERSION || !storedDate) {
-            localStorage.setItem(APP_VERSION_KEY, APP_VERSION);
-            localStorage.setItem(APP_UPDATE_KEY, today);
-            appUpdateDateInput.value = formatDateTimeLocal(today);
-            return;
-          }
-          appUpdateDateInput.value = formatDateTimeLocal(storedDate);
-        } catch (error) {
-          // ignore
-        }
+        const parsed = new Date(LAST_COMMIT_DATE);
+        appUpdateDateInput.value = Number.isNaN(parsed.getTime())
+          ? ""
+          : formatDateTimeLocal(parsed);
       };
 
       const updateFooterVersionLine = () => {
