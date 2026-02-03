@@ -1,0 +1,14 @@
+{
+  "name": "shirt-tracker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:web-root": "node scripts/build-web-root.mjs",
+    "pretauri": "node scripts/bump-version.mjs",
+    "tauri": "TAURI_CONFIG=apps/desktop-tauri/src-tauri/tauri.conf.json tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
