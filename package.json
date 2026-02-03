@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build:web-root": "node scripts/build-web-root.mjs",
+    "build:web-root:stage": "node scripts/build-web-root.mjs && git add . && git status -sb",
+    "prep:web-deploy": "node scripts/build-web-root.mjs && git add . && git status -sb",
     "pretauri": "node scripts/bump-version.mjs",
     "tauri": "TAURI_CONFIG=apps/desktop-tauri/src-tauri/tauri.conf.json tauri"
   },
