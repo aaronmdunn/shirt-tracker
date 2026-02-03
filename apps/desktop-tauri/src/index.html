@@ -2015,7 +2015,7 @@
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. This is a personal project made out of love for shirts.</p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
             <div class="update-box">
@@ -2145,7 +2145,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.909 beta</div>
+        <div>Shirt Tracker v1.913 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
       </div>
@@ -2314,7 +2314,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.909.0";
+      const APP_VERSION = "1.913.0";
       const IS_WEB_BUILD = false;
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
@@ -3678,6 +3678,8 @@
         footerVersionLine.textContent = `Shirt Tracker ${APP_VERSION} © 2026 Aaron Dunn`;
       };
 
+      updateFooterVersionLine();
+
       const getShortVersion = () => {
         const parts = String(APP_VERSION).split(".");
         if (parts.length >= 2) return `${parts[0]}.${parts[1]}`;
@@ -3838,7 +3840,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.909.0",
+          version: "1.913.0",
         };
       };
 
@@ -6067,6 +6069,7 @@
       iconCreditsCloseButton.addEventListener("click", () => {
         closeDialog(iconCreditsDialog);
       });
+
 
       clearPhotoDialogButton.addEventListener("click", () => {
         if (!activePhotoTarget) return;
