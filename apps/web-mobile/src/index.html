@@ -469,7 +469,7 @@
       body[data-auth="signed-out"] .totals-row,
       body[data-auth="signed-out"] .footer-actions,
       body[data-auth="signed-out"] .footer-stats,
-      body[data-auth="signed-out"] .footer-panels > :not(.footer-note):not(.footer-version-line),
+      body[data-auth="signed-out"] .footer-panels > :not(.footer-note),
       body[data-auth="signed-out"] .update-box,
       body[data-auth="signed-out"] .empty-state {
         display: none !important;
@@ -594,6 +594,10 @@
       }
 
       body[data-auth="signed-out"] .footer-version-line {
+        display: block;
+      }
+
+      body[data-auth="signed-out"] .footer-note .footer-version-line {
         display: block;
       }
 
@@ -2048,6 +2052,9 @@
       <section class="sheet">
         <div class="sheet-header">
           <h2><span class="logo-letter">A</span></h2>
+          <div class="signedout-login">
+            <button class="btn secondary" id="auth-action-signedout">Sign In</button>
+          </div>
             <div class="header-actions">
               <div class="danger-zone">
                 <div class="header-row columns-row">
@@ -2214,8 +2221,8 @@
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
               <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
+              <div class="footer-version-line" id="footer-version-line"></div>
             </div>
-            <div class="footer-version-line" id="footer-version-line"></div>
             <div class="update-box">
               <div class="update-title">Update Log</div>
               <div class="update-row">
@@ -2344,7 +2351,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.904 beta</div>
+        <div>Shirt Tracker v1.905 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2490,7 +2497,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.904.0";
+      const APP_VERSION = "1.905.0";
       const IS_WEB_BUILD = true;
       const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -3510,6 +3517,10 @@
           authActionButton.classList.remove("auth-signed-in");
           authActionButton.classList.add("auth-signed-out");
           authActionButton.style.display = "inline-flex";
+          if (authActionSignedOutButton) {
+            authActionSignedOutButton.textContent = "Sign In";
+            authActionSignedOutButton.style.display = "inline-flex";
+          }
           positionAuthAction();
           if (syncNowButton) syncNowButton.disabled = true;
           if (verifyBackupButton) verifyBackupButton.disabled = true;
@@ -3535,6 +3546,9 @@
           authActionButton.classList.add("auth-signed-in");
           positionAuthAction();
           authActionButton.style.display = "inline-flex";
+          if (authActionSignedOutButton) {
+            authActionSignedOutButton.style.display = "none";
+          }
           if (syncNowButton) syncNowButton.disabled = false;
           if (verifyBackupButton) verifyBackupButton.disabled = false;
           updateUnsavedStatus();
@@ -3552,6 +3566,10 @@
           authActionButton.classList.remove("auth-signed-in");
           authActionButton.classList.add("auth-signed-out");
           authActionButton.style.display = "inline-flex";
+          if (authActionSignedOutButton) {
+            authActionSignedOutButton.textContent = "Sign In";
+            authActionSignedOutButton.style.display = "inline-flex";
+          }
           positionAuthAction();
           authActionButton.style.display = "inline-flex";
           if (syncNowButton) syncNowButton.disabled = true;
@@ -4046,7 +4064,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.904.0",
+          version: "1.905.0",
         };
       };
 
@@ -6084,6 +6102,11 @@
           closeDialog(profileNameDialog);
         });
       }
+      if (authActionSignedOutButton && authActionButton) {
+        authActionSignedOutButton.addEventListener("click", () => {
+          authActionButton.click();
+        });
+      }
       if (editProfileNameButton) {
         editProfileNameButton.addEventListener("click", () => {
           if (!profileNameDialog || !profileNameInput) return;
@@ -6389,6 +6412,18 @@ r));
         }
       }
     </script>
+  
+
+</body></html>
+>
+      // ignore
+        }
+      }
+    </script>
+  
+
+</body></html>
+>
   
 
 </body></html>
