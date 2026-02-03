@@ -411,7 +411,11 @@
 
       .columns-row,
       .auth-row {
-        display: grid !important;
+        display: block;
+      }
+
+      .mobile-action-grid {
+        display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         grid-auto-rows: minmax(36px, auto);
         gap: 8px;
@@ -436,8 +440,8 @@
         box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
       }
 
-      .auth-row .signedout-greeting {
-        grid-column: 1 / -1;
+      .signedout-greeting {
+        width: 100%;
         text-align: center;
       }
 
@@ -2228,17 +2232,16 @@
           </div>
             <div class="header-actions">
               <div class="danger-zone">
-                <div class="columns-row">
+                <div class="mobile-action-grid auth-row">
                   <button class="btn" id="add-column">Add Column</button>
                   <button class="btn" id="toggle-columns">Edit Columns</button>
                   <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
                   <button class="btn" id="leave-blank" type="button">Leave Blank</button>
-                </div>
-                <div class="auth-row">
                   <button class="btn secondary compact" id="sync-now">Sync Now</button>
                   <button class="btn secondary compact" id="auth-action">Sign In</button>
-                  <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
                 </div>
+                <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
+              </div>
               <button class="btn install" id="install-app" style="display:none;">Install App</button>
             </div>
           </div>
@@ -2695,7 +2698,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.919.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-03T16:18:29-05:00";
+      const LAST_COMMIT_DATE = "2026-02-03T16:25:13-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
