@@ -469,7 +469,7 @@
       body[data-auth="signed-out"] .totals-row,
       body[data-auth="signed-out"] .footer-actions,
       body[data-auth="signed-out"] .footer-stats,
-      body[data-auth="signed-out"] .footer-panels > :not(.footer-note),
+      body[data-auth="signed-out"] .footer-panels > :not(.footer-note):not(.footer-version-line),
       body[data-auth="signed-out"] .update-box,
       body[data-auth="signed-out"] .empty-state {
         display: none !important;
@@ -546,6 +546,7 @@
       }
 
       body[data-auth="signed-out"] .auth-row {
+        display: flex;
         flex-direction: column;
         align-items: center;
       }
