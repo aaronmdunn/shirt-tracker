@@ -395,6 +395,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         width: 100%;
+        justify-items: stretch;
       }
 
       .auth-row .btn {
@@ -402,17 +403,18 @@
         padding: 6px 10px;
       }
 
+      .columns-row .btn,
+      .auth-row .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
       .columns-row {
         align-items: center;
-        width: auto;
-        justify-content: flex-end;
-        flex-wrap: nowrap;
       }
 
       .auth-row {
         align-items: center;
-        width: auto;
-        justify-content: flex-end;
       }
 
       .controls {
@@ -425,6 +427,7 @@
         flex-direction: column;
         align-items: center;
         line-height: 1.1;
+        grid-column: 1 / -1;
       }
 
       #share-columns-button .share-columns-sub {
@@ -1298,11 +1301,10 @@
       }
 
       .filter-row {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 16px;
-        align-items: center;
-        justify-content: start;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
         padding: 10px 20px;
         border-bottom: 1px solid var(--line);
         background: #e5e5e5;
@@ -1313,7 +1315,7 @@
         gap: 8px;
         align-items: center;
         justify-content: center;
-        align-self: flex-end;
+        width: 100%;
       }
 
       .filter-center {
