@@ -546,6 +546,30 @@
         margin-top: 10px;
       }
 
+      .signedout-login {
+        display: none;
+        justify-content: center;
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+
+      body[data-auth="signed-out"] .signedout-login {
+        display: flex;
+      }
+
+      .signedout-help {
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .signedout-help a {
+        color: #111111;
+        text-decoration: underline;
+      }
+
       body[data-auth="signed-out"] .header-actions,
       body[data-auth="signed-out"] .danger-zone {
         display: flex !important;
@@ -2070,6 +2094,8 @@
           <h2><span class="logo-letter">A</span></h2>
           <div class="signedout-login">
             <button class="btn secondary" id="auth-action-signedout">Sign In</button>
+            <div class="signedout-help">Please login to continue. You may also <a href="#register" id="register-link">register here</a>.</div>
+            <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
             <div class="header-actions">
               <div class="danger-zone">
@@ -2401,6 +2427,21 @@
       </form>
     </dialog>
 
+    <dialog id="reset-password-dialog">
+      <div class="dialog-body">
+        <h3>Reset Password</h3>
+        <div class="dialog-row">
+          <label for="reset-password-email">Email</label>
+          <input id="reset-password-email" type="email" placeholder="you@email.com">
+        </div>
+        <div class="dialog-row" id="reset-password-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="reset-password-close">Close</button>
+        <button type="button" class="btn" id="reset-password-send">Send Reset Link</button>
+      </div>
+    </dialog>
+
     <dialog id="profile-name-dialog">
       <div class="dialog-body">
         <h3>Profile Name</h3>
@@ -2513,7 +2554,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.905.0";
+      const APP_VERSION = "1.906.0";
       const IS_WEB_BUILD = true;
       const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -2861,6 +2902,13 @@
       const authPasswordInput = document.getElementById("auth-password");
       const authSendButton = document.getElementById("auth-send");
       const authMessage = document.getElementById("auth-message");
+      const registerLink = document.getElementById("register-link");
+      const forgotPasswordLink = document.getElementById("forgot-password-link");
+      const resetPasswordDialog = document.getElementById("reset-password-dialog");
+      const resetPasswordEmailInput = document.getElementById("reset-password-email");
+      const resetPasswordMessage = document.getElementById("reset-password-message");
+      const resetPasswordSendButton = document.getElementById("reset-password-send");
+      const resetPasswordCloseButton = document.getElementById("reset-password-close");
       const profileNameDialog = document.getElementById("profile-name-dialog");
       const profileNameInput = document.getElementById("profile-name-input");
       const profileNameSkipButton = document.getElementById("profile-name-skip");
@@ -6122,6 +6170,46 @@
       if (authActionSignedOutButton && authActionButton) {
         authActionSignedOutButton.addEventListener("click", () => {
           authActionButton.click();
+        });
+      }
+      if (registerLink) {
+        registerLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (authMessage) authMessage.textContent = "Create an account below.";
+          openDialog(authDialog);
+        });
+      }
+      if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          if (resetPasswordMessage) resetPasswordMessage.textContent = "";
+          if (resetPasswordEmailInput) {
+            resetPasswordEmailInput.value = authEmailInput ? authEmailInput.value.trim() : "";
+          }
+          openDialog(resetPasswordDialog);
+        });
+      }
+      if (resetPasswordCloseButton) {
+        resetPasswordCloseButton.addEventListener("click", () => {
+          closeDialog(resetPasswordDialog);
+        });
+      }
+      if (resetPasswordSendButton) {
+        resetPasswordSendButton.addEventListener("click", async () => {
+          if (!supabase) return;
+          const email = resetPasswordEmailInput ? resetPasswordEmailInput.value.trim() : "";
+          if (!email) {
+            if (resetPasswordMessage) resetPasswordMessage.textContent = "Enter your email to continue.";
+            return;
+          }
+          if (resetPasswordMessage) resetPasswordMessage.textContent = "Sending reset link...";
+          const redirectTo = `${window.location.origin}${window.location.pathname}`;
+          const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+          if (resetPasswordMessage) {
+            resetPasswordMessage.textContent = error
+              ? error.message
+              : "Reset link sent. Check your email.";
+          }
         });
       }
       if (editProfileNameButton) {
