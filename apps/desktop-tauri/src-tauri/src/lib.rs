@@ -15,7 +15,7 @@ pub fn run() {
                 MenuItem::with_id(app, "share_csv", "Share Data (CSV)", true, None::<&str>)?;
             let event_log = MenuItem::with_id(app, "event_log", "Event Log", true, None::<&str>)?;
             let icon_credits =
-                MenuItem::with_id(app, "icon_credits", "Icon Credits", true, None::<&str>)?;
+                MenuItem::with_id(app, "icon_credits", "Attributes", true, None::<&str>)?;
             let about_item = MenuItem::with_id(
                 app,
                 "about_shirt_tracker",

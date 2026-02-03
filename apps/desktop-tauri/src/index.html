@@ -6,8 +6,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Shirt Tracker">
     <title>Shirt Tracker</title>
-    <link rel="icon" href="steve.png">
-    <link rel="apple-touch-icon" href="steve.png">
+    <link rel="icon" href="assets/icons/hawaiian-shirt.png">
+    <link rel="apple-touch-icon" href="assets/icons/hawaiian-shirt.png">
     <link rel="manifest" href="manifest.webmanifest">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -213,11 +213,11 @@
         border-radius: 999px;
         font-size: 0.95rem;
         cursor: pointer;
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
       }
 
       button {
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
       }
 
       .btn:active {
@@ -236,14 +236,14 @@
         background: transparent;
         color: var(--accent);
         border: 1px solid var(--accent);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
       }
 
       .btn.install {
         background: #ffffff;
         color: var(--accent);
         border: 2px solid var(--accent);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
         font-weight: 700;
       }
 
@@ -312,6 +312,13 @@
         display: none;
       }
 
+      .signedout-greeting {
+        display: none;
+        font-size: 0.85rem;
+        color: var(--muted);
+        text-align: center;
+      }
+
       .auth-subtitle {
         display: none;
         margin-top: 6px;
@@ -335,11 +342,59 @@
       }
 
       .danger-zone {
+        display: grid;
+        row-gap: 8px;
+        justify-items: end;
+        align-items: center;
+      }
+
+      .header-row {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
+      }
+
+      .columns-row {
+        align-items: center;
+        width: auto;
+        justify-content: flex-end;
+        flex-wrap: nowrap;
+      }
+
+      .auth-row {
+        align-items: center;
+        width: auto;
+        justify-content: flex-end;
+      }
+
+      .controls {
+        width: auto;
+        justify-content: flex-end;
+      }
+
+      #share-columns-button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 1.1;
+      }
+
+      #share-columns-button .share-columns-sub {
+        font-size: 0.6rem;
+        color: #111111;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: none;
+      }
+
+      .danger-zone {
+        align-items: center;
+      }
+
+      .btn.compact {
+        font-size: 0.75rem;
+        padding: 6px 10px;
       }
 
       .btn.danger {
@@ -370,7 +425,7 @@
         background: #ffffff;
         color: #d10000;
         border: 2px solid #d10000;
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
         font-weight: 700;
       }
 
@@ -382,7 +437,7 @@
         background: #ffffff;
         color: #0a7a2f;
         border: 2px solid #0a7a2f;
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.18);
         font-weight: 700;
       }
 
@@ -754,6 +809,10 @@
         align-items: center;
       }
 
+      .public-share-settings .public-share-actions {
+        flex-wrap: wrap;
+      }
+
       .public-share-input {
         flex: 1;
         min-width: 0;
@@ -765,7 +824,41 @@
         text-align: center;
       }
 
+
+      .share-columns-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 12px;
+        font-size: 0.9rem;
+      }
+
+      .share-columns-list {
+        display: grid;
+        gap: 6px;
+        max-height: 220px;
+        overflow: auto;
+        padding: 6px 0;
+      }
+
+      .share-columns-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.88rem;
+      }
+
+      .share-columns-note {
+        font-size: 0.75rem;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+
       body[data-viewer="true"] .public-share-row {
+        display: none;
+      }
+
+      body[data-viewer="true"] .public-share-settings {
         display: none;
       }
 
@@ -786,6 +879,13 @@
         flex-direction: column;
         align-items: stretch;
         margin-top: 6px;
+      }
+
+      .danger-disclaimer {
+        margin-top: 6px;
+        font-size: 0.7rem;
+        color: var(--muted);
+        text-align: center;
       }
 
       #verify-backup {
@@ -892,13 +992,30 @@
       }
 
       .filter-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 16px;
+        align-items: center;
+        justify-content: start;
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--line);
+        background: #e5e5e5;
+      }
+
+      .top-table-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: flex-start;
+        align-self: flex-end;
+      }
+
+      .filter-center {
         display: flex;
         gap: 16px;
         align-items: center;
         justify-content: center;
-        padding: 10px 20px;
-        border-bottom: 1px solid var(--line);
-        background: #e5e5e5;
+        width: 100%;
       }
 
       .viewer-banner {
@@ -1064,8 +1181,13 @@
 
       @media (max-width: 980px) {
         .filter-row {
-          flex-direction: column;
+          grid-template-columns: 1fr;
           align-items: stretch;
+          justify-items: stretch;
+        }
+
+        .filter-center {
+          flex-direction: column;
         }
 
         .filter-bar {
@@ -1290,6 +1412,14 @@
         gap: 10px;
       }
 
+      body[data-auth="signed-out"] .sheet-header h2 {
+        margin-bottom: 14px;
+      }
+
+      body[data-auth="signed-out"] .logo-letter {
+        margin-bottom: 10px;
+      }
+
       body[data-auth="signed-out"] .header-actions {
         width: 100%;
         justify-content: center;
@@ -1297,7 +1427,19 @@
 
       body[data-auth="signed-out"] .danger-zone {
         justify-content: center;
+        align-items: center;
         width: 100%;
+        justify-items: center;
+      }
+
+      body[data-auth="signed-out"] .auth-row {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      body[data-auth="signed-out"] .signedout-greeting {
+        display: block;
+        margin-top: 10px;
       }
 
       body[data-auth="signed-out"] .footer-panels {
@@ -1310,7 +1452,11 @@
         margin-right: auto;
       }
 
-      body[data-auth="signed-out"] .danger-zone > :not(#auth-action) {
+      body[data-auth="signed-out"] .columns-row {
+        display: none !important;
+      }
+
+      body[data-auth="signed-out"] .auth-row > :not(#auth-action):not(.signedout-greeting) {
         display: none !important;
       }
 
@@ -1653,7 +1799,6 @@
               <img class="title-icon" src="./assets/icons/hawaiian-shirt.png" alt="Hawaiian shirt">
             </h1>
             <p id="app-subtitle">Aaron's Shirt Inventory as of not updated yet</p>
-            <p class="auth-subtitle">Please sign in to continue.</p>
             </div>
           </div>
       </div>
@@ -1664,16 +1809,18 @@
         <div class="sheet-header">
           <h2><span class="logo-letter">A</span></h2>
             <div class="header-actions">
-              <div class="controls">
-                <button class="btn" id="go-bottom">Go to Bottom</button>
-                <button class="btn" id="add-row">Add Row</button>
-              </div>
               <div class="danger-zone">
-                <span id="viewer-badge">View Only</span>
-                <button class="btn" id="add-column">Add Column</button>
-                <button class="btn" id="toggle-columns">Edit Columns</button>
-                <button class="btn secondary" id="sync-now">Sync Now</button>
-                <button class="btn secondary" id="auth-action">Sign In</button>
+                <div class="header-row columns-row">
+                  <span id="viewer-badge">View Only</span>
+                  <button class="btn" id="add-column">Add Column</button>
+                  <button class="btn" id="toggle-columns">Edit Columns</button>
+                  <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
+                </div>
+                <div class="header-row auth-row">
+                  <button class="btn secondary compact" id="sync-now">Sync Now</button>
+                  <button class="btn secondary compact" id="auth-action">Sign In</button>
+                  <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
+                </div>
               <button class="btn install" id="install-app" style="display:none;">Install App</button>
             </div>
           </div>
@@ -1779,14 +1926,20 @@
           <button class="btn" id="find-close">Close</button>
         </div>
         <div class="filter-row">
-          <div class="filter-bar">
-            <label for="filter-query">Filter</label>
-            <select id="filter-column"><option value="all">All Columns</option><option value="7ae82df2-d187-4885-8739-edf614480817">Condition</option><option value="0e43448b-f944-40d0-a4ac-b0e07bd8263a">Shirt Name</option><option value="b250c993-937e-4d3b-b608-5a7faff06d81">Size</option><option value="ee411b9b-f360-4407-bff2-986c4bfdaff2">Brand</option><option value="b7e1f2f1-3177-41b8-8730-c34ef1b754c0">Fandom</option><option value="c024056d-45c3-4d99-84e6-eb2277172b4a">Type</option><option value="6734c2f0-2e20-46e6-82dc-0f781c63563b">Price</option><option value="c3edc82a-84cb-44c9-9e8a-01c22f7f7af5">Preview</option><option value="e2aa0ffa-bdcc-43fe-9bb8-eba7c52b2d93">Notes</option></select>
-            <input id="filter-query" type="text" placeholder="Type to filter">
-            <button class="btn" id="clear-filter">Reset Filters</button>
+          <div class="top-table-actions">
+            <button class="btn" id="go-bottom">Go to Bottom</button>
+            <button class="btn" id="add-row">Add Row</button>
           </div>
-          <div class="tab-logo-panel" id="tab-logo-panel"></div>
-          <input type="file" id="tab-logo-upload" accept="image/*" style="display:none;">
+          <div class="filter-center">
+            <div class="filter-bar">
+              <label for="filter-query">Filter</label>
+              <select id="filter-column"><option value="all">All Columns</option><option value="7ae82df2-d187-4885-8739-edf614480817">Condition</option><option value="0e43448b-f944-40d0-a4ac-b0e07bd8263a">Shirt Name</option><option value="b250c993-937e-4d3b-b608-5a7faff06d81">Size</option><option value="ee411b9b-f360-4407-bff2-986c4bfdaff2">Brand</option><option value="b7e1f2f1-3177-41b8-8730-c34ef1b754c0">Fandom</option><option value="c024056d-45c3-4d99-84e6-eb2277172b4a">Type</option><option value="6734c2f0-2e20-46e6-82dc-0f781c63563b">Price</option><option value="c3edc82a-84cb-44c9-9e8a-01c22f7f7af5">Preview</option><option value="e2aa0ffa-bdcc-43fe-9bb8-eba7c52b2d93">Notes</option></select>
+              <input id="filter-query" type="text" placeholder="Type to filter">
+              <button class="btn" id="clear-filter">Reset Filters</button>
+            </div>
+            <div class="tab-logo-panel" id="tab-logo-panel"></div>
+            <input type="file" id="tab-logo-upload" accept="image/*" style="display:none;">
+          </div>
         </div>
         <div class="empty-state" id="empty-state"></div>
         <div style="overflow-x:auto;">
@@ -1823,8 +1976,8 @@
           <div class="footer-panels">
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
-              This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission.
-              App created using GPT-5.2-Codex via OpenCode.
+              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
             </div>
             <div class="update-box">
               <div class="update-title">Update Log</div>
@@ -1849,6 +2002,12 @@
                   <button class="btn secondary" id="copy-share-link">Copy</button>
                 </div>
               </div>
+              <div class="public-share-row">
+                <label for="edit-profile-name">Profile</label>
+                <div class="public-share-actions">
+                  <button class="btn secondary" id="edit-profile-name" type="button">Edit Profile Name</button>
+                </div>
+              </div>
             </div>
             <div class="danger-box">
               <div class="danger-title">Danger Zone</div>
@@ -1856,6 +2015,7 @@
                 <button class="btn danger" id="clear-all">🛑 Clear All</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
               </div>
+              <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
           </div>
         </div>
@@ -1946,7 +2106,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.890 beta</div>
+        <div>Shirt Tracker v1.902 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
       </div>
@@ -1956,21 +2116,8 @@
     </dialog>
     <dialog id="icon-credits-dialog" class="about-dialog">
       <div class="dialog-body">
-        <h3>Icon Credits</h3>
-        <div class="credits-list">
-          <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack icons created by Syahrul Hidayatullah - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear icons created by Smashicons - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie icons created by Freepik - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt icons created by Victoruler - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt icons created by AmethystDesign - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat icons created by Smashicons - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka icons created by Smashicons - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes icons created by ultimatearm - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment icons created by Syahrul Hidayatullah - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt icons created by Freepik - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock icons created by surang - Flaticon</a>
-          <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie icons created by Vectoricons - Flaticon</a>
-        </div>
+        <h3>Attributes</h3>
+        <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="icon-credits-close">Close</button>
@@ -1999,6 +2146,49 @@
           <button type="submit" class="btn" id="auth-verify">Sign In</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="profile-name-dialog">
+      <div class="dialog-body">
+        <h3>Profile Name</h3>
+        <div class="dialog-row">
+          <label for="profile-name-input">Display name (optional)</label>
+          <input id="profile-name-input" type="text" placeholder="How should your name appear?">
+        </div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.8rem;">
+          You can skip this and add a name later.
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="profile-name-skip">Skip</button>
+        <button type="button" class="btn" id="profile-name-save">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="share-columns-dialog">
+      <div class="dialog-body">
+        <h3>Shared Columns</h3>
+        <div class="share-columns-controls">
+          <label>
+            <input type="radio" name="share-columns-mode" value="auto">
+            Default (hide price)
+          </label>
+          <label>
+            <input type="radio" name="share-columns-mode" value="all">
+            Share all columns
+          </label>
+          <label>
+            <input type="radio" name="share-columns-mode" value="custom">
+            Choose columns
+          </label>
+        </div>
+        <div class="share-columns-list" id="share-columns-list"></div>
+        <div class="share-columns-note">Controls what appears in your shared link.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
+        <button type="button" class="btn" id="share-columns-save">Save</button>
+      </div>
     </dialog>
 
     <dialog id="event-log-dialog">
@@ -2070,7 +2260,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.890.0";
+      const APP_VERSION = "1.902.0";
       const IS_WEB_BUILD = false;
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
@@ -2136,6 +2326,7 @@
       let currentUser = null;
       let publicShareToken = "";
       let publicShareLoaded = false;
+      let publicShareVisibility = { mode: "auto", columnIds: [] };
       let isViewerSession = false;
       let syncTimer = null;
       let isSyncing = false;
@@ -2352,6 +2543,13 @@
       const unsavedStatusText = document.getElementById("unsaved-status");
       const publicShareLinkInput = document.getElementById("public-share-link");
       const copyShareLinkButton = document.getElementById("copy-share-link");
+      const shareColumnsButton = document.getElementById("share-columns-button");
+      const shareColumnsSummary = document.getElementById("share-columns-summary");
+      const shareColumnsDialog = document.getElementById("share-columns-dialog");
+      const shareColumnsList = document.getElementById("share-columns-list");
+      const shareColumnsCancel = document.getElementById("share-columns-cancel");
+      const shareColumnsSave = document.getElementById("share-columns-save");
+      const editProfileNameButton = document.getElementById("edit-profile-name");
       const toggleColumnsButton = document.getElementById("toggle-columns");
       const clearAllButton = document.getElementById("clear-all");
       const undoClearButton = document.getElementById("undo-clear");
@@ -2404,6 +2602,10 @@
       const authPasswordInput = document.getElementById("auth-password");
       const authSendButton = document.getElementById("auth-send");
       const authMessage = document.getElementById("auth-message");
+      const profileNameDialog = document.getElementById("profile-name-dialog");
+      const profileNameInput = document.getElementById("profile-name-input");
+      const profileNameSkipButton = document.getElementById("profile-name-skip");
+      const profileNameSaveButton = document.getElementById("profile-name-save");
       const eventLogDialog = document.getElementById("event-log-dialog");
       const eventLogList = document.getElementById("event-log-list");
       const eventLogEmpty = document.getElementById("event-log-empty");
@@ -2860,6 +3062,8 @@
         }
         if (currentUser) {
           document.body.setAttribute("data-auth", "signed-in");
+          state.readOnly = false;
+          clearReadOnlyMode();
           authActionButton.textContent = "Sign Out";
           authActionButton.classList.remove("auth-signed-out");
           authActionButton.classList.add("auth-signed-in");
@@ -2868,6 +3072,8 @@
           if (verifyBackupButton) verifyBackupButton.disabled = false;
           updateUnsavedStatus();
           updatePublicShareLink();
+          updatePublicShareSummary();
+          maybePromptProfileName();
         } else {
           document.body.setAttribute("data-auth", "signed-out");
           authActionButton.textContent = "Sign In";
@@ -2878,15 +3084,37 @@
           if (verifyBackupButton) verifyBackupButton.disabled = true;
           updateUnsavedStatus();
           updatePublicShareLink();
+          updatePublicShareSummary();
           applySignedOutState();
         }
       };
 
       const applyViewerRedactions = () => {
         if (!isViewerSession) return;
+        const visibility = publicShareVisibility || { mode: "auto", columnIds: [] };
         const priceColumn = state.columns.find(
           (column) => getColumnLabel(column).trim().toLowerCase() === "price"
         );
+        if (visibility.mode === "custom") {
+          const allowed = new Set(visibility.columnIds || []);
+          state.columns = state.columns.filter((column) => allowed.has(column.id));
+          state.rows.forEach((row) => {
+            if (!row.cells) return;
+            Object.keys(row.cells).forEach((key) => {
+              if (!allowed.has(key)) delete row.cells[key];
+            });
+          });
+          if (Array.isArray(globalColumns)) {
+            globalColumns = globalColumns.filter((column) => allowed.has(column.id));
+          }
+          if (priceColumn && !allowed.has(priceColumn.id) && totalCostEl) {
+            totalCostEl.style.display = "none";
+          }
+          return;
+        }
+        if (visibility.mode === "all") {
+          return;
+        }
         if (priceColumn) {
           state.columns = state.columns.filter((column) => column.id !== priceColumn.id);
           state.rows.forEach((row) => {
@@ -3080,6 +3308,168 @@
         } catch (error) {
           // ignore
         }
+      };
+
+      const normalizePublicShareVisibility = (value) => {
+        if (!value || typeof value !== "object") {
+          return { mode: "auto", columnIds: [] };
+        }
+        const mode = ["auto", "all", "custom"].includes(value.mode)
+          ? value.mode
+          : "auto";
+        const columnIds = Array.isArray(value.columnIds)
+          ? value.columnIds.filter(Boolean)
+          : [];
+        return { mode, columnIds };
+      };
+
+      const loadPublicShareVisibility = () => {
+        if (!canUseLocalStorage()) return { mode: "auto", columnIds: [] };
+        try {
+          const stored = localStorage.getItem(PUBLIC_SHARE_VISIBILITY_KEY);
+          return normalizePublicShareVisibility(stored ? JSON.parse(stored) : null);
+        } catch (error) {
+          return { mode: "auto", columnIds: [] };
+        }
+      };
+
+      const savePublicShareVisibility = (value) => {
+        if (!canUseLocalStorage()) return;
+        try {
+          localStorage.setItem(
+            PUBLIC_SHARE_VISIBILITY_KEY,
+            JSON.stringify(normalizePublicShareVisibility(value))
+          );
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      const getShareableColumns = () => {
+        const columns = Array.isArray(globalColumns) && globalColumns.length
+          ? globalColumns
+          : state.columns;
+        return columns.map((column) => ({
+          id: column.id,
+          label: getColumnLabel(column),
+          isPrice: getColumnLabel(column).trim().toLowerCase() === "price",
+        }));
+      };
+
+      const updatePublicShareSummary = () => {
+        if (!shareColumnsButton) return;
+        const setShareColumnsButtonLabel = (main, sub) => {
+          const mainSpan = document.createElement("span");
+          mainSpan.className = "share-columns-label";
+          mainSpan.textContent = main;
+          const subSpan = document.createElement("span");
+          subSpan.className = "share-columns-sub";
+          subSpan.textContent = sub;
+          shareColumnsButton.innerHTML = "";
+          shareColumnsButton.appendChild(mainSpan);
+          shareColumnsButton.appendChild(subSpan);
+        };
+        if (!currentUser || isViewerSession) {
+          setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+          if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          return;
+        }
+        const columns = getShareableColumns();
+        const total = columns.length;
+        if (!total) {
+          setShareColumnsButtonLabel("Choose Columns", "Selected: None");
+          if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          return;
+        }
+        if (publicShareVisibility.mode === "all") {
+          setShareColumnsButtonLabel("Choose Columns", "Selected: All");
+          if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          return;
+        }
+        if (publicShareVisibility.mode === "custom") {
+          const selected = new Set(publicShareVisibility.columnIds || []);
+          const count = columns.filter((column) => selected.has(column.id)).length;
+          setShareColumnsButtonLabel("Choose Columns", `Selected: ${count}/${total}`);
+          if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          return;
+        }
+        setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+        if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+      };
+
+      const renderShareColumnsDialog = () => {
+        if (!shareColumnsList) return;
+        const columns = getShareableColumns();
+        const mode = publicShareVisibility.mode || "auto";
+        const selected = new Set(
+          mode === "custom"
+            ? publicShareVisibility.columnIds || []
+            : columns.filter((column) => !column.isPrice).map((column) => column.id)
+        );
+        const inputs = shareColumnsDialog
+          ? shareColumnsDialog.querySelectorAll("input[name=share-columns-mode]")
+          : [];
+        inputs.forEach((input) => {
+          input.checked = input.value === mode;
+        });
+        shareColumnsList.innerHTML = "";
+        columns.forEach((column) => {
+          const item = document.createElement("label");
+          item.className = "share-columns-item";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = column.id;
+          checkbox.checked = selected.has(column.id);
+          checkbox.disabled = mode !== "custom";
+          item.appendChild(checkbox);
+          const text = document.createElement("span");
+          text.textContent = column.label;
+          item.appendChild(text);
+          shareColumnsList.appendChild(item);
+        });
+      };
+
+      const getSelectedShareMode = () => {
+        if (!shareColumnsDialog) return "auto";
+        const inputs = shareColumnsDialog.querySelectorAll("input[name=share-columns-mode]");
+        let mode = "auto";
+        inputs.forEach((input) => {
+          if (input.checked) mode = input.value;
+        });
+        return mode;
+      };
+
+      const updateShareColumnsCheckboxes = () => {
+        if (!shareColumnsList) return;
+        const mode = getSelectedShareMode();
+        const disabled = mode !== "custom";
+        shareColumnsList.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
+          checkbox.disabled = disabled;
+        });
+      };
+
+      const openShareColumnsDialog = () => {
+        if (!shareColumnsDialog) return;
+        renderShareColumnsDialog();
+        openDialog(shareColumnsDialog);
+      };
+
+      const saveShareColumnsSelection = () => {
+        if (!shareColumnsDialog) return;
+        const mode = getSelectedShareMode();
+        const selected = [];
+        if (mode === "custom" && shareColumnsList) {
+          shareColumnsList.querySelectorAll("input[type=checkbox]").forEach((checkbox) => {
+            if (checkbox.checked) selected.push(checkbox.value);
+          });
+        }
+        publicShareVisibility = { mode, columnIds: selected };
+        savePublicShareVisibility(publicShareVisibility);
+        updatePublicShareSummary();
+        if (currentUser && supabase && !isViewerSession) {
+          syncToSupabase();
+        }
+        closeDialog(shareColumnsDialog);
       };
 
       const buildPublicShareLink = (token) => {
@@ -3314,12 +3704,49 @@
         return date.toISOString().slice(0, 10);
       };
 
+      const getUserDisplayName = () => {
+        if (!currentUser) return "";
+        const meta = currentUser.user_metadata || {};
+        const name = meta.full_name || meta.name || meta.display_name || "";
+        return String(name || "").trim();
+      };
+
+      const hasPromptedProfileName = () => {
+        if (!canUseLocalStorage()) return false;
+        try {
+          return localStorage.getItem(PROFILE_NAME_PROMPT_KEY) === "true";
+        } catch (error) {
+          return false;
+        }
+      };
+
+      const setPromptedProfileName = () => {
+        if (!canUseLocalStorage()) return;
+        try {
+          localStorage.setItem(PROFILE_NAME_PROMPT_KEY, "true");
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      const maybePromptProfileName = () => {
+        if (!supabase || !currentUser || isViewerSession) return;
+        if (getUserDisplayName()) return;
+        if (hasPromptedProfileName()) return;
+        if (!profileNameDialog || !profileNameInput) return;
+        profileNameInput.value = "";
+        openDialog(profileNameDialog);
+      };
+
       const updateHeaderSubtitle = () => {
         if (!appSubtitleEl) return;
         const dateValue = shirtUpdateTimestamp
           ? formatDateOnly(shirtUpdateTimestamp)
           : "not updated yet";
-        appSubtitleEl.textContent = `Aaron's Shirt Inventory as of ${dateValue}`;
+        const displayName = getUserDisplayName();
+        appSubtitleEl.textContent = displayName
+          ? `${displayName}'s Shirt Inventory as of ${dateValue}`
+          : `Shirt Inventory as of ${dateValue}`;
       };
 
       const buildCloudPayload = () => {
@@ -3343,7 +3770,8 @@
           globalColumns,
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
-          version: "1.890.0",
+          publicShareVisibility,
+          version: "1.902.0",
         };
       };
 
@@ -3372,6 +3800,11 @@
         }
         if (payload.publicShareId) {
           savePublicShareId(payload.publicShareId);
+        }
+        if (payload.publicShareVisibility) {
+          publicShareVisibility = normalizePublicShareVisibility(payload.publicShareVisibility);
+          savePublicShareVisibility(publicShareVisibility);
+          updatePublicShareSummary();
         }
         if (payload.columnOverrides) {
           columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
@@ -3718,8 +4151,35 @@
           if (input.id === "filter-column" || input.id === "filter-query") {
             return;
           }
+          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
+            return;
+          }
           input.disabled = true;
           input.setAttribute("aria-disabled", "true");
+        });
+      };
+
+      const clearReadOnlyMode = () => {
+        document.body.removeAttribute("data-readonly");
+        const controls = document.querySelectorAll(
+          "#add-column, #add-row, #clear-all"
+        );
+        controls.forEach((button) => {
+          button.disabled = false;
+          button.removeAttribute("aria-disabled");
+          button.style.pointerEvents = "";
+          button.style.opacity = "";
+        });
+        const inputs = document.querySelectorAll("input, select, textarea, button.btn-icon");
+        inputs.forEach((input) => {
+          if (input.id === "filter-column" || input.id === "filter-query") {
+            return;
+          }
+          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
+            return;
+          }
+          input.disabled = false;
+          input.removeAttribute("aria-disabled");
         });
       };
 
@@ -4284,7 +4744,9 @@
       const FLANNEL_ICON_SRC = "assets/icons/flannel.png";
       const TYPE_ICON_STORAGE_KEY = "shirts-type-icon-map";
       const PUBLIC_SHARE_KEY = "shirts-public-share-id";
-      const PUBLIC_SHARE_BASE_URL = "https://shirttracker.netlify.app/";
+      const PUBLIC_SHARE_VISIBILITY_KEY = "shirts-public-share-visibility-v1";
+      const PUBLIC_SHARE_BASE_URL = "https://shirt-tracker.com/";
+      const PROFILE_NAME_PROMPT_KEY = "shirts-profile-name-prompted";
       const TYPE_ICON_DEFAULTS = {
         "four-way stretch blend": "assets/icons/shirt.png",
         "bottleblend": "assets/icons/shirt.png",
@@ -5025,6 +5487,8 @@
       }
 
       publicShareToken = getShareTokenFromUrl();
+      publicShareVisibility = loadPublicShareVisibility();
+      updatePublicShareSummary();
 
       if (supabase) {
         if (publicShareToken) {
@@ -5307,6 +5771,65 @@
         }
         closeDialog(authDialog);
       });
+
+      if (profileNameSkipButton) {
+        profileNameSkipButton.addEventListener("click", () => {
+          setPromptedProfileName();
+          closeDialog(profileNameDialog);
+        });
+      }
+      if (profileNameSaveButton) {
+        profileNameSaveButton.addEventListener("click", async () => {
+          if (!supabase || !currentUser) {
+            closeDialog(profileNameDialog);
+            return;
+          }
+          const name = profileNameInput ? profileNameInput.value.trim() : "";
+          if (!name) {
+            setPromptedProfileName();
+            closeDialog(profileNameDialog);
+            return;
+          }
+          await supabase.auth.updateUser({ data: { full_name: name } });
+          currentUser.user_metadata = {
+            ...(currentUser.user_metadata || {}),
+            full_name: name,
+          };
+          updateHeaderSubtitle();
+          setPromptedProfileName();
+          closeDialog(profileNameDialog);
+        });
+      }
+      if (editProfileNameButton) {
+        editProfileNameButton.addEventListener("click", () => {
+          if (!profileNameDialog || !profileNameInput) return;
+          profileNameInput.value = getUserDisplayName() || "";
+          openDialog(profileNameDialog);
+        });
+      }
+
+      if (shareColumnsButton) {
+        shareColumnsButton.addEventListener("click", () => {
+          openShareColumnsDialog();
+        });
+      }
+      if (shareColumnsCancel) {
+        shareColumnsCancel.addEventListener("click", () => {
+          closeDialog(shareColumnsDialog);
+        });
+      }
+      if (shareColumnsSave) {
+        shareColumnsSave.addEventListener("click", () => {
+          saveShareColumnsSelection();
+        });
+      }
+      if (shareColumnsDialog) {
+        shareColumnsDialog.addEventListener("change", (event) => {
+          if (event.target && event.target.name === "share-columns-mode") {
+            updateShareColumnsCheckboxes();
+          }
+        });
+      }
 
       tabLogoUpload.addEventListener("change", () => {
         const file = tabLogoUpload.files && tabLogoUpload.files[0];
@@ -5615,6 +6138,36 @@
           // ignore
         }
       }
+    </script>
+  
+
+</body></html>
+e();
+      renderTabs();
+      if (tabsState.activeTabId) {
+        const existing = (() => {
+          try {
+            return localStorage.getItem(getStorageKey(tabsState.activeTabId));
+          } catch (error) {
+            return null;
+          }
+        })();
+        if (!existing) {
+          saveState();
+        }
+      }
+      } catch (error) {
+        try {
+          showFatalError(error?.message || String(error));
+        } catch (_error) {
+          // ignore
+        }
+      }
+    </script>
+  
+
+</body></html>
+
     </script>
   
 
