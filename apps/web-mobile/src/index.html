@@ -377,8 +377,9 @@
 
       .danger-zone {
         display: grid;
-        row-gap: 10px;
-        justify-items: center;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 12px;
+        justify-items: stretch;
         align-items: center;
       }
 
@@ -391,11 +392,7 @@
 
       .columns-row,
       .auth-row {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px 12px;
-        width: 100%;
-        justify-items: stretch;
+        display: contents;
       }
 
       .auth-row .btn {
@@ -412,6 +409,42 @@
         font-weight: 700;
         letter-spacing: 0.01em;
         box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+      }
+
+      #add-column {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      #toggle-columns {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      #share-columns-button {
+        grid-column: 1;
+        grid-row: 2;
+      }
+
+      #leave-blank {
+        grid-column: 2;
+        grid-row: 2;
+      }
+
+      #sync-now {
+        grid-column: 1;
+        grid-row: 3;
+      }
+
+      #auth-action {
+        grid-column: 2;
+        grid-row: 3;
+      }
+
+      .signedout-greeting {
+        grid-column: 1 / -1;
+        grid-row: 4;
+        text-align: center;
       }
 
       .header-actions .btn {
@@ -2183,6 +2216,7 @@
                   <button class="btn" id="add-column">Add Column</button>
                   <button class="btn" id="toggle-columns">Edit Columns</button>
                   <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
+                  <button class="btn" id="leave-blank" type="button">Leave Blank</button>
                 </div>
                 <div class="header-row auth-row">
                   <button class="btn secondary compact" id="sync-now">Sync Now</button>
@@ -2380,9 +2414,8 @@
             </div>
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
-              <p><a href="#" id="attributes-link">Attributes</a></p>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. This is a personal project made out of love for shirts.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found <a href="#" id="attributes-link">here</a>. This is a personal project made out of love for shirts.</p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
           </div>
@@ -2474,7 +2507,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.913 beta</div>
+        <div>Shirt Tracker v1.915 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2644,7 +2677,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.913.0";
+      const APP_VERSION = "1.915.0";
       const IS_WEB_BUILD = true;
       const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -4193,7 +4226,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.913.0",
+          version: "1.915.0",
         };
       };
 

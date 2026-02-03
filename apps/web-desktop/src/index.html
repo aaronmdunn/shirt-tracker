@@ -2279,7 +2279,7 @@
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found <a href="#" id="attributes-link">here</a>. This is a personal project made out of love for shirts.</p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
             <div class="update-box">
@@ -2410,13 +2410,22 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.913 beta</div>
+        <div>Shirt Tracker v1.915 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="about-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="icon-credits-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Attributes</h3>
+        <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="icon-credits-close">Close</button>
       </div>
     </dialog>
 
@@ -2571,7 +2580,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.913.0";
+      const APP_VERSION = "1.915.0";
       const IS_WEB_BUILD = true;
       const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -2878,6 +2887,9 @@
       const shirtUpdateDateInput = document.getElementById("shirt-update-date");
       const appUpdateDateInput = document.getElementById("app-update-date");
       const footerVersionLine = document.getElementById("footer-version-line");
+      const iconCreditsDialog = document.getElementById("icon-credits-dialog");
+      const iconCreditsCloseButton = document.getElementById("icon-credits-close");
+      const attributesLink = document.getElementById("attributes-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -4117,7 +4129,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.913.0",
+          version: "1.915.0",
         };
       };
 
@@ -6028,6 +6040,19 @@
       aboutCloseButton.addEventListener("click", () => {
         closeDialog(aboutDialog);
       });
+
+      if (attributesLink && iconCreditsDialog) {
+        attributesLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(iconCreditsDialog);
+        });
+      }
+
+      if (iconCreditsCloseButton) {
+        iconCreditsCloseButton.addEventListener("click", () => {
+          closeDialog(iconCreditsDialog);
+        });
+      }
 
       authActionButton.addEventListener("click", () => {
         if (currentUser) {
