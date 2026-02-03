@@ -405,10 +405,13 @@
 
       .columns-row,
       .auth-row {
-        display: grid;
+        display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(36px, auto);
         gap: 8px;
         width: 100%;
+        align-items: stretch;
+        justify-items: stretch;
       }
 
       .auth-row .btn {
@@ -2219,13 +2222,13 @@
           </div>
             <div class="header-actions">
               <div class="danger-zone">
-                <div class="header-row columns-row">
+                <div class="columns-row">
                   <button class="btn" id="add-column">Add Column</button>
                   <button class="btn" id="toggle-columns">Edit Columns</button>
                   <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
                   <button class="btn" id="leave-blank" type="button">Leave Blank</button>
                 </div>
-                <div class="header-row auth-row">
+                <div class="auth-row">
                   <button class="btn secondary compact" id="sync-now">Sync Now</button>
                   <button class="btn secondary compact" id="auth-action">Sign In</button>
                   <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
@@ -2686,7 +2689,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.919.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-03T15:56:20-05:00";
+      const LAST_COMMIT_DATE = "2026-02-03T16:09:31-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
