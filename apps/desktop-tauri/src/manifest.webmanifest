@@ -7,7 +7,7 @@
   "theme_color": "#0a0a0a",
   "icons": [
     {
-      "src": "steve.png",
+      "src": "assets/icons/hawaiian-shirt.png",
       "sizes": "512x512",
       "type": "image/png"
     }
