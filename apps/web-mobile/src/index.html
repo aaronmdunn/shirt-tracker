@@ -555,6 +555,7 @@
         font-size: 0.75rem;
         color: var(--muted);
         text-align: center;
+        font-family: "Work Sans", "Trebuchet MS", sans-serif;
       }
 
       .signedout-help a {
@@ -618,10 +619,6 @@
       }
 
       body[data-auth="signed-out"] .footer-version-line {
-        display: block;
-      }
-
-      body[data-auth="signed-out"] .footer-note .footer-version-line {
         display: block;
       }
 
@@ -1295,7 +1292,7 @@
         display: flex;
         gap: 8px;
         align-items: center;
-        justify-content: flex-start;
+        justify-content: center;
         align-self: flex-end;
       }
 
@@ -1369,6 +1366,15 @@
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
         margin-left: auto;
         margin-right: auto;
+      }
+
+      .footer-version-line {
+        display: block;
+        margin-top: 8px;
+        font-size: inherit;
+        color: var(--muted);
+        text-align: center;
+        font-family: inherit;
       }
 
       .footer-note .legal-title {
@@ -1975,11 +1981,24 @@
           transform: scale(1.15);
         }
 
-        .header-actions {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 12px;
-        }
+      .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      .columns-row,
+      .auth-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+      }
+
+      .auth-row .btn {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+      }
 
         .controls .btn,
         .danger-zone .btn,
@@ -1999,10 +2018,21 @@
           margin-top: 8px;
         }
 
-        .filter-row {
-          flex-direction: column;
-          align-items: stretch;
-        }
+      .filter-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+        justify-items: stretch;
+      }
+
+      .filter-center {
+        order: 1;
+      }
+
+      .top-table-actions {
+        order: 2;
+        justify-content: center;
+        align-self: center;
+      }
 
         .filter-bar {
           width: 100%;
@@ -2192,10 +2222,6 @@
           </div></div></div>
         <div class="tab-bar" id="tab-bar"></div>
         <div class="filter-row">
-          <div class="top-table-actions">
-            <button class="btn" id="go-bottom">Go to Bottom</button>
-            <button class="btn" id="add-row">Add Row</button>
-          </div>
           <div class="filter-center">
             <div class="filter-bar">
               <label for="filter-query">Filter</label>
@@ -2204,6 +2230,10 @@
               <button class="btn" id="clear-filter">Reset Filters</button>
             </div>
             <div class="tab-logo-panel" id="tab-logo-panel"></div>
+          </div>
+          <div class="top-table-actions">
+            <button class="btn" id="go-bottom">Go to Bottom</button>
+            <button class="btn" id="add-row">Add Row</button>
           </div>
         </div>
         <div class="empty-state" id="empty-state"></div>
@@ -2243,12 +2273,6 @@
           <div class="footer-stats" id="footer-stats">
           </div>
           <div class="footer-panels">
-            <div class="footer-note">
-              <span class="legal-title">The Legal Stuff</span>
-              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
-              <div class="footer-version-line" id="footer-version-line"></div>
-            </div>
             <div class="update-box">
               <div class="update-title">Update Log</div>
               <div class="update-row">
@@ -2287,6 +2311,12 @@
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
+            </div>
+            <div class="footer-note">
+              <span class="legal-title">The Legal Stuff</span>
+              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
+              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
+              <div class="footer-version-line" id="footer-version-line"></div>
             </div>
           </div>
         </div>
@@ -2377,7 +2407,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.905 beta</div>
+        <div>Shirt Tracker v1.908 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2538,7 +2568,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.906.0";
+      const APP_VERSION = "1.908.0";
       const IS_WEB_BUILD = true;
       const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -4112,7 +4142,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.905.0",
+          version: "1.908.0",
         };
       };
 
