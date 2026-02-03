@@ -348,11 +348,17 @@
 
       .sheet-header {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
+        justify-content: center;
+        align-items: stretch;
+        gap: 12px;
         padding: 16px 20px;
         border-bottom: 1px solid var(--line);
         background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+      }
+
+      .sheet-header h2 {
+        text-align: center;
       }
 
       .header-actions {
