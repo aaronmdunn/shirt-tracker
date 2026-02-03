@@ -6249,28 +6249,6 @@
     </script>
   
 
-</body></html>
-e();
-      renderTabs();
-      if (tabsState.activeTabId) {
-        const existing = (() => {
-          try {
-            return localStorage.getItem(getStorageKey(tabsState.activeTabId));
-          } catch (error) {
-            return null;
-          }
-        })();
-        if (!existing) {
-          saveState();
-        }
-      }
-      } catch (error) {
-        try {
-          showFatalError(error?.message || String(error));
-        } catch (_error) {
-          // ignore
-        }
-      }
     </script>
   
 

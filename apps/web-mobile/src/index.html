@@ -382,6 +382,19 @@
         flex-wrap: wrap;
       }
 
+      .columns-row,
+      .auth-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
+      }
+
+      .auth-row .btn {
+        font-size: 0.75rem;
+        padding: 6px 10px;
+      }
+
       .columns-row {
         align-items: center;
         width: auto;
@@ -739,7 +752,7 @@
 
       .tab-grid {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 8px;
         justify-items: center;
       }
