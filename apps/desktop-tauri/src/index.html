@@ -1130,6 +1130,14 @@
         margin-left: auto;
       }
 
+      .footer-version-line {
+        display: none;
+        margin-top: 8px;
+        font-size: 0.7rem;
+        color: var(--muted);
+        text-align: center;
+      }
+
       .footer-note .legal-title {
         display: block;
         font-weight: 700;
@@ -1450,6 +1458,17 @@
       body[data-auth="signed-out"] .footer-note {
         margin-left: auto;
         margin-right: auto;
+        max-width: 320px;
+        font-size: 0.7rem;
+        padding: 8px 10px;
+      }
+
+      body[data-auth="signed-out"] .footer-note p {
+        margin: 6px 0;
+      }
+
+      body[data-auth="signed-out"] .footer-version-line {
+        display: block;
       }
 
       body[data-auth="signed-out"] .columns-row {
@@ -1979,6 +1998,7 @@
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
               <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found in the app menu. This is a personal project made out of love for shirts.</p>
             </div>
+            <div class="footer-version-line" id="footer-version-line"></div>
             <div class="update-box">
               <div class="update-title">Update Log</div>
               <div class="update-row">
@@ -2106,7 +2126,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.902 beta</div>
+        <div>Shirt Tracker v1.904 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
       </div>
@@ -2260,7 +2280,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.902.0";
+      const APP_VERSION = "1.904.0";
       const IS_WEB_BUILD = false;
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
@@ -2564,6 +2584,7 @@
       const totalCostEl = document.getElementById("total-cost");
       const shirtUpdateDateInput = document.getElementById("shirt-update-date");
       const appUpdateDateInput = document.getElementById("app-update-date");
+      const footerVersionLine = document.getElementById("footer-version-line");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const tabLogoPanel = document.getElementById("tab-logo-panel");
@@ -3611,6 +3632,11 @@
         }
       };
 
+      const updateFooterVersionLine = () => {
+        if (!footerVersionLine) return;
+        footerVersionLine.textContent = `Shirt Tracker ${APP_VERSION} © 2026 Aaron Dunn`;
+      };
+
       const getShortVersion = () => {
         const parts = String(APP_VERSION).split(".");
         if (parts.length >= 2) return `${parts[0]}.${parts[1]}`;
@@ -3771,7 +3797,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.902.0",
+          version: "1.904.0",
         };
       };
 
@@ -5542,6 +5568,7 @@
         setAuthStatus();
         updateBackupStatusFromStorage();
         updateAppUpdateDate();
+        updateFooterVersionLine();
       }
 
       ["mousemove", "keydown", "touchstart", "click", "scroll"].forEach((eventName) => {
