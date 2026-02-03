@@ -377,10 +377,10 @@
 
 
       .danger-zone {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-        justify-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        justify-content: center;
         align-items: center;
         width: 100%;
         max-width: 420px;
@@ -396,7 +396,10 @@
 
       .columns-row,
       .auth-row {
-        display: contents;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        width: 100%;
       }
 
       .auth-row .btn {
@@ -415,39 +418,8 @@
         box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
       }
 
-      #add-column {
-        grid-column: 1;
-        grid-row: 1;
-      }
-
-      #toggle-columns {
-        grid-column: 2;
-        grid-row: 1;
-      }
-
-      #share-columns-button {
-        grid-column: 1;
-        grid-row: 2;
-      }
-
-      #leave-blank {
-        grid-column: 2;
-        grid-row: 2;
-      }
-
-      #sync-now {
-        grid-column: 1;
-        grid-row: 3;
-      }
-
-      #auth-action {
-        grid-column: 2;
-        grid-row: 3;
-      }
-
-      .signedout-greeting {
+      .auth-row .signedout-greeting {
         grid-column: 1 / -1;
-        grid-row: 4;
         text-align: center;
       }
 
