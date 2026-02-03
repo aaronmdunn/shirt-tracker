@@ -1467,12 +1467,14 @@
       body[data-auth="signed-out"] .sheet-header {
         position: relative;
         justify-content: center;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
       }
 
       body[data-auth="signed-out"] .sheet-header h2 {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
+        position: static;
+        transform: none;
       }
 
       body[data-auth="signed-out"] .danger-zone {
@@ -2172,7 +2174,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.918 beta</div>
+        <div>Shirt Tracker v1.919 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
       </div>
@@ -2341,7 +2343,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.918.0";
+      const APP_VERSION = "1.919.0";
       const IS_WEB_BUILD = false;
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
@@ -3867,7 +3869,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.918.0",
+          version: "1.919.0",
         };
       };
 
