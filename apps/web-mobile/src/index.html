@@ -9,6 +9,13 @@
     <link rel="icon" href="assets/icons/hawaiian-shirt.png">
     <link rel="apple-touch-icon" href="assets/icons/hawaiian-shirt.png">
     <link rel="manifest" href="manifest.webmanifest">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-T80L2765XZ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-T80L2765XZ');
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
       (function () {
@@ -2420,7 +2427,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.908 beta</div>
+        <div>Shirt Tracker v1.909 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2581,7 +2588,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.908.0";
+      const APP_VERSION = "1.909.0";
       const IS_WEB_BUILD = true;
       const NETLIFY_DEPLOY_DATE = "2026-02-02T14:41:04.097Z";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -4155,7 +4162,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.908.0",
+          version: "1.909.0",
         };
       };
 
