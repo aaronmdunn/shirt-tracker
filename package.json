@@ -7,6 +7,7 @@
     "build:web-root": "node scripts/build-web-root.mjs",
     "build:web-root:stage": "node scripts/build-web-root.mjs && git add . && git status -sb",
     "prep:web-deploy": "node scripts/build-web-root.mjs && git add . && git status -sb",
+    "sync:tauri": "node scripts/sync-tauri-html.mjs",
     "pretauri": "node scripts/bump-version.mjs",
     "tauri": "TAURI_CONFIG=apps/desktop-tauri/src-tauri/tauri.conf.json tauri"
   },
