@@ -112,3 +112,8 @@ npx tauri icon "apps/desktop-tauri/src/assets/icons/hawaiian-shirt.png"
 ## License
 
 All rights reserved. See in-app Legal section for attribution and usage notes.
+### Keep desktop app in sync
+
+Run this before building the desktop app:
+
+`npm run sync:tauri`
