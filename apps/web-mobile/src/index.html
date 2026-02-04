@@ -2628,6 +2628,7 @@
               <div class="danger-actions">
                 <button class="btn danger" id="clear-all">🛑 Clear All</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
+                <button class="btn danger" id="reset-fresh">Reset to Fresh Defaults</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
@@ -3446,6 +3447,7 @@
       const legalDisclaimerDialog = document.getElementById("legal-disclaimer-dialog");
       const legalDisclaimerCloseButton = document.getElementById("legal-disclaimer-close");
       const legalDisclaimerLink = document.getElementById("legal-disclaimer-link");
+      const resetFreshButton = document.getElementById("reset-fresh");
       const privacyPolicyDialog = document.getElementById("privacy-policy-dialog");
       const privacyPolicyCloseButton = document.getElementById("privacy-policy-close");
       const privacyPolicyLink = document.getElementById("privacy-policy-link");
@@ -5331,7 +5333,7 @@
           if (input.id === "filter-column" || input.id === "filter-query") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
             return;
           }
           input.disabled = true;
@@ -6907,6 +6909,28 @@
       if (contactCloseButton) {
         contactCloseButton.addEventListener("click", () => {
           closeDialog(contactDialog);
+        });
+      }
+
+      if (resetFreshButton) {
+        resetFreshButton.addEventListener("click", async () => {
+          if (!confirm("Reset all data to fresh defaults? This cannot be undone.")) return;
+          if (!confirm("Are you sure? This will overwrite your current data.")) return;
+          try {
+            if (typeof applyFreshUserDefaults === "function") {
+              applyFreshUserDefaults();
+            }
+            saveTabsState();
+            saveState();
+            updateTabLogo();
+            await syncToSupabase();
+            renderTabs();
+            renderTable();
+            renderFooter();
+          } catch (error) {
+            showToast("Reset failed. Please try again.");
+            console.error("Fresh reset failed", error);
+          }
         });
       }
 
