@@ -1959,8 +1959,12 @@
       .photo-dialog {
         width: min(800px, 94vw);
         max-height: 90vh;
-        display: flex;
+        display: none;
         flex-direction: column;
+      }
+
+      .photo-dialog[open] {
+        display: flex;
       }
 
       .photo-dialog .dialog-body {

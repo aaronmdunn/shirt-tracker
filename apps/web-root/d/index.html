@@ -1871,8 +1871,12 @@
       .photo-dialog {
         width: min(800px, 94vw);
         max-height: 90vh;
-        display: flex;
+        display: none;
         flex-direction: column;
+      }
+
+      .photo-dialog[open] {
+        display: flex;
       }
 
       .photo-dialog .dialog-body {
@@ -2643,7 +2647,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T03:43:27-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T03:48:19-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
