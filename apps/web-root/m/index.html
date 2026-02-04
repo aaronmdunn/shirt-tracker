@@ -1269,6 +1269,24 @@
         text-align: center;
       }
 
+      .share-columns-actions-row {
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .share-columns-link {
+        flex: 1;
+        min-width: 200px;
+        max-width: 320px;
+      }
+
+      .share-columns-buttons {
+        display: flex;
+        gap: 10px;
+        margin-left: auto;
+      }
+
       .public-share-actions {
         display: flex;
         gap: 8px;
@@ -2425,7 +2443,7 @@
                       </tr>
                       <tr>
                         <td>
-                          <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
+                          <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
                         </td>
                         <td>&nbsp;</td>
                       </tr>
@@ -2609,13 +2627,6 @@
               <button class="btn secondary" id="verify-backup">Verify Backup Status</button>
               <div class="backup-status" id="backup-status">Not checked yet.</div>
               <div class="unsaved-status" id="unsaved-status"></div>
-              <div class="public-share-row">
-                <label for="public-share-link">Public Viewer Link</label>
-                <div class="public-share-actions">
-                  <input class="public-share-input" id="public-share-link" type="text" readonly>
-                  <button class="btn secondary" id="copy-share-link">Copy</button>
-                </div>
-              </div>
               <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
                 <div class="public-share-actions">
@@ -2982,9 +2993,18 @@
         <div class="share-columns-list" id="share-columns-list"></div>
         <div class="share-columns-note">Controls what appears in your shared link.</div>
       </div>
-      <div class="dialog-actions">
-        <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
-        <button type="button" class="btn" id="share-columns-save">Save</button>
+      <div class="dialog-actions share-columns-actions-row">
+        <div class="public-share-row share-columns-link">
+          <label for="public-share-link">Public Viewer Link</label>
+          <div class="public-share-actions">
+            <input class="public-share-input" id="public-share-link" type="text" readonly>
+            <button class="btn secondary" id="copy-share-link">Copy</button>
+          </div>
+        </div>
+        <div class="share-columns-buttons">
+          <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
+          <button type="button" class="btn" id="share-columns-save">Save</button>
+        </div>
       </div>
     </dialog>
 
@@ -3059,7 +3079,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T11:36:11-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T12:14:06-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4109,30 +4129,30 @@
           shareColumnsButton.appendChild(subSpan);
         };
         if (!currentUser || isViewerSession) {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+          setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           return;
         }
         const columns = getShareableColumns();
         const total = columns.length;
         if (!total) {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: None");
+          setShareColumnsButtonLabel("Share Columns", "Selected: None");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           return;
         }
         if (publicShareVisibility.mode === "all") {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: All");
+          setShareColumnsButtonLabel("Share Columns", "Selected: All");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           return;
         }
         if (publicShareVisibility.mode === "custom") {
           const selected = new Set(publicShareVisibility.columnIds || []);
           const count = columns.filter((column) => selected.has(column.id)).length;
-          setShareColumnsButtonLabel("Choose Columns", `Selected: ${count}/${total}`);
+          setShareColumnsButtonLabel("Share Columns", `Selected: ${count}/${total}`);
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           return;
         }
-        setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+        setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
         if (shareColumnsSummary) shareColumnsSummary.textContent = "";
       };
 
@@ -6871,6 +6891,9 @@
         legalDisclaimerLink.addEventListener("click", (event) => {
           event.preventDefault();
           openDialog(legalDisclaimerDialog);
+          legalDisclaimerDialog.scrollTop = 0;
+          const legalBody = legalDisclaimerDialog.querySelector(".dialog-body");
+          if (legalBody) legalBody.scrollTop = 0;
         });
       }
 
@@ -6878,6 +6901,9 @@
         privacyPolicyLink.addEventListener("click", (event) => {
           event.preventDefault();
           openDialog(privacyPolicyDialog);
+          privacyPolicyDialog.scrollTop = 0;
+          const privacyBody = privacyPolicyDialog.querySelector(".dialog-body");
+          if (privacyBody) privacyBody.scrollTop = 0;
         });
       }
 
