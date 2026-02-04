@@ -2372,6 +2372,7 @@
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
               <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found <a href="#" id="attributes-link">here</a>. This is a personal project made out of love for shirts.</p>
+              <p><a href="#" id="legal-credits-link">Legal and Credits</a></p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
             <div class="update-box">
@@ -2518,6 +2519,25 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="icon-credits-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="legal-credits-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Legal &amp; Credits</h3>
+        <p>All company logos and trademarks are the property of their respective owners.</p>
+        <div><strong>Featured Brands:</strong></div>
+        <div><a href="https://www.rsvlts.com/">RSVLTS</a></div>
+        <div><a href="https://7-strong.com/">7-Strong</a></div>
+        <div><a href="https://www.reynspooner.com/">Reyn Spooner</a></div>
+        <div><a href="https://www.projectgoodapparel.co/">Project Good Apparel</a></div>
+        <div><a href="https://www.dixxon.com/">Dixxon</a></div>
+        <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
+        <hr>
+        <div><strong>Special Thanks:</strong></div>
+        <div><a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="legal-credits-close">Close</button>
       </div>
     </dialog>
 
@@ -2674,7 +2694,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T04:11:00-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T05:13:43-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3058,6 +3078,9 @@
       const iconCreditsDialog = document.getElementById("icon-credits-dialog");
       const iconCreditsCloseButton = document.getElementById("icon-credits-close");
       const attributesLink = document.getElementById("attributes-link");
+      const legalCreditsDialog = document.getElementById("legal-credits-dialog");
+      const legalCreditsCloseButton = document.getElementById("legal-credits-close");
+      const legalCreditsLink = document.getElementById("legal-credits-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -6482,9 +6505,41 @@
         });
       }
 
+      if (legalCreditsLink && legalCreditsDialog) {
+        legalCreditsLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(legalCreditsDialog);
+        });
+      }
+
+      if (legalCreditsDialog) {
+        const legalCreditsBody = legalCreditsDialog.querySelector(".dialog-body");
+        if (legalCreditsBody) {
+          legalCreditsBody.style.textAlign = "center";
+          legalCreditsBody.style.display = "grid";
+          legalCreditsBody.style.gap = "10px";
+          legalCreditsBody.style.justifyItems = "center";
+          const legalCreditsLinks = legalCreditsBody.querySelectorAll("a");
+          legalCreditsLinks.forEach((link) => {
+            link.style.display = "block";
+            link.style.textAlign = "center";
+          });
+          const legalCreditsRule = legalCreditsBody.querySelector("hr");
+          if (legalCreditsRule) {
+            legalCreditsRule.style.width = "100%";
+          }
+        }
+      }
+
       if (iconCreditsCloseButton) {
         iconCreditsCloseButton.addEventListener("click", () => {
           closeDialog(iconCreditsDialog);
+        });
+      }
+
+      if (legalCreditsCloseButton) {
+        legalCreditsCloseButton.addEventListener("click", () => {
+          closeDialog(legalCreditsDialog);
         });
       }
 
