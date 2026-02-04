@@ -1983,6 +1983,65 @@
         padding: 0 20px 20px;
       }
 
+      .contact-dialog .dialog-body {
+        gap: 12px;
+      }
+
+      .contact-form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .contact-form input[type="text"],
+      .contact-form input[type="email"],
+      .contact-form textarea {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        font-family: "Work Sans", "Trebuchet MS", sans-serif;
+        font-size: 0.82rem;
+      }
+
+      .contact-form textarea {
+        min-height: 100px;
+        resize: vertical;
+      }
+
+      .contact-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .contact-form .honeypot {
+        display: none;
+      }
+
+      .contact-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .dialog-close-pill {
+        background: #d10000;
+        color: #ffffff;
+        border: 1px solid #d10000;
+        border-radius: 999px;
+        padding: 6px 16px;
+        font-size: 0.78rem;
+        cursor: pointer;
+      }
+
+      .dialog-close-pill:active {
+        background: #ffffff;
+        color: #d10000;
+      }
+
       .photo-dialog {
         width: min(800px, 94vw);
         max-height: 90vh;
@@ -2577,6 +2636,7 @@
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
               <p><a href="#" id="legal-disclaimer-link">Legal Disclaimer &amp; Terms of Use</a></p>
               <p><a href="#" id="credits-link">Credits &amp; Acknowledgements</a></p>
+              <p><a href="#" id="privacy-policy-link">Privacy Policy</a> | <a href="#" id="contact-link">Contact Us</a></p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
           </div>
@@ -2719,6 +2779,130 @@
       <div class="dialog-actions">
         <button type="button" class="btn" id="legal-disclaimer-close">Close</button>
       </div>
+    </dialog>
+    
+	<dialog id="privacy-policy-dialog" class="privacy-dialog">
+	  <div class="dialog-body">
+	    <h3>Privacy Policy</h3>
+	    <div><strong>Effective Date:</strong> January 30, 2026</div>
+	    <div><strong>App Name:</strong> Shirt Tracker</div>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>1. Introduction</strong></div>
+	    <p>At <strong>Shirt Tracker</strong>, accessible via this application, one of our main priorities is the privacy of our users. This Privacy Policy document describes the types of information that is collected and recorded by Shirt Tracker and how we use it.</p>
+	    <p>By using our application, you hereby consent to this Privacy Policy and agree to its terms.</p>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>2. Data Controller</strong></div>
+	    <p>For the purposes of the General Data Protection Regulation (GDPR) and other applicable data protection laws, the <strong>Data Controller</strong> responsible for your personal information is:</p>
+	    <div><strong>Aaron Dunn</strong> (Creator &amp; Developer)</div>
+	    <div><strong>Contact:</strong> Please use the contact form linked at the bottom of this policy.</div>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>3. Information We Collect</strong></div>
+	    <p>We only collect information necessary to provide the functionality of the app. This includes:</p>
+	    <ul>
+	      <li><strong>Account Information:</strong> When you register for an Account, we may ask for basic contact information, such as your name and email address.</li>
+	      <li><strong>User Content:</strong> We store the data you input into the application, such as your checklist of shirts, collection status, and notes.</li>
+	      <li><strong>Logs:</strong> Like most apps, we use standard log files that may collect internet protocol (IP) addresses, browser type, and timestamps. This is strictly for debugging and maintaining the security of the app.</li>
+	    </ul>
+	    <div><strong>We do NOT sell, trade, or rent your personal identification information to others.</strong></div>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>4. Legal Basis for Processing</strong></div>
+	    <p>We process your personal data under the following legal bases:</p>
+	    <ul>
+	      <li><strong>Contractual Necessity:</strong> We need your email and shirt data to provide the service you signed up for (i.e., saving your list). The app cannot function without this.</li>
+	      <li><strong>Legitimate Interests:</strong> We log basic technical data (IP addresses) to ensure the security and stability of the app.</li>
+	    </ul>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>5. How We Use Your Information</strong></div>
+	    <p>We use the information we collect in the following ways:</p>
+	    <ul>
+	      <li>To provide, operate, and maintain the Shirt Tracker application.</li>
+	      <li>To manage your account and login session.</li>
+	      <li>To find and prevent fraud or abuse of the app.</li>
+	      <li>To communicate with you regarding updates or support (only if you have contacted us first).</li>
+	    </ul>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>6. Third-Party Services &amp; Infrastructure</strong></div>
+	    <p>To run this application securely and reliably, we utilize trusted third-party service providers. By using the app, you acknowledge that your data may pass through or be stored on servers managed by these providers:</p>
+	    <ul>
+	      <li><strong>Supabase:</strong> Used for secure database hosting, user data storage, and authentication management. Your email and shirt lists are stored here.</li>
+	      <li><strong>Netlify:</strong> Used for web hosting and content delivery. Netlify may collect IP addresses in their server logs for security and performance analysis.</li>
+	      <li><strong>GitHub:</strong> Used <strong>strictly</strong> for version control of the application's source code (the programming files). GitHub <strong>does not</strong> store, process, or have access to any user personal data, database records, or account information.</li>
+	    </ul>
+	    <p>These parties have access to necessary data only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.</p>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>7. Data Retention</strong></div>
+	    <p>We retain your personal information only for as long as is necessary to provide you with the Shirt Tracker service. If you delete your account, your personal data and shirt lists are permanently removed from our active database.</p>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>8. User Rights (GDPR &amp; CCPA)</strong></div>
+	    <p>We respect your control over your data. Regardless of where you live, we extend these rights to all users:</p>
+	    <ul>
+	      <li><strong>Access:</strong> You can request a copy of the data we hold about you.</li>
+	      <li><strong>Correction:</strong> You can update your information within the app or request corrections if something is wrong.</li>
+	      <li><strong>Deletion:</strong> You have the right to request that we delete your account and all associated data.</li>
+	    </ul>
+	    <p>To exercise these rights, please contact the Data Controller using the link below.</p>
+
+	    <div style="height: 14px;"></div>
+
+	    <div><strong>9. Children's Privacy</strong></div>
+	    <p>Shirt Tracker does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you think that your child provided this kind of information on our website, please contact us.</p>
+		
+		<div><strong>10. Contact Us</strong></div>
+		<p>If you have any questions about our Privacy Policy or wish to exercise your data rights, please contact the developer.</p>
+		
+        <div><a href="#" id="privacy-contact-link">Contact Us</a></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="privacy-policy-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="contact-dialog" class="contact-dialog">
+      <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="contact-form">
+        <input type="hidden" name="form-name" value="contact">
+        <div class="honeypot">
+          <label for="contact-bot-field">Leave this field blank</label>
+          <input id="contact-bot-field" name="bot-field" type="text">
+        </div>
+        <div class="dialog-body">
+          <h3>Contact Us</h3>
+          <div class="dialog-row">
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="name" type="text" placeholder="Your name">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-email">Email</label>
+            <input id="contact-email" name="email" type="email" placeholder="you@email.com">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-comments">Comments</label>
+            <textarea id="contact-comments" name="comments" placeholder="How can we help?"></textarea>
+          </div>
+          <label class="contact-checkbox" for="contact-require-response">
+            <input id="contact-require-response" name="require_response" type="checkbox">
+            Require response?
+          </label>
+        </div>
+        <div class="dialog-actions contact-actions">
+          <button type="submit" class="btn">Send</button>
+          <button type="button" class="dialog-close-pill" id="contact-close">Close</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="auth-dialog">
@@ -2874,7 +3058,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T08:49:19-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T10:36:12-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3262,6 +3446,12 @@
       const legalDisclaimerDialog = document.getElementById("legal-disclaimer-dialog");
       const legalDisclaimerCloseButton = document.getElementById("legal-disclaimer-close");
       const legalDisclaimerLink = document.getElementById("legal-disclaimer-link");
+      const privacyPolicyDialog = document.getElementById("privacy-policy-dialog");
+      const privacyPolicyCloseButton = document.getElementById("privacy-policy-close");
+      const privacyPolicyLink = document.getElementById("privacy-policy-link");
+      const contactDialog = document.getElementById("contact-dialog");
+      const contactCloseButton = document.getElementById("contact-close");
+      const contactLink = document.getElementById("contact-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -6682,6 +6872,20 @@
         });
       }
 
+      if (privacyPolicyLink && privacyPolicyDialog) {
+        privacyPolicyLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(privacyPolicyDialog);
+        });
+      }
+
+      if (contactLink && contactDialog) {
+        contactLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(contactDialog);
+        });
+      }
+
       if (iconCreditsCloseButton) {
         iconCreditsCloseButton.addEventListener("click", () => {
           closeDialog(iconCreditsDialog);
@@ -6691,6 +6895,18 @@
       if (legalDisclaimerCloseButton) {
         legalDisclaimerCloseButton.addEventListener("click", () => {
           closeDialog(legalDisclaimerDialog);
+        });
+      }
+
+      if (privacyPolicyCloseButton) {
+        privacyPolicyCloseButton.addEventListener("click", () => {
+          closeDialog(privacyPolicyDialog);
+        });
+      }
+
+      if (contactCloseButton) {
+        contactCloseButton.addEventListener("click", () => {
+          closeDialog(contactDialog);
         });
       }
 
@@ -7129,6 +7345,46 @@
         const previousColumns = state.columns.slice();
         ensureFandomInGlobalColumns();
         remapRowsToGlobalColumns(previousColumns);
+        applyGlobalColumns();
+      } else {
+        ensureFandomInState(state);
+        setGlobalColumns(state.columns);
+      }
+      applyTabFandomOptions();
+      applyTabTypeOptions();
+      pruneRowCells();
+      ensureRowCells();
+      migrateInlinePhotos();
+      columnManager.classList.add("hidden");
+      toggleColumnsButton.textContent = "Edit Columns";
+      sortRows();
+      renderTable();
+      applyReadOnlyMode();
+      renderTabs();
+      if (tabsState.activeTabId) {
+        const existing = (() => {
+          try {
+            return localStorage.getItem(getStorageKey(tabsState.activeTabId));
+          } catch (error) {
+            return null;
+          }
+        })();
+        if (!existing) {
+          saveState();
+        }
+      }
+      } catch (error) {
+        try {
+          showFatalError(error?.message || String(error));
+        } catch (_error) {
+          // ignore
+        }
+      }
+    </script>
+  
+
+</body></html>
+viousColumns);
         applyGlobalColumns();
       } else {
         ensureFandomInState(state);
