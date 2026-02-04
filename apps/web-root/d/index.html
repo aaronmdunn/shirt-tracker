@@ -1435,6 +1435,14 @@
         align-self: center;
       }
 
+      .tab-logo-placeholder {
+        width: min(260px, 70vw);
+        height: 96px;
+        border: 2px dashed var(--line);
+        border-radius: 14px;
+        background: #ffffff;
+      }
+
       .tab-logo-panel .btn:hover {
         background: #111111;
         color: #ffffff;
@@ -2666,12 +2674,55 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T03:53:33-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T04:11:00-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
       const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
       const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
+
+      const clearLegacyStorage = () => {
+        try {
+          localStorage.removeItem(TAB_STORAGE_KEY);
+          localStorage.removeItem(COLUMNS_KEY);
+          localStorage.removeItem("tab-logos-map");
+        } catch (error) {
+          // ignore
+        }
+        try {
+          const prefix = `${STORAGE_KEY}:`;
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i += 1) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(prefix)) keys.push(key);
+          }
+          keys.forEach((key) => localStorage.removeItem(key));
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      const resetParam = (() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          return params.get("reset") || params.get("fresh");
+        } catch (error) {
+          return "";
+        }
+      })();
+
+      if (resetParam === "1") {
+        clearLegacyStorage();
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("reset");
+          url.searchParams.delete("fresh");
+          window.history.replaceState({}, "", url.toString());
+        } catch (error) {
+          // ignore
+        }
+        window.location.reload();
+      }
 
       const createId = () => {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -2736,6 +2787,14 @@
       let isViewerSession = false;
       let syncTimer = null;
       let isSyncing = false;
+      const FORCE_FRESH_START = (() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          return params.get("fresh") === "1";
+        } catch (error) {
+          return false;
+        }
+      })();
       let suppressShirtUpdate = false;
       let photoMigrationDone = false;
 
@@ -2924,6 +2983,31 @@
         activeTabId: null,
         embeddedData: null,
         isEmbeddedBackup: false,
+      };
+
+      const getDefaultColumns = () => ([
+        { id: createId(), name: "Condition", type: "select", options: [] },
+        { id: createId(), name: "Shirt Name", type: "text", options: [] },
+        { id: createId(), name: "Size", type: "select", options: [] },
+        { id: createId(), name: "Brand", type: "select", options: [] },
+        { id: createId(), name: "Type", type: "select", options: [] },
+        { id: createId(), name: "Fandom", type: "select", options: [] },
+        { id: createId(), name: "Price", type: "number", options: [] },
+        { id: createId(), name: "Preview", type: "photo", options: [] },
+        { id: createId(), name: "Notes", type: "notes", options: [] },
+      ]);
+
+      const applyFreshUserDefaults = () => {
+        setDefaultTabsState();
+        const defaults = getDefaultColumns();
+        state.columns = defaults.map((column) => ({ ...column }));
+        state.rows = [defaultRow()];
+        setGlobalColumns(defaults);
+        try {
+          localStorage.removeItem("tab-logos-map");
+        } catch (error) {
+          // ignore
+        }
       };
       const columnOverrides = {
         fandomOptionsByTab: {},
@@ -3337,10 +3421,49 @@
       };
 
       const setDefaultTabsState = () => {
-        const defaultNames = ["7-Strong", "Dixxon", "Park Candy", "Project Good", "Reyn Spooner", "RSVLTS"];
-        tabsState.tabs = defaultNames.map((name) => ({ id: createId(), name }));
-        tabsState.activeTabId = tabsState.tabs[0] ? tabsState.tabs[0].id : null;
-        sortTabs();
+        const tab = { id: createId(), name: "Shirts" };
+        tabsState.tabs = [tab];
+        tabsState.activeTabId = tab.id;
+      };
+
+      const shouldResetLegacyTabs = () => {
+        const legacyNames = ["7-Strong", "Dixxon", "Park Candy", "Project Good", "Reyn Spooner", "RSVLTS"];
+        if (!Array.isArray(tabsState.tabs) || tabsState.tabs.length !== legacyNames.length) return false;
+        const names = tabsState.tabs.map((tab) => tab.name);
+        if (!names.every((name) => legacyNames.includes(name))) return false;
+        return !tabsState.tabs.some((tab) => {
+          if (!tab || !tab.id) return false;
+          try {
+            const stored = localStorage.getItem(getStorageKey(tab.id));
+            if (!stored) return false;
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed?.columns) && parsed.columns.length > 0;
+          } catch (error) {
+            return false;
+          }
+        });
+      };
+
+      const clearLegacyTabStorage = () => {
+        if (!Array.isArray(tabsState.tabs)) return;
+        tabsState.tabs.forEach((tab) => {
+          if (!tab || !tab.id) return;
+          try {
+            localStorage.removeItem(getStorageKey(tab.id));
+          } catch (error) {
+            // ignore
+          }
+        });
+        try {
+          localStorage.removeItem(TAB_STORAGE_KEY);
+        } catch (error) {
+          // ignore
+        }
+        try {
+          localStorage.removeItem("tab-logos-map");
+        } catch (error) {
+          // ignore
+        }
       };
 
       const loadTabsState = () => {
@@ -3358,6 +3481,11 @@
               tabsState.activeTabId = parsed.activeTabId || (tabsState.tabs[0] && tabsState.tabs[0].id);
               tabsState.isEmbeddedBackup = false;
               sortTabs();
+              if (shouldResetLegacyTabs()) {
+                clearLegacyTabStorage();
+                setDefaultTabsState();
+                saveTabsState();
+              }
               return;
             }
           } catch (error) {
@@ -3374,6 +3502,11 @@
           tabsState.isEmbeddedBackup = true;
           sortTabs();
           saveTabsState();
+          if (shouldResetLegacyTabs()) {
+            clearLegacyTabStorage();
+            setDefaultTabsState();
+            saveTabsState();
+          }
           if (embeddedTabs.data && typeof embeddedTabs.data === "object") {
             tabsState.tabs.forEach((tab) => {
               const payload = embeddedTabs.data[tab.id];
@@ -4249,6 +4382,9 @@
         const active = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
         if (!active) return;
         document.body.setAttribute("data-active-tab", active.name || "");
+        const placeholder = document.createElement("div");
+        placeholder.className = "tab-logo-placeholder";
+        tabLogoPanel.appendChild(placeholder);
         const custom = getCustomLogo(active.id);
         const logoValue = custom || TAB_LOGOS[active.name];
         if (logoValue) {
@@ -4257,8 +4393,41 @@
           if (renderId !== tabLogoRenderId) return;
           img.src = resolved;
           img.alt = `${active.name} logo`;
+          placeholder.remove();
           tabLogoPanel.appendChild(img);
         }
+        const changeButton = document.createElement("button");
+        changeButton.type = "button";
+        changeButton.className = "btn secondary";
+        changeButton.textContent = "Change Photo";
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = "image/*";
+        fileInput.style.display = "none";
+        changeButton.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          if (supabase && currentUser) {
+            const extension = (file.name.split(".").pop() || "png").toLowerCase();
+            const path = await uploadLogoToSupabase(file, extension);
+            if (path) {
+              setCustomLogo(active.id, `supa:${path}`);
+              updateTabLogo();
+              return;
+            }
+          }
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = typeof reader.result === "string" ? reader.result : "";
+            if (!result) return;
+            setCustomLogo(active.id, result);
+            updateTabLogo();
+          };
+          reader.readAsDataURL(file);
+        });
+        tabLogoPanel.appendChild(changeButton);
+        tabLogoPanel.appendChild(fileInput);
         if (renderId !== tabLogoRenderId) return;
       };
 
@@ -4466,6 +4635,23 @@
 
       const loadRemoteState = async () => {
         if (!supabase || !currentUser) return;
+        if (FORCE_FRESH_START) {
+          if (typeof applyFreshUserDefaults === "function") {
+            applyFreshUserDefaults();
+          }
+          saveTabsState();
+          saveState();
+          updateTabLogo();
+          await syncToSupabase();
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("fresh");
+            window.history.replaceState({}, "", url.toString());
+          } catch (error) {
+            // ignore
+          }
+          return;
+        }
         const { data, error } = await supabase
           .from("shirt_state")
           .select("data, updated_at, user_id")
@@ -4501,6 +4687,12 @@
             renderFooter();
           }
         } else {
+          if (typeof applyFreshUserDefaults === "function") {
+            applyFreshUserDefaults();
+          }
+          saveTabsState();
+          saveState();
+          updateTabLogo();
           await syncToSupabase();
         }
       };
@@ -4667,6 +4859,13 @@
             state.sort = embeddedState.sort || { columnId: null, direction: "asc" };
             state.filter = embeddedState.filter || { columnId: "all", query: "" };
             state.readOnly = tabsState.isEmbeddedBackup ? false : Boolean(embeddedState.readOnly);
+            return;
+          }
+          if (!state.columns.length) {
+            state.columns = getDefaultColumns();
+            state.rows = [defaultRow()];
+            setGlobalColumns(state.columns);
+            saveState();
           }
           return;
         }
@@ -6357,25 +6556,46 @@
       });
 
       authSendButton.addEventListener("click", async () => {
-        if (!supabase) return;
-        const email = authEmailInput.value.trim();
-        const password = authPasswordInput.value;
-        if (!email || !password) return;
-        authMessage.textContent = "Creating account...";
-        const { error } = await supabase.auth.signUp({ email, password });
-        authMessage.textContent = error ? error.message : "Account created. You can sign in now.";
+        const email = authEmailInput ? authEmailInput.value.trim() : "";
+        const password = authPasswordInput ? authPasswordInput.value : "";
+        if (!email || !password) {
+          if (authMessage) authMessage.textContent = "Enter email and password to create an account.";
+          return;
+        }
+        if (!supabase) {
+          if (authMessage) authMessage.textContent = "Auth unavailable. Check your connection.";
+          return;
+        }
+        if (authMessage) authMessage.textContent = "Creating account...";
+        authSendButton.disabled = true;
+        try {
+          const { error } = await supabase.auth.signUp({ email, password });
+          if (authMessage) {
+            authMessage.textContent = error
+              ? error.message
+              : "Account created. Check your email to confirm, then sign in.";
+          }
+        } finally {
+          authSendButton.disabled = false;
+        }
       });
 
       authForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        if (!supabase) return;
-        const email = authEmailInput.value.trim();
-        const password = authPasswordInput.value;
-        if (!email || !password) return;
-        authMessage.textContent = "Verifying...";
+        const email = authEmailInput ? authEmailInput.value.trim() : "";
+        const password = authPasswordInput ? authPasswordInput.value : "";
+        if (!email || !password) {
+          if (authMessage) authMessage.textContent = "Enter email and password to sign in.";
+          return;
+        }
+        if (!supabase) {
+          if (authMessage) authMessage.textContent = "Auth unavailable. Check your connection.";
+          return;
+        }
+        if (authMessage) authMessage.textContent = "Verifying...";
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          authMessage.textContent = error.message;
+          if (authMessage) authMessage.textContent = error.message;
           return;
         }
         closeDialog(authDialog);
