@@ -445,12 +445,31 @@
         line-height: 1.1;
       }
 
+      #share-columns-button .share-columns-label,
       #share-columns-button .share-columns-sub {
-        font-size: 0.6rem;
+        font-size: inherit;
+        font-weight: 600;
+      }
+
+      #share-columns-button .share-columns-sub {
+        color: #111111;
+      }
+
+      #share-columns-button .share-columns-sub {
         color: #111111;
         font-weight: 600;
         letter-spacing: 0.02em;
         text-transform: none;
+      }
+
+      .header-actions .auth-row .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 0.6rem;
+        padding: 4px 8px;
+        min-width: 120px;
       }
 
       .danger-zone {
@@ -2605,7 +2624,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.921.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T02:34:13-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T02:55:33-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3521,6 +3540,7 @@
         if (!currentUser || isViewerSession) {
           setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          applyDesktopHeaderInlineLayout();
           return;
         }
         const columns = getShareableColumns();
@@ -3528,11 +3548,13 @@
         if (!total) {
           setShareColumnsButtonLabel("Choose Columns", "Selected: None");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          applyDesktopHeaderInlineLayout();
           return;
         }
         if (publicShareVisibility.mode === "all") {
           setShareColumnsButtonLabel("Choose Columns", "Selected: All");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          applyDesktopHeaderInlineLayout();
           return;
         }
         if (publicShareVisibility.mode === "custom") {
@@ -3540,10 +3562,12 @@
           const count = columns.filter((column) => selected.has(column.id)).length;
           setShareColumnsButtonLabel("Choose Columns", `Selected: ${count}/${total}`);
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+          applyDesktopHeaderInlineLayout();
           return;
         }
         setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
         if (shareColumnsSummary) shareColumnsSummary.textContent = "";
+        applyDesktopHeaderInlineLayout();
       };
 
       const renderShareColumnsDialog = () => {
@@ -3907,10 +3931,144 @@
       const positionAuthAction = () => {
         if (!authActionButton) return;
         authActionButton.classList.remove("auth-compact");
+        const inlineCell = document.getElementById("auth-action-inline-cell");
+        if (inlineCell && authActionButton.parentElement !== inlineCell) {
+          inlineCell.appendChild(authActionButton);
+          applyDesktopAuthButtonSizing();
+          return;
+        }
         if (authRow && authActionButton.parentElement !== authRow) {
           authRow.appendChild(authActionButton);
         }
+        applyDesktopAuthButtonSizing();
       };
+
+      function applyDesktopAuthButtonSizing() {
+        const syncNowButton = document.getElementById("sync-now");
+        const authActionButton = document.getElementById("auth-action");
+        [syncNowButton, authActionButton].forEach((button) => {
+          if (!button) return;
+          button.style.display = "inline-flex";
+          button.style.alignItems = "center";
+          button.style.justifyContent = "center";
+          button.style.textAlign = "center";
+          button.style.setProperty("font-size", "12px", "important");
+          button.style.setProperty("padding", "3px 8px", "important");
+          button.style.setProperty("min-width", "0", "important");
+          button.style.setProperty("width", "auto", "important");
+          button.style.setProperty("line-height", "1.1", "important");
+        });
+      }
+
+      function applyDesktopHeaderInlineLayout() {
+        const dangerZone = document.querySelector(".danger-zone");
+        const headerActions = document.querySelector(".header-actions");
+        if (!dangerZone) return;
+        let inlineGrid = document.getElementById("desktop-action-inline-grid");
+        const columnsRow = document.querySelector(".columns-row");
+        const authRow = document.querySelector(".auth-row");
+        const addColumnButton = document.getElementById("add-column");
+        const editColumnsButton = document.getElementById("toggle-columns");
+        const chooseColumnsButton = document.getElementById("share-columns-button");
+        const syncNowButton = document.getElementById("sync-now");
+        const authActionButton = document.getElementById("auth-action");
+
+        if (!inlineGrid) {
+          inlineGrid = document.createElement("div");
+          inlineGrid.id = "desktop-action-inline-grid";
+          dangerZone.insertBefore(inlineGrid, dangerZone.firstChild);
+          if (columnsRow) columnsRow.style.display = "none";
+          if (authRow) authRow.style.display = "none";
+
+          const topRow = document.createElement("div");
+          topRow.className = "desktop-action-inline-row";
+          const bottomRow = document.createElement("div");
+          bottomRow.className = "desktop-action-inline-row";
+
+          const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton];
+          topButtons.forEach((button) => {
+            if (!button) return;
+            topRow.appendChild(button);
+          });
+
+          const bottomButtons = [syncNowButton, authActionButton];
+          bottomButtons.forEach((button) => {
+            if (!button) return;
+            if (button === authActionButton) {
+              const cell = document.createElement("div");
+              cell.id = "auth-action-inline-cell";
+              cell.appendChild(button);
+              bottomRow.appendChild(cell);
+            } else {
+              bottomRow.appendChild(button);
+            }
+          });
+
+          inlineGrid.appendChild(topRow);
+          inlineGrid.appendChild(bottomRow);
+        }
+
+        if (headerActions) {
+          headerActions.style.display = "flex";
+          headerActions.style.flexDirection = "column";
+          headerActions.style.alignItems = "flex-end";
+          headerActions.style.justifyContent = "flex-end";
+          headerActions.style.width = "100%";
+          headerActions.style.marginLeft = "auto";
+        }
+
+        if (dangerZone) {
+          dangerZone.style.display = "flex";
+          dangerZone.style.flexDirection = "column";
+          dangerZone.style.alignItems = "flex-end";
+          dangerZone.style.justifyContent = "flex-end";
+          dangerZone.style.width = "100%";
+        }
+
+        inlineGrid.style.display = "flex";
+        inlineGrid.style.flexDirection = "column";
+        inlineGrid.style.alignItems = "flex-end";
+        inlineGrid.style.gap = "8px";
+        inlineGrid.style.width = "auto";
+
+        const rows = inlineGrid.querySelectorAll(".desktop-action-inline-row");
+        rows.forEach((rowEl) => {
+          rowEl.style.display = "flex";
+          rowEl.style.gap = "8px";
+          rowEl.style.justifyContent = "flex-end";
+          rowEl.style.alignItems = "center";
+        });
+
+        if (addColumnButton) {
+          addColumnButton.style.minWidth = "140px";
+          addColumnButton.style.textAlign = "center";
+        }
+        if (editColumnsButton) {
+          editColumnsButton.style.minWidth = "140px";
+          editColumnsButton.style.textAlign = "center";
+        }
+        if (chooseColumnsButton) {
+          chooseColumnsButton.style.minWidth = "120px";
+          chooseColumnsButton.style.padding = "6px 10px";
+          chooseColumnsButton.style.fontSize = "0.75rem";
+          chooseColumnsButton.style.lineHeight = "1.1";
+          chooseColumnsButton.style.textAlign = "center";
+          const label = chooseColumnsButton.querySelector(".share-columns-label");
+          const sub = chooseColumnsButton.querySelector(".share-columns-sub");
+          if (label) {
+            label.style.fontSize = "0.75rem";
+            label.style.fontWeight = "600";
+          }
+          if (sub) {
+            sub.style.fontSize = "0.52rem";
+            sub.style.fontWeight = "400";
+          }
+        }
+
+        applyDesktopAuthButtonSizing();
+
+        positionAuthAction();
+      }
 
       const positionViewerBadge = () => {
       };
@@ -6480,6 +6638,7 @@
       loadShirtUpdateDate();
       updateHeaderTitle();
       updateHeaderSubtitle();
+      applyDesktopHeaderInlineLayout();
       if (removeBrandColumn()) {
         ensureRowCells();
         saveState();
