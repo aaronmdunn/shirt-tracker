@@ -2764,6 +2764,10 @@
       <form method="dialog" id="auth-form">
         <div class="dialog-body">
           <h3>Sign In</h3>
+          <div class="dialog-row" id="auth-name-row" style="display:none;">
+            <label for="auth-name">Name</label>
+            <input id="auth-name" type="text" placeholder="Your name">
+          </div>
           <div class="dialog-row">
             <label for="auth-email">Email</label>
             <input id="auth-email" type="email" placeholder="you@email.com" required>
@@ -2772,12 +2776,10 @@
             <label for="auth-password">Password</label>
             <input id="auth-password" type="password" placeholder="Enter password" required>
           </div>
-          <div class="dialog-row" style="font-size: 0.78rem; color: var(--muted);">
-            Use your Supabase account to sign in for sync.
-          </div>
           <div class="dialog-row" id="auth-message" style="color: var(--muted); font-size: 0.8rem;"></div>
         </div>
         <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="auth-close">Close</button>
           <button type="button" class="btn secondary" id="auth-send">Create Account</button>
           <button type="submit" class="btn" id="auth-verify">Sign In</button>
         </div>
@@ -2922,7 +2924,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T12:14:06-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T13:17:14-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3353,9 +3355,12 @@
       const aboutCloseButton = document.getElementById("about-close");
       const authDialog = document.getElementById("auth-dialog");
       const authForm = document.getElementById("auth-form");
+      const authNameRow = document.getElementById("auth-name-row");
+      const authNameInput = document.getElementById("auth-name");
       const authEmailInput = document.getElementById("auth-email");
       const authPasswordInput = document.getElementById("auth-password");
       const authSendButton = document.getElementById("auth-send");
+      const authCloseButton = document.getElementById("auth-close");
       const authMessage = document.getElementById("auth-message");
       const registerLink = document.getElementById("register-link");
       const forgotPasswordLink = document.getElementById("forgot-password-link");
@@ -6912,10 +6917,12 @@
       });
 
       authSendButton.addEventListener("click", async () => {
+        if (authNameRow) authNameRow.style.display = "block";
         const email = authEmailInput ? authEmailInput.value.trim() : "";
         const password = authPasswordInput ? authPasswordInput.value : "";
-        if (!email || !password) {
-          if (authMessage) authMessage.textContent = "Enter email and password to create an account.";
+        const name = authNameInput ? authNameInput.value.trim() : "";
+        if (!name || !email || !password) {
+          if (authMessage) authMessage.textContent = "Enter name, email, and password to create an account.";
           return;
         }
         if (!supabase) {
@@ -6925,7 +6932,15 @@
         if (authMessage) authMessage.textContent = "Creating account...";
         authSendButton.disabled = true;
         try {
-          const { error } = await supabase.auth.signUp({ email, password });
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: name,
+              },
+            },
+          });
           if (authMessage) {
             authMessage.textContent = error
               ? error.message
@@ -6938,6 +6953,7 @@
 
       authForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (authNameRow) authNameRow.style.display = "none";
         const email = authEmailInput ? authEmailInput.value.trim() : "";
         const password = authPasswordInput ? authPasswordInput.value : "";
         if (!email || !password) {
@@ -7005,6 +7021,12 @@
             resetPasswordEmailInput.value = authEmailInput ? authEmailInput.value.trim() : "";
           }
           openDialog(resetPasswordDialog);
+        });
+      }
+
+      if (authCloseButton) {
+        authCloseButton.addEventListener("click", () => {
+          closeDialog(authDialog);
         });
       }
       if (resetPasswordCloseButton) {
