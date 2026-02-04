@@ -398,6 +398,24 @@
         margin-right: auto;
       }
 
+      table.mobile-action-grid {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 8px;
+        margin: 0 auto;
+      }
+
+      table.mobile-action-grid td {
+        text-align: center;
+        padding: 0;
+      }
+
+      table.mobile-action-grid .btn {
+        width: 100%;
+      }
+
       .danger-zone .header-row {
         display: grid !important;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2258,36 +2276,38 @@
           </div>
             <div class="header-actions">
               <div class="danger-zone">
-                <table class="mobile-action-grid auth-row" role="presentation" style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 8px; margin: 0 auto; display: table;">
-                  <colgroup>
-                    <col style="width: 50%;">
-                    <col style="width: 50%;">
-                  </colgroup>
-                  <tbody>
-                    <tr>
-                      <td style="padding: 0;">
-                        <button class="btn" id="add-column">Add Column</button>
-                      </td>
-                      <td style="padding: 0;">
-                        <button class="btn" id="toggle-columns">Edit Columns</button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 0;">
-                        <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
-                      </td>
-                      <td style="padding: 0;">&nbsp;</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 0;">
-                        <button class="btn secondary compact" id="sync-now">Sync Now</button>
-                      </td>
-                      <td id="auth-action-cell" style="padding: 0;">
+                <div id="mobile-action-table-wrap" style="width: 100%; display: flex; justify-content: center;">
+                  <table class="mobile-action-grid auth-row" role="presentation">
+                    <colgroup>
+                      <col>
+                      <col>
+                    </colgroup>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <button class="btn" id="add-column">Add Column</button>
+                        </td>
+                        <td>
+                          <button class="btn" id="toggle-columns">Edit Columns</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
+                        </td>
+                        <td>&nbsp;</td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <button class="btn secondary compact" id="sync-now">Sync Now</button>
+                        </td>
+                      <td>
                         <button class="btn secondary compact" id="auth-action">Sign In</button>
                       </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
                 <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
               </div>
               <button class="btn install" id="install-app" style="display:none;">Install App</button>
@@ -3061,7 +3081,7 @@
       const tabLogoPanel = document.getElementById("tab-logo-panel");
       const topControls = document.getElementById("top-controls");
       const dangerZone = document.querySelector(".danger-zone");
-      const authRow = document.getElementById("auth-action-cell");
+      const authRow = document.getElementById("auth-action-inline-cell") || document.getElementById("auth-action-cell");
       const headerActions = document.querySelector(".header-actions");
       const columnDialog = document.getElementById("column-dialog");
       const columnForm = document.getElementById("column-form");
@@ -4049,9 +4069,118 @@
       const positionAuthAction = () => {
         if (!authActionButton) return;
         authActionButton.classList.remove("auth-compact");
-        if (authRow && authActionButton.parentElement !== authRow) {
-          authRow.appendChild(authActionButton);
+        const authSlot = document.getElementById("auth-action-cell");
+        if (authSlot && authActionButton.parentElement !== authSlot) {
+          authSlot.appendChild(authActionButton);
         }
+      };
+
+      const applyMobileHeaderInlineLayout = () => {
+        const table = document.querySelector("table.mobile-action-grid");
+        if (!table) return;
+        const tableWrap = document.getElementById("mobile-action-table-wrap");
+        let inlineGrid = document.getElementById("mobile-action-inline-grid");
+        if (!inlineGrid) {
+          inlineGrid = document.createElement("div");
+          inlineGrid.id = "mobile-action-inline-grid";
+          if (tableWrap) {
+            tableWrap.appendChild(inlineGrid);
+          } else {
+            table.parentNode.insertBefore(inlineGrid, table);
+          }
+          const addColumnButton = document.getElementById("add-column");
+          const editColumnsButton = document.getElementById("toggle-columns");
+          const chooseColumnsButton = document.getElementById("share-columns-button");
+          const syncNowButton = document.getElementById("sync-now");
+          const authActionButton = document.getElementById("auth-action");
+          const blankSlot = document.createElement("div");
+          blankSlot.setAttribute("aria-hidden", "true");
+
+          const rows = [
+            [addColumnButton, editColumnsButton],
+            [chooseColumnsButton, blankSlot],
+            [syncNowButton, authActionButton],
+          ];
+
+          rows.forEach((rowButtons) => {
+            const rowEl = document.createElement("div");
+            rowEl.className = "mobile-action-inline-row";
+            rowButtons.forEach((button) => {
+              const cell = document.createElement("div");
+              cell.className = "mobile-action-inline-cell";
+              if (button) {
+                if (button === authActionButton) {
+                  cell.id = "auth-action-inline-cell";
+                }
+                cell.appendChild(button);
+              }
+              rowEl.appendChild(cell);
+            });
+            inlineGrid.appendChild(rowEl);
+          });
+
+          table.style.display = "none";
+        }
+
+        if (headerActions) {
+          headerActions.style.display = "flex";
+          headerActions.style.flexDirection = "column";
+          headerActions.style.alignItems = "stretch";
+          headerActions.style.width = "100%";
+          headerActions.style.gap = "12px";
+        }
+
+        if (dangerZone) {
+          dangerZone.style.width = "100%";
+          dangerZone.style.maxWidth = "100%";
+          dangerZone.style.margin = "0 auto";
+          dangerZone.style.alignItems = "stretch";
+        }
+
+        if (tableWrap) {
+          tableWrap.style.width = "100%";
+          tableWrap.style.display = "flex";
+          tableWrap.style.justifyContent = "center";
+        }
+
+        inlineGrid.style.display = "flex";
+        inlineGrid.style.flexDirection = "column";
+        inlineGrid.style.gap = "8px";
+        inlineGrid.style.width = "100%";
+        inlineGrid.style.maxWidth = "560px";
+        inlineGrid.style.margin = "0 auto";
+        inlineGrid.style.boxSizing = "border-box";
+
+        const rows = inlineGrid.querySelectorAll(".mobile-action-inline-row");
+        rows.forEach((rowEl) => {
+          rowEl.style.display = "flex";
+          rowEl.style.gap = "8px";
+          rowEl.style.width = "100%";
+          rowEl.style.justifyContent = "center";
+        });
+
+        const cells = inlineGrid.querySelectorAll(".mobile-action-inline-cell");
+        cells.forEach((cell) => {
+          cell.style.flex = "1 1 0";
+          cell.style.maxWidth = "50%";
+          cell.style.display = "flex";
+          cell.style.justifyContent = "center";
+          cell.style.alignItems = "center";
+        });
+
+        const buttons = inlineGrid.querySelectorAll(".btn");
+        buttons.forEach((button) => {
+          button.style.width = "100%";
+          button.style.boxSizing = "border-box";
+        });
+
+        const blankCell = inlineGrid.querySelector("[aria-hidden='true']");
+        if (blankCell) {
+          blankCell.style.width = "100%";
+          blankCell.style.minHeight = "36px";
+        }
+
+        positionAuthAction();
       };
 
       const positionViewerBadge = () => {
@@ -6628,6 +6757,9 @@
       loadShirtUpdateDate();
       updateHeaderTitle();
       updateHeaderSubtitle();
+      applyMobileHeaderInlineLayout();
+      window.addEventListener("resize", applyMobileHeaderInlineLayout);
+      window.addEventListener("orientationchange", applyMobileHeaderInlineLayout);
       if (removeBrandColumn()) {
         ensureRowCells();
         saveState();
