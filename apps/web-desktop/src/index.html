@@ -30,6 +30,29 @@
         });
       })();
     </script>
+    <script>
+      (function () {
+        const path = window.location.pathname || "/";
+        const ua = navigator.userAgent || "";
+        const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+        const isIpadDesktop = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+        const shouldBeMobile = isMobileUA || isIpadDesktop;
+        const current = window.location.pathname + window.location.search + window.location.hash;
+        if (path === "/") {
+          const target = (shouldBeMobile ? "/m/" : "/d/") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+          return;
+        }
+        if (path.startsWith("/d") && shouldBeMobile) {
+          const target = path.replace(/^\/d(?=\/|$)/, "/m") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+        if (path.startsWith("/m") && !shouldBeMobile) {
+          const target = path.replace(/^\/m(?=\/|$)/, "/d") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+      })();
+    </script>
     <style>
       @font-face {
         font-family: "Heavy Dois";

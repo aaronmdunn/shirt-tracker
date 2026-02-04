@@ -31,15 +31,15 @@ const redirects = `# Device routing
 / /m/ 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
 / /d/ 302
 
-# Route /d to /m on mobile
-/d/* /m/ 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
-
-# Route /m to /d on desktop
-/m/* /d/ 302 User-Agent=Windows|Macintosh|Linux|X11
-
 # Clean /m and /d paths
 /m /m/ 301
 /d /d/ 301
+
+# Route /d to /m on mobile
+/d/* /m/:splat 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
+
+# Route /m to /d on desktop
+/m/* /d/:splat 302 User-Agent=Windows|Macintosh|Linux|X11
 
 # SPA fallbacks
 /m/* /m/index.html 200

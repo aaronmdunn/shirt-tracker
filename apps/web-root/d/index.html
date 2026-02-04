@@ -30,6 +30,29 @@
         });
       })();
     </script>
+    <script>
+      (function () {
+        const path = window.location.pathname || "/";
+        const ua = navigator.userAgent || "";
+        const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+        const isIpadDesktop = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+        const shouldBeMobile = isMobileUA || isIpadDesktop;
+        const current = window.location.pathname + window.location.search + window.location.hash;
+        if (path === "/") {
+          const target = (shouldBeMobile ? "/m/" : "/d/") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+          return;
+        }
+        if (path.startsWith("/d") && shouldBeMobile) {
+          const target = path.replace(/^\/d(?=\/|$)/, "/m") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+        if (path.startsWith("/m") && !shouldBeMobile) {
+          const target = path.replace(/^\/m(?=\/|$)/, "/d") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+      })();
+    </script>
     <style>
       @font-face {
         font-family: "Heavy Dois";
@@ -2582,7 +2605,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.921.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T01:46:01-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T02:34:13-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
