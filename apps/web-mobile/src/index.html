@@ -2576,6 +2576,7 @@
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
               <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found <a href="#" id="attributes-link">here</a>. This is a personal project made out of love for shirts.</p>
+              <p><a href="#" id="legal-credits-link">Legal and Credits</a></p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
           </div>
@@ -2683,6 +2684,25 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="icon-credits-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="legal-credits-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Legal &amp; Credits</h3>
+        <p>All company logos and trademarks are the property of their respective owners.</p>
+        <div><strong>Featured Brands:</strong></div>
+        <div><a href="https://www.rsvlts.com/">RSVLTS</a></div>
+        <div><a href="https://7-strong.com/">7-Strong</a></div>
+        <div><a href="https://www.reynspooner.com/">Reyn Spooner</a></div>
+        <div><a href="https://www.projectgoodapparel.co/">Project Good Apparel</a></div>
+        <div><a href="https://www.dixxon.com/">Dixxon</a></div>
+        <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
+        <hr>
+        <div><strong>Special Thanks:</strong></div>
+        <div><a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="legal-credits-close">Close</button>
       </div>
     </dialog>
 
@@ -3174,19 +3194,6 @@
           // ignore
         }
       };
-
-      const applyFreshUserDefaults = () => {
-        setDefaultTabsState();
-        const defaults = getDefaultColumns();
-        state.columns = defaults.map((column) => ({ ...column }));
-        state.rows = [defaultRow()];
-        setGlobalColumns(defaults);
-        try {
-          localStorage.removeItem("tab-logos-map");
-        } catch (error) {
-          // ignore
-        }
-      };
       const columnOverrides = {
         fandomOptionsByTab: {},
         typeOptionsByTab: {},
@@ -3237,6 +3244,9 @@
       const iconCreditsDialog = document.getElementById("icon-credits-dialog");
       const iconCreditsCloseButton = document.getElementById("icon-credits-close");
       const attributesLink = document.getElementById("attributes-link");
+      const legalCreditsDialog = document.getElementById("legal-credits-dialog");
+      const legalCreditsCloseButton = document.getElementById("legal-credits-close");
+      const legalCreditsLink = document.getElementById("legal-credits-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -4005,7 +4015,7 @@
           authActionButton.textContent = "Sign In";
           authActionButton.classList.remove("auth-signed-in");
           authActionButton.classList.add("auth-signed-out");
-          authActionButton.style.display = "inline-flex";
+          authActionButton.style.setProperty("display", "none", "important");
           if (authActionSignedOutButton) {
             authActionSignedOutButton.textContent = "Sign In";
             authActionSignedOutButton.style.display = "inline-flex";
@@ -4034,7 +4044,7 @@
           authActionButton.classList.remove("auth-signed-out");
           authActionButton.classList.add("auth-signed-in");
           positionAuthAction();
-          authActionButton.style.display = "inline-flex";
+          authActionButton.style.setProperty("display", "inline-flex", "important");
           if (authActionSignedOutButton) {
             authActionSignedOutButton.style.display = "none";
           }
@@ -4054,13 +4064,13 @@
           authActionButton.textContent = "Sign In";
           authActionButton.classList.remove("auth-signed-in");
           authActionButton.classList.add("auth-signed-out");
-          authActionButton.style.display = "inline-flex";
+          authActionButton.style.setProperty("display", "none", "important");
           if (authActionSignedOutButton) {
             authActionSignedOutButton.textContent = "Sign In";
             authActionSignedOutButton.style.display = "inline-flex";
           }
           positionAuthAction();
-          authActionButton.style.display = "inline-flex";
+          authActionButton.style.setProperty("display", "none", "important");
           if (syncNowButton) syncNowButton.disabled = true;
           if (verifyBackupButton) verifyBackupButton.disabled = true;
           updateUnsavedStatus();
@@ -4126,6 +4136,7 @@
             // fallthrough
           }
         }
+        dialog.style.display = "block";
         dialog.setAttribute("open", "");
       };
 
@@ -4136,7 +4147,19 @@
           return;
         }
         dialog.removeAttribute("open");
+        dialog.style.display = "none";
       };
+
+      const applyDialogFallback = (dialog) => {
+        if (!dialog) return;
+        if (typeof dialog.showModal !== "function") {
+          dialog.style.display = "none";
+        }
+      };
+
+      document.querySelectorAll("dialog").forEach((dialog) => {
+        applyDialogFallback(dialog);
+      });
 
       const openEventLogDialog = () => {
         renderEventLog();
@@ -4222,10 +4245,10 @@
         document.body.setAttribute("data-auth", "signed-in");
         document.body.setAttribute("data-viewer", "true");
         if (authActionButton) {
-          authActionButton.style.display = "none";
+          authActionButton.style.setProperty("display", "none", "important");
         }
         if (authActionSignedOutButton) {
-          authActionSignedOutButton.style.display = "none";
+          authActionSignedOutButton.style.setProperty("display", "none", "important");
         }
         const signedOutLogin = document.querySelector(".signedout-login");
         if (signedOutLogin) {
@@ -6637,9 +6660,41 @@
         });
       }
 
+      if (legalCreditsLink && legalCreditsDialog) {
+        legalCreditsLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(legalCreditsDialog);
+        });
+      }
+
+      if (legalCreditsDialog) {
+        const legalCreditsBody = legalCreditsDialog.querySelector(".dialog-body");
+        if (legalCreditsBody) {
+          legalCreditsBody.style.textAlign = "center";
+          legalCreditsBody.style.display = "grid";
+          legalCreditsBody.style.gap = "10px";
+          legalCreditsBody.style.justifyItems = "center";
+          const legalCreditsLinks = legalCreditsBody.querySelectorAll("a");
+          legalCreditsLinks.forEach((link) => {
+            link.style.display = "block";
+            link.style.textAlign = "center";
+          });
+          const legalCreditsRule = legalCreditsBody.querySelector("hr");
+          if (legalCreditsRule) {
+            legalCreditsRule.style.width = "100%";
+          }
+        }
+      }
+
       if (iconCreditsCloseButton) {
         iconCreditsCloseButton.addEventListener("click", () => {
           closeDialog(iconCreditsDialog);
+        });
+      }
+
+      if (legalCreditsCloseButton) {
+        legalCreditsCloseButton.addEventListener("click", () => {
+          closeDialog(legalCreditsDialog);
         });
       }
 
