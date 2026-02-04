@@ -23,6 +23,12 @@
         const token = params.get("share") || params.get("viewer");
         if (!token) return;
         document.documentElement.setAttribute("data-public-share", "true");
+        if (document.body) {
+          document.body.setAttribute("data-public-share", "true");
+          document.body.setAttribute("data-auth", "signed-in");
+          document.body.setAttribute("data-viewer", "pending");
+          return;
+        }
         document.addEventListener("DOMContentLoaded", () => {
           document.body.setAttribute("data-public-share", "true");
           document.body.setAttribute("data-auth", "signed-in");
@@ -1628,6 +1634,10 @@
       #go-top,
       #go-bottom {
         width: 140px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
       }
 
       #add-row-bottom,
@@ -1857,8 +1867,17 @@
 
       html[data-public-share="true"] #auth-action,
       html[data-public-share="true"] #auth-action-signedout,
-      html[data-public-share="true"] #share-columns-button {
+      html[data-public-share="true"] #share-columns-button,
+      html[data-public-share="true"] .signedout-login {
         display: none !important;
+      }
+
+      html[data-public-share="true"] #go-top,
+      html[data-public-share="true"] #go-bottom {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
       }
 
       .dialog-actions {
@@ -2647,7 +2666,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.924.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T03:48:19-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T03:53:33-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3897,6 +3916,13 @@
         document.body.setAttribute("data-viewer", "true");
         if (authActionButton) {
           authActionButton.style.display = "none";
+        }
+        if (authActionSignedOutButton) {
+          authActionSignedOutButton.style.display = "none";
+        }
+        const signedOutLogin = document.querySelector(".signedout-login");
+        if (signedOutLogin) {
+          signedOutLogin.style.display = "none";
         }
         if (shareColumnsButton) {
           shareColumnsButton.style.display = "none";
