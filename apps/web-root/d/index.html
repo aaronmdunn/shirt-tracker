@@ -855,6 +855,11 @@
         background: #ffffff;
       }
 
+      .tab-btn.rename {
+        font-weight: 700;
+        padding: 6px 10px;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -1184,6 +1189,24 @@
         letter-spacing: 0.06em;
         color: var(--muted);
         text-align: center;
+      }
+
+      .share-columns-actions-row {
+        align-items: flex-end;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .share-columns-link {
+        flex: 1;
+        min-width: 220px;
+        max-width: 360px;
+      }
+
+      .share-columns-buttons {
+        display: flex;
+        gap: 10px;
+        margin-left: auto;
       }
 
       .public-share-actions {
@@ -1895,6 +1918,87 @@
         padding: 0 20px 20px;
       }
 
+      .contact-dialog .dialog-body {
+        gap: 12px;
+      }
+
+      .privacy-dialog .dialog-body {
+        gap: 10px;
+        text-align: left;
+        font-size: 0.86rem;
+        line-height: 1.35;
+      }
+
+      .privacy-dialog .dialog-actions {
+        justify-content: center;
+      }
+
+      .privacy-dialog .dialog-body p,
+      .privacy-dialog .dialog-body div,
+      .privacy-dialog .dialog-body ul,
+      .privacy-dialog .dialog-body li {
+        margin: 0;
+      }
+
+      .privacy-dialog .dialog-body ul {
+        padding-left: 18px;
+      }
+
+      .contact-form {
+        display: grid;
+        gap: 12px;
+      }
+
+      .contact-form input[type="text"],
+      .contact-form input[type="email"],
+      .contact-form textarea {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        padding: 8px 10px;
+        font-family: "Work Sans", "Trebuchet MS", sans-serif;
+        font-size: 0.85rem;
+      }
+
+      .contact-form textarea {
+        min-height: 110px;
+        resize: vertical;
+      }
+
+      .contact-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .contact-form .honeypot {
+        display: none;
+      }
+
+      .contact-actions {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .dialog-close-pill {
+        background: #d10000;
+        color: #ffffff;
+        border: 1px solid #d10000;
+        border-radius: 999px;
+        padding: 6px 16px;
+        font-size: 0.8rem;
+        cursor: pointer;
+      }
+
+      .dialog-close-pill:active {
+        background: #ffffff;
+        color: #d10000;
+      }
+
       .photo-dialog {
         width: min(800px, 94vw);
         max-height: 90vh;
@@ -2215,7 +2319,7 @@
                 <div class="header-row columns-row">
                   <button class="btn" id="add-column">Add Column</button>
                   <button class="btn" id="toggle-columns">Edit Columns</button>
-                  <button class="btn secondary" id="share-columns-button" type="button">Choose Columns</button>
+                  <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
                 </div>
                 <div class="header-row auth-row">
                   <button class="btn secondary compact" id="sync-now">Sync Now</button>
@@ -2371,7 +2475,9 @@
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
               <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
-              <p>I am not affiliated with any shirt brands shown here and do not earn income from this site. I do not own rights to any artwork, shirt images, or logos displayed here. Attributions can be found <a href="#" id="attributes-link">here</a>. This is a personal project made out of love for shirts.</p>
+              <p><a href="#" id="legal-disclaimer-link">Legal Disclaimer &amp; Terms of Use</a></p>
+              <p><a href="#" id="credits-link">Credits &amp; Acknowledgements</a></p>
+              <p><a href="#" id="privacy-policy-link">Privacy Policy</a> | <a href="#" id="contact-link">Contact Us</a></p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
             <div class="update-box">
@@ -2392,13 +2498,6 @@
               <div class="backup-status" id="backup-status">Not checked yet.</div>
               <div class="unsaved-status" id="unsaved-status"></div>
               <div class="public-share-row">
-                <label for="public-share-link">Public Viewer Link</label>
-                <div class="public-share-actions">
-                  <input class="public-share-input" id="public-share-link" type="text" readonly>
-                  <button class="btn secondary" id="copy-share-link">Copy</button>
-                </div>
-              </div>
-              <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
                 <div class="public-share-actions">
                   <button class="btn secondary" id="edit-profile-name" type="button">Edit Profile Name</button>
@@ -2410,6 +2509,7 @@
               <div class="danger-actions">
                 <button class="btn danger" id="clear-all">🛑 Clear All</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
+                <button class="btn danger" id="reset-fresh">Reset to Fresh Defaults</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
@@ -2513,18 +2613,161 @@
     </dialog>
     <dialog id="icon-credits-dialog" class="about-dialog">
       <div class="dialog-body">
-        <h3>Attributes</h3>
+        <h3>Credits &amp; Acknowledgements</h3>
         <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
+        <div><strong>Featured Brands:</strong></div>
+        <div><a href="https://www.rsvlts.com/">RSVLTS</a></div>
+        <div><a href="https://7-strong.com/">7-Strong</a></div>
+        <div><a href="https://www.reynspooner.com/">Reyn Spooner</a></div>
+        <div><a href="https://www.projectgoodapparel.co/">Project Good Apparel</a></div>
+        <div><a href="https://www.dixxon.com/">Dixxon</a></div>
+        <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
+        <div><strong>Community Credits:</strong></div>
+        <div>Product images sourced in part from <a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a>, an independent fan-run catalog of RSVLTS products. Used with appreciation for their work in documenting the RSVLTS community.</div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="icon-credits-close">Close</button>
       </div>
+    </dialog>
+    <dialog id="legal-disclaimer-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <div><strong>Legal Disclaimer &amp; Terms of Use</strong></div>
+        <div><strong>App Name:</strong> Shirt Tracker</div>
+        <div><strong>1. Non-Commercial Fan Project</strong></div>
+        <p>"Shirt Tracker" is an unofficial, fan-made application created solely for hobbyist and personal use. It is not endorsed, sponsored, affiliated with, or authorized by RSVLTS, 7-Strong, Reyn Spooner, Project Good Apparel, Dixxon, Park Candy, or any of their subsidiaries.</p>
+        <div><strong>2. Intellectual Property &amp; Trademarks</strong></div>
+        <p>All company names, brand names, trademarks, logos, and images appear in this application for identification and tracking purposes only. They remain the property of their respective owners.</p>
+        <p>The creator of this app makes no claim of ownership over any third-party intellectual property, images, or assets used within the application.</p>
+        <div><strong>3. Limitation of Liability &amp; Data Privacy</strong></div>
+        <p><strong>By using this application, you acknowledge and agree to the following:</strong></p>
+        <div><strong>"As Is" Policy:</strong> This application is provided "as is" without any warranties. The creator makes no guarantee regarding the app's reliability or data integrity.</div>
+        <div><strong>Data Responsibility:</strong> The creator is not responsible for unauthorized access or malicious use of your account. While the app is designed with privacy in mind, please do not enter Personally Identifiable Information (PII) (such as real names, addresses, or sensitive financial info) that you would not want potentially exposed.</div>
+        <div><strong>Indemnification:</strong> You agree not to hold the creator of this app liable for any claims, damages, or legal issues arising from your use of this service.</div>
+        <div><strong>4. Code of Conduct</strong></div>
+        <p>The creator reserves the right to terminate access or ban any user detected engaging in malicious behavior or attempting to compromise the app. If your account is banned for malicious activity, your data may be permanently deleted and will not be retrievable.</p>
+        <div><strong>5. Support &amp; Feedback</strong></div>
+        <p>This is a personal hobby project. <strong>There is no guaranteed technical support.</strong></p>
+        <div>Feature requests are welcome via the contact form but are not guaranteed to be implemented.</div>
+        <div><strong>Backup Your Data:</strong> As with any technology, you are strongly encouraged to keep your own backups of your lists.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="legal-disclaimer-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="privacy-policy-dialog" class="privacy-dialog">
+      <div class="dialog-body">
+        <h3>Privacy Policy</h3>
+        <div><strong>Effective Date:</strong> January 30, 2026</div>
+        <div><strong>App Name:</strong> Shirt Tracker</div>
+        <div><strong>1. Introduction</strong></div>
+        <p>At <strong>Shirt Tracker</strong>, accessible via this application, one of our main priorities is the privacy of our users. This Privacy Policy document describes the types of information that is collected and recorded by Shirt Tracker and how we use it.</p>
+        <p>By using our application, you hereby consent to this Privacy Policy and agree to its terms.</p>
+        <div><strong>2. Data Controller</strong></div>
+        <p>For the purposes of the General Data Protection Regulation (GDPR) and other applicable data protection laws, the <strong>Data Controller</strong> responsible for your personal information is:</p>
+        <div><strong>Aaron Dunn</strong> (Creator &amp; Developer)</div>
+        <div><strong>Contact:</strong> Please use the contact form linked at the bottom of this policy.</div>
+        <div><strong>3. Information We Collect</strong></div>
+        <p>We only collect information necessary to provide the functionality of the app. This includes:</p>
+        <ul>
+          <li><strong>Account Information:</strong> When you register for an Account, we may ask for basic contact information, such as your name and email address.</li>
+          <li><strong>User Content:</strong> We store the data you input into the application, such as your checklist of shirts, collection status, and notes.</li>
+          <li><strong>Logs:</strong> Like most apps, we use standard log files that may collect internet protocol (IP) addresses, browser type, and timestamps. This is strictly for debugging and maintaining the security of the app.</li>
+        </ul>
+        <div><strong>We do NOT sell, trade, or rent your personal identification information to others.</strong></div>
+        <div><strong>4. Legal Basis for Processing</strong></div>
+        <p>We process your personal data under the following legal bases:</p>
+        <ul>
+          <li><strong>Contractual Necessity:</strong> We need your email and shirt data to provide the service you signed up for (i.e., saving your list). The app cannot function without this.</li>
+          <li><strong>Legitimate Interests:</strong> We log basic technical data (IP addresses) to ensure the security and stability of the app.</li>
+        </ul>
+        <div><strong>5. How We Use Your Information</strong></div>
+        <p>We use the information we collect in the following ways:</p>
+        <ul>
+          <li>To provide, operate, and maintain the Shirt Tracker application.</li>
+          <li>To manage your account and login session.</li>
+          <li>To find and prevent fraud or abuse of the app.</li>
+          <li>To communicate with you regarding updates or support (only if you have contacted us first).</li>
+        </ul>
+        <div><strong>6. Third-Party Services &amp; Infrastructure</strong></div>
+        <p>To run this application securely and reliably, we utilize trusted third-party service providers. By using the app, you acknowledge that your data may pass through or be stored on servers managed by these providers:</p>
+        <ul>
+          <li><strong>Supabase:</strong> Used for secure database hosting, user data storage, and authentication management. Your email and shirt lists are stored here.</li>
+          <li><strong>Netlify:</strong> Used for web hosting and content delivery. Netlify may collect IP addresses in their server logs for security and performance analysis.</li>
+          <li><strong>GitHub:</strong> Used <strong>strictly</strong> for version control of the application's source code (the programming files). GitHub <strong>does not</strong> store, process, or have access to any user personal data, database records, or account information.</li>
+        </ul>
+        <p>These parties have access to necessary data only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.</p>
+		
+	<div style="height: 14px;"></div>
+
+	<div><strong>7. Data Retention</strong></div>
+	<p>We retain your personal information only for as long as is necessary to provide you with the Shirt Tracker service. If you delete your account, your personal data and shirt lists are permanently removed from our active database.</p>
+
+	<div style="height: 14px;"></div>
+
+	<div><strong>8. User Rights (GDPR &amp; CCPA)</strong></div>
+	<p>We respect your control over your data. Regardless of where you live, we extend these rights to all users:</p>
+	<ul>
+	  <li><strong>Access:</strong> You can request a copy of the data we hold about you.</li>
+	  <li><strong>Correction:</strong> You can update your information within the app or request corrections if something is wrong.</li>
+	  <li><strong>Deletion:</strong> You have the right to request that we delete your account and all associated data.</li>
+	</ul>
+	<p>To exercise these rights, please contact the Data Controller using the link below.</p>
+
+	<div style="height: 14px;"></div>
+
+	<div><strong>9. Children's Privacy</strong></div>
+	<p>Shirt Tracker does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you think that your child provided this kind of information on our website, please contact us.</p>
+	
+	<div><strong>10. Contact Us</strong></div>
+	<p>If you have any questions about our Privacy Policy or wish to exercise your data rights, please contact the developer.</p>
+		
+        <div><a href="#" id="privacy-contact-link">Contact Us</a></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="privacy-policy-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="contact-dialog" class="contact-dialog">
+      <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="contact-form">
+        <input type="hidden" name="form-name" value="contact">
+        <div class="honeypot">
+          <label for="contact-bot-field">Leave this field blank</label>
+          <input id="contact-bot-field" name="bot-field" type="text">
+        </div>
+        <div class="dialog-body">
+          <h3>Contact Us</h3>
+          <div class="dialog-row">
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="name" type="text" placeholder="Your name">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-email">Email</label>
+            <input id="contact-email" name="email" type="email" placeholder="you@email.com">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-comments">Comments</label>
+            <textarea id="contact-comments" name="comments" placeholder="How can we help?"></textarea>
+          </div>
+          <label class="contact-checkbox" for="contact-require-response">
+            <input id="contact-require-response" name="require_response" type="checkbox">
+            Require response?
+          </label>
+        </div>
+        <div class="dialog-actions contact-actions">
+          <button type="submit" class="btn">Send</button>
+          <button type="button" class="dialog-close-pill" id="contact-close">Close</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="auth-dialog">
       <form method="dialog" id="auth-form">
         <div class="dialog-body">
           <h3>Sign In</h3>
+          <div class="dialog-row" id="auth-name-row" style="display:none;">
+            <label for="auth-name">Name</label>
+            <input id="auth-name" type="text" placeholder="Your name">
+          </div>
           <div class="dialog-row">
             <label for="auth-email">Email</label>
             <input id="auth-email" type="email" placeholder="you@email.com" required>
@@ -2533,12 +2776,10 @@
             <label for="auth-password">Password</label>
             <input id="auth-password" type="password" placeholder="Enter password" required>
           </div>
-          <div class="dialog-row" style="font-size: 0.78rem; color: var(--muted);">
-            Use your Supabase account to sign in for sync.
-          </div>
           <div class="dialog-row" id="auth-message" style="color: var(--muted); font-size: 0.8rem;"></div>
         </div>
         <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="auth-close">Close</button>
           <button type="button" class="btn secondary" id="auth-send">Create Account</button>
           <button type="submit" class="btn" id="auth-verify">Sign In</button>
         </div>
@@ -2597,9 +2838,18 @@
         <div class="share-columns-list" id="share-columns-list"></div>
         <div class="share-columns-note">Controls what appears in your shared link.</div>
       </div>
-      <div class="dialog-actions">
-        <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
-        <button type="button" class="btn" id="share-columns-save">Save</button>
+      <div class="dialog-actions share-columns-actions-row">
+        <div class="public-share-row share-columns-link">
+          <label for="public-share-link">Public Viewer Link</label>
+          <div class="public-share-actions">
+            <input class="public-share-input" id="public-share-link" type="text" readonly>
+            <button class="btn secondary" id="copy-share-link">Copy</button>
+          </div>
+        </div>
+        <div class="share-columns-buttons">
+          <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
+          <button type="button" class="btn" id="share-columns-save">Save</button>
+        </div>
       </div>
     </dialog>
 
@@ -2674,7 +2924,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.926.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T17:19:26-05:00";
+      const LAST_COMMIT_DATE = "2026-02-04T17:23:24-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3057,7 +3307,18 @@
       const footerVersionLine = document.getElementById("footer-version-line");
       const iconCreditsDialog = document.getElementById("icon-credits-dialog");
       const iconCreditsCloseButton = document.getElementById("icon-credits-close");
-      const attributesLink = document.getElementById("attributes-link");
+      const creditsLink = document.getElementById("credits-link");
+      const legalDisclaimerDialog = document.getElementById("legal-disclaimer-dialog");
+      const legalDisclaimerCloseButton = document.getElementById("legal-disclaimer-close");
+      const legalDisclaimerLink = document.getElementById("legal-disclaimer-link");
+      const resetFreshButton = document.getElementById("reset-fresh");
+      const privacyPolicyDialog = document.getElementById("privacy-policy-dialog");
+      const privacyPolicyCloseButton = document.getElementById("privacy-policy-close");
+      const privacyPolicyLink = document.getElementById("privacy-policy-link");
+      const privacyContactLink = document.getElementById("privacy-contact-link");
+      const contactDialog = document.getElementById("contact-dialog");
+      const contactCloseButton = document.getElementById("contact-close");
+      const contactLink = document.getElementById("contact-link");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -3094,9 +3355,12 @@
       const aboutCloseButton = document.getElementById("about-close");
       const authDialog = document.getElementById("auth-dialog");
       const authForm = document.getElementById("auth-form");
+      const authNameRow = document.getElementById("auth-name-row");
+      const authNameInput = document.getElementById("auth-name");
       const authEmailInput = document.getElementById("auth-email");
       const authPasswordInput = document.getElementById("auth-password");
       const authSendButton = document.getElementById("auth-send");
+      const authCloseButton = document.getElementById("auth-close");
       const authMessage = document.getElementById("auth-message");
       const registerLink = document.getElementById("register-link");
       const forgotPasswordLink = document.getElementById("forgot-password-link");
@@ -3713,7 +3977,7 @@
           shareColumnsButton.appendChild(subSpan);
         };
         if (!currentUser || isViewerSession) {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+          setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           applyDesktopHeaderInlineLayout();
           return;
@@ -3721,13 +3985,13 @@
         const columns = getShareableColumns();
         const total = columns.length;
         if (!total) {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: None");
+          setShareColumnsButtonLabel("Share Columns", "Selected: None");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           applyDesktopHeaderInlineLayout();
           return;
         }
         if (publicShareVisibility.mode === "all") {
-          setShareColumnsButtonLabel("Choose Columns", "Selected: All");
+          setShareColumnsButtonLabel("Share Columns", "Selected: All");
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           applyDesktopHeaderInlineLayout();
           return;
@@ -3735,12 +3999,12 @@
         if (publicShareVisibility.mode === "custom") {
           const selected = new Set(publicShareVisibility.columnIds || []);
           const count = columns.filter((column) => selected.has(column.id)).length;
-          setShareColumnsButtonLabel("Choose Columns", `Selected: ${count}/${total}`);
+          setShareColumnsButtonLabel("Share Columns", `Selected: ${count}/${total}`);
           if (shareColumnsSummary) shareColumnsSummary.textContent = "";
           applyDesktopHeaderInlineLayout();
           return;
         }
-        setShareColumnsButtonLabel("Choose Columns", "Selected: Hide Price");
+        setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
         if (shareColumnsSummary) shareColumnsSummary.textContent = "";
         applyDesktopHeaderInlineLayout();
       };
@@ -4954,7 +5218,7 @@
           if (input.id === "filter-column" || input.id === "filter-query") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
             return;
           }
           input.disabled = true;
@@ -5232,6 +5496,28 @@
           openTabDeleteDialog(tabsState.activeTabId);
         });
         tabBar.appendChild(deleteBtn);
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "tab-btn rename";
+        renameBtn.textContent = "✏️";
+        renameBtn.setAttribute("aria-label", "Rename current tab");
+        renameBtn.addEventListener("click", () => {
+          if (!tabsState.activeTabId) return;
+          const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
+          if (!activeTab) return;
+          const nextName = prompt("Rename tab:", activeTab.name || "");
+          if (!nextName) return;
+          const trimmed = nextName.trim();
+          if (!trimmed) return;
+          if (trimmed === activeTab.name) return;
+          activeTab.name = trimmed;
+          saveTabsState();
+          saveState();
+          renderTabs();
+          renderTable();
+          renderFooter();
+        });
+        tabBar.appendChild(renameBtn);
         updateTabLogo();
       };
 
@@ -6475,16 +6761,91 @@
         closeDialog(aboutDialog);
       });
 
-      if (attributesLink && iconCreditsDialog) {
-        attributesLink.addEventListener("click", (event) => {
+      if (creditsLink && iconCreditsDialog) {
+        creditsLink.addEventListener("click", (event) => {
           event.preventDefault();
           openDialog(iconCreditsDialog);
+        });
+      }
+
+      if (legalDisclaimerLink && legalDisclaimerDialog) {
+        legalDisclaimerLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(legalDisclaimerDialog);
+          legalDisclaimerDialog.scrollTop = 0;
+          const legalBody = legalDisclaimerDialog.querySelector(".dialog-body");
+          if (legalBody) legalBody.scrollTop = 0;
+        });
+      }
+
+      if (privacyPolicyLink && privacyPolicyDialog) {
+        privacyPolicyLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(privacyPolicyDialog);
+          privacyPolicyDialog.scrollTop = 0;
+          const privacyBody = privacyPolicyDialog.querySelector(".dialog-body");
+          if (privacyBody) privacyBody.scrollTop = 0;
+        });
+      }
+
+      if (privacyContactLink && contactDialog) {
+        privacyContactLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(contactDialog);
+          closeDialog(privacyPolicyDialog);
+        });
+      }
+
+      if (contactLink && contactDialog) {
+        contactLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          openDialog(contactDialog);
         });
       }
 
       if (iconCreditsCloseButton) {
         iconCreditsCloseButton.addEventListener("click", () => {
           closeDialog(iconCreditsDialog);
+        });
+      }
+
+      if (legalDisclaimerCloseButton) {
+        legalDisclaimerCloseButton.addEventListener("click", () => {
+          closeDialog(legalDisclaimerDialog);
+        });
+      }
+
+      if (privacyPolicyCloseButton) {
+        privacyPolicyCloseButton.addEventListener("click", () => {
+          closeDialog(privacyPolicyDialog);
+        });
+      }
+
+      if (contactCloseButton) {
+        contactCloseButton.addEventListener("click", () => {
+          closeDialog(contactDialog);
+        });
+      }
+
+      if (resetFreshButton) {
+        resetFreshButton.addEventListener("click", async () => {
+          if (!confirm("Reset all data to fresh defaults? This cannot be undone.")) return;
+          if (!confirm("Are you sure? This will overwrite your current data.")) return;
+          try {
+            if (typeof applyFreshUserDefaults === "function") {
+              applyFreshUserDefaults();
+            }
+            saveTabsState();
+            saveState();
+            updateTabLogo();
+            await syncToSupabase();
+            renderTabs();
+            renderTable();
+            renderFooter();
+          } catch (error) {
+            showToast("Reset failed. Please try again.");
+            console.error("Fresh reset failed", error);
+          }
         });
       }
 
@@ -6556,10 +6917,12 @@
       });
 
       authSendButton.addEventListener("click", async () => {
+        if (authNameRow) authNameRow.style.display = "block";
         const email = authEmailInput ? authEmailInput.value.trim() : "";
         const password = authPasswordInput ? authPasswordInput.value : "";
-        if (!email || !password) {
-          if (authMessage) authMessage.textContent = "Enter email and password to create an account.";
+        const name = authNameInput ? authNameInput.value.trim() : "";
+        if (!name || !email || !password) {
+          if (authMessage) authMessage.textContent = "Enter name, email, and password to create an account.";
           return;
         }
         if (!supabase) {
@@ -6569,7 +6932,15 @@
         if (authMessage) authMessage.textContent = "Creating account...";
         authSendButton.disabled = true;
         try {
-          const { error } = await supabase.auth.signUp({ email, password });
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: name,
+              },
+            },
+          });
           if (authMessage) {
             authMessage.textContent = error
               ? error.message
@@ -6582,6 +6953,7 @@
 
       authForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (authNameRow) authNameRow.style.display = "none";
         const email = authEmailInput ? authEmailInput.value.trim() : "";
         const password = authPasswordInput ? authPasswordInput.value : "";
         if (!email || !password) {
@@ -6649,6 +7021,12 @@
             resetPasswordEmailInput.value = authEmailInput ? authEmailInput.value.trim() : "";
           }
           openDialog(resetPasswordDialog);
+        });
+      }
+
+      if (authCloseButton) {
+        authCloseButton.addEventListener("click", () => {
+          closeDialog(authDialog);
         });
       }
       if (resetPasswordCloseButton) {
