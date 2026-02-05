@@ -2493,7 +2493,7 @@
                       </tr>
                       <tr>
                         <td>
-                          <button class="btn secondary compact" id="sync-now">Save + Sync to Cloud</button>
+                          <button class="btn secondary compact" id="sync-now">Cloud Sync</button>
                         </td>
                       <td>
                         <button class="btn secondary compact" id="auth-action">Sign In</button>
@@ -2691,9 +2691,9 @@
             <div class="danger-box">
               <div class="danger-title">Danger Zone</div>
               <div class="danger-actions">
-                <button class="btn danger" id="clear-all">🛑 Clear All</button>
+                <button class="btn danger" id="clear-all">🛑 Reset Tab</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
-                <button class="btn danger" id="reset-fresh">Reset to Fresh Defaults</button>
+                <button class="btn danger" id="reset-fresh">⚠️ Wipe & Reset</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
@@ -3148,7 +3148,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.938.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T15:00:56-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T15:46:08-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4954,7 +4954,7 @@
           setUnsavedStatus("Unsaved local changes (not synced yet).", "alert");
           return;
         }
-        setUnsavedStatus(`Last saved locally: ${formatDateTime(lastSync)}.`, "ok");
+        setUnsavedStatus(`Last saved locally: ${formatDateTime(lastSync)}`, "ok");
       };
 
       const updateBackupStatusFromStorage = () => {
@@ -4965,7 +4965,7 @@
           updateUnsavedStatus();
           return;
         }
-        setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}.`);
+        setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}`);
         updateUnsavedStatus();
       };
 
@@ -6440,6 +6440,7 @@
           filterColumnSelect.appendChild(option);
         });
         const allowedIds = new Set(orderedColumns.map((column) => column.id));
+        allowedIds.add("all");
         if (allowTagsFilter) allowedIds.add("tags");
         if (!allowedIds.has(state.filter.columnId)) {
           state.filter.columnId = "all";
@@ -7828,9 +7829,9 @@
           const cloudText = formatDateTime(cloudTime);
           const toleranceMs = 2 * 60 * 1000;
           if (!localSync || cloudTime + toleranceMs >= localSync) {
-            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText}. (May lag local changes.)`);
+            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText} (May lag local changes)`);
           } else {
-            setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}.`);
+            setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}`);
           }
         } finally {
           verifyBackupButton.textContent = originalLabel;

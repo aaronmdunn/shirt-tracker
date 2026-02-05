@@ -2341,6 +2341,11 @@
           </div>
         </div>
         <div class="viewer-banner" id="viewer-banner">Viewer mode: view-only access.</div>
+        <div id="find-bar" style="display:none; position:fixed; top:0; left:0; right:0; z-index:10000; background:var(--paper); border-bottom:1px solid var(--line); padding:8px 12px; align-items:center; gap:8px; font-family:inherit;">
+          <div style="display:inline-block; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.78rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); background:rgba(0,0,0,0.04); border:1px solid var(--line); border-radius:999px; padding:4px 10px;">Find</div>
+          <input id="find-bar-input" type="text" placeholder="Search this tab" style="flex:1; max-width:520px; font-family:'Work Sans','Trebuchet MS',sans-serif;">
+          <button class="btn secondary" id="find-bar-close" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%;">Close</button>
+        </div>
         <div class="column-toggle-row"></div>
         <div class="column-manager hidden" id="column-manager"><div class="column-manager-list"><div class="column-row" draggable="true" data-column-id="7ae82df2-d187-4885-8739-edf614480817">
             <div class="column-meta">
@@ -2528,9 +2533,9 @@
             <div class="danger-box">
               <div class="danger-title">Danger Zone</div>
               <div class="danger-actions">
-                <button class="btn danger" id="clear-all">🛑 Clear All</button>
+                <button class="btn danger" id="clear-all">🛑 Reset Tab</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
-                <button class="btn danger" id="reset-fresh">Reset to Fresh Defaults</button>
+                <button class="btn danger" id="reset-fresh">⚠️ Wipe & Reset</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
@@ -3364,6 +3369,9 @@
       const filterColumnSelect = document.getElementById("filter-column");
       const filterQueryInput = document.getElementById("filter-query");
       const filterTagsSelect = document.getElementById("filter-tags");
+      const findBar = document.getElementById("find-bar");
+      const findBarInput = document.getElementById("find-bar-input");
+      const findBarCloseButton = document.getElementById("find-bar-close");
       const clearFilterButton = document.getElementById("clear-filter");
       const totalCountEl = document.getElementById("total-count");
       const totalCostEl = document.getElementById("total-cost");
@@ -4715,7 +4723,7 @@
           setUnsavedStatus("Unsaved local changes (not synced yet).", "alert");
           return;
         }
-          setUnsavedStatus(`Last saved locally: ${formatDateTime(lastSync)}.`, "ok");
+          setUnsavedStatus(`Last saved locally: ${formatDateTime(lastSync)}`, "ok");
       };
 
       const updateBackupStatusFromStorage = () => {
@@ -4726,7 +4734,7 @@
           updateUnsavedStatus();
           return;
         }
-        setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}.`);
+        setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}`);
         updateUnsavedStatus();
       };
 
@@ -5378,7 +5386,7 @@
         });
         const inputs = document.querySelectorAll("input, select, textarea, button.btn-icon");
         inputs.forEach((input) => {
-          if (input.id === "filter-column" || input.id === "filter-query") {
+          if (input.id === "filter-column" || input.id === "filter-query" || input.id === "find-bar-input") {
             return;
           }
           if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
@@ -5402,7 +5410,7 @@
         });
         const inputs = document.querySelectorAll("input, select, textarea, button.btn-icon");
         inputs.forEach((input) => {
-          if (input.id === "filter-column" || input.id === "filter-query") {
+          if (input.id === "filter-column" || input.id === "filter-query" || input.id === "find-bar-input") {
             return;
           }
           if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
@@ -6217,6 +6225,7 @@
           filterColumnSelect.appendChild(option);
         });
         const allowedIds = new Set(orderedColumns.map((column) => column.id));
+        allowedIds.add("all");
         if (allowTagsFilter) allowedIds.add("tags");
         if (!allowedIds.has(state.filter.columnId)) {
           state.filter.columnId = "all";
@@ -6286,6 +6295,46 @@
         }
         filterTagsSelect.style.display = "none";
         filterQueryInput.style.display = "";
+      };
+
+      let findBarPreviousFilter = null;
+      let findBarPreviousPadding = "";
+
+      const openFindBar = () => {
+        if (!findBar || !findBarInput || !filterColumnSelect || !filterQueryInput) return;
+        if (!findBarPreviousFilter) {
+          findBarPreviousFilter = { columnId: state.filter.columnId, query: state.filter.query };
+        }
+        state.filter.columnId = "all";
+        filterColumnSelect.value = "all";
+        state.filter.query = findBarInput.value || "";
+        filterQueryInput.value = state.filter.query;
+        updateFilterInputMode();
+        findBar.style.display = "flex";
+        if (!findBarPreviousPadding) {
+          findBarPreviousPadding = document.body.style.paddingTop || "";
+        }
+        window.requestAnimationFrame(() => {
+          document.body.style.paddingTop = `${findBar.offsetHeight || 44}px`;
+        });
+        findBarInput.focus();
+        renderTable();
+      };
+
+      const closeFindBar = () => {
+        if (!findBar || !findBarInput || !filterColumnSelect || !filterQueryInput) return;
+        findBar.style.display = "none";
+        document.body.style.paddingTop = findBarPreviousPadding;
+        findBarPreviousPadding = "";
+        if (findBarPreviousFilter) {
+          state.filter.columnId = findBarPreviousFilter.columnId || "all";
+          state.filter.query = findBarPreviousFilter.query || "";
+          filterColumnSelect.value = state.filter.columnId;
+          filterQueryInput.value = state.filter.query;
+          updateFilterInputMode();
+          findBarPreviousFilter = null;
+          renderTable();
+        }
       };
 
       const getDefaultColumnWidth = (column) => {
@@ -7637,9 +7686,9 @@
           const cloudText = formatDateTime(cloudTime);
           const toleranceMs = 2 * 60 * 1000;
           if (!localSync || cloudTime + toleranceMs >= localSync) {
-            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText}. (May lag local changes.)`);
+            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText} (May lag local changes)`);
           } else {
-            setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}.`);
+            setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}`);
           }
         } finally {
           verifyBackupButton.textContent = originalLabel;
@@ -7985,6 +8034,42 @@
           renderTable();
         });
       }
+
+      if (findBarInput) {
+        findBarInput.addEventListener("input", (event) => {
+          state.filter.columnId = "all";
+          filterColumnSelect.value = "all";
+          state.filter.query = event.target.value;
+          filterQueryInput.value = state.filter.query;
+          updateFilterInputMode();
+          saveState();
+          renderTable();
+        });
+        findBarInput.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeFindBar();
+          }
+        });
+      }
+
+      if (findBarCloseButton) {
+        findBarCloseButton.addEventListener("click", () => {
+          closeFindBar();
+        });
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && findBar && findBar.style.display !== "none") {
+          event.preventDefault();
+          closeFindBar();
+          return;
+        }
+        const isFindShortcut = (event.key === "f" || event.key === "F") && (event.ctrlKey || event.metaKey);
+        if (!isFindShortcut) return;
+        event.preventDefault();
+        openFindBar();
+      });
 
       clearFilterButton.addEventListener("click", () => {
         state.filter = { columnId: "all", query: "" };
