@@ -2505,7 +2505,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/5/2026, 3:00:17 PM" readonly>
+                <input type="text" id="app-update-date" value="2/5/2026, 3:43:16 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2984,7 +2984,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.938.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T20:00:17.507Z";
+      const LAST_COMMIT_DATE = "2026-02-05T20:43:16.952Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4364,10 +4364,13 @@
         if (tagsInput) tagsInput.focus();
       };
 
+      let bulkTagsSelectedIds = [];
+
       const openBulkTagsDialog = () => {
         if (state.readOnly || !bulkTagsDialog) return;
-        const ids = getSelectedRowIds();
+        const ids = bulkTagsSelectedIds.length ? bulkTagsSelectedIds : getSelectedRowIds();
         if (!ids.length) return;
+        bulkTagsSelectedIds = ids.slice();
         if (bulkTagsCount) bulkTagsCount.textContent = `${ids.length} rows selected`;
         if (bulkTagsInput) bulkTagsInput.value = "";
         renderBulkTagSuggestions("");
@@ -5972,6 +5975,21 @@
         renderFooter();
       };
 
+      const clearRowSelections = () => {
+        sheetBody.querySelectorAll(".row-select:checked").forEach((input) => {
+          input.checked = false;
+        });
+        updateDeleteSelectedState();
+      };
+
+      const restoreRowSelections = (ids) => {
+        if (!ids || !ids.length) return;
+        sheetBody.querySelectorAll(".row-select").forEach((input) => {
+          input.checked = ids.includes(input.dataset.rowId);
+        });
+        updateDeleteSelectedState();
+      };
+
       const deleteColumn = (id) => {
         const column = state.columns.find((col) => col.id === id);
         if (column) {
@@ -6046,12 +6064,13 @@
         }
       };
 
-      const getTypeValueForRow = (row) => {
+      const getTypeValueForRow = (row, { normalize = true } = {}) => {
         const typeColumn = state.columns.find(
           (column) => getColumnLabel(column).trim().toLowerCase() === "type"
         );
         if (!typeColumn || !row || !row.cells) return "";
-        return String(row.cells[typeColumn.id] || "").trim().toLowerCase();
+        const raw = String(row.cells[typeColumn.id] || "").trim();
+        return normalize ? raw.toLowerCase() : raw;
       };
 
       const getTypeIconSrc = (typeValue) => {
@@ -6752,7 +6771,7 @@
           chip.style.fontSize = "0.8rem";
           chip.addEventListener("click", () => {
             const merged = mergeTags(getRowTags(row), [tag]);
-            setRowTags(activeTagsRowId, merged);
+            setRowTags(activeTagsRowId, merged, "tags-suggest");
             if (tagsInput) tagsInput.value = "";
             renderTagsDialog();
           });
@@ -6784,15 +6803,32 @@
         });
       };
 
-      const setRowTags = (rowId, nextTags) => {
+      const setRowTags = (rowId, nextTags, logContext = null) => {
         const row = state.rows.find((item) => item.id === rowId);
         if (!row) return;
-        row.tags = Array.isArray(nextTags) ? nextTags : [];
+        const previousTags = Array.isArray(row.tags) ? row.tags : [];
+        const next = Array.isArray(nextTags) ? nextTags : [];
+        row.tags = next;
         updateShirtUpdateDate();
         saveState();
         scheduleSync();
         renderRows();
         renderFooter();
+        if (logContext) {
+          const previousKeys = new Set(previousTags.map((tag) => String(tag).toLowerCase()));
+          const nextKeys = new Set(next.map((tag) => String(tag).toLowerCase()));
+          const added = next.filter((tag) => !previousKeys.has(String(tag).toLowerCase()));
+          const removed = previousTags.filter((tag) => !nextKeys.has(String(tag).toLowerCase()));
+          const rowName = getRowName(row);
+          const typeValue = getTypeValueForRow(row, { normalize: false });
+          const typeLabel = typeValue ? ` - ${typeValue}` : "";
+          if (added.length) {
+            addEventLog("Added tags", `${rowName}${typeLabel}: ${added.join(", ")}`);
+          }
+          if (removed.length) {
+            addEventLog("Removed tags", `${rowName}${typeLabel}: ${removed.join(", ")}`);
+          }
+        }
       };
 
       const renderTagsDialog = () => {
@@ -6834,7 +6870,7 @@
           remove.style.fontSize = "0.85rem";
           remove.addEventListener("click", () => {
             const nextTags = tags.filter((item) => item !== tag);
-            setRowTags(activeTagsRowId, nextTags);
+            setRowTags(activeTagsRowId, nextTags, "tags-dialog");
             renderTagsDialog();
           });
           chip.appendChild(label);
@@ -6849,8 +6885,9 @@
         if (!incoming.length) return;
         const row = state.rows.find((item) => item.id === activeTagsRowId);
         if (!row) return;
-        const merged = mergeTags(getRowTags(row), incoming);
-        setRowTags(activeTagsRowId, merged);
+        const currentTags = getRowTags(row);
+        const merged = mergeTags(currentTags, incoming);
+        setRowTags(activeTagsRowId, merged, "tags-input");
         tagsInput.value = "";
         renderTagsDialog();
       };
@@ -6862,22 +6899,19 @@
         ids.forEach((rowId) => {
           const row = state.rows.find((item) => item.id === rowId);
           if (!row) return;
-          if (mode === "remove") {
-            row.tags = getRowTags(row).filter((tag) => !incomingLower.has(String(tag).toLowerCase()));
-          } else {
-            row.tags = mergeTags(getRowTags(row), incoming);
-          }
+          const nextTags = mode === "remove"
+            ? getRowTags(row).filter((tag) => !incomingLower.has(String(tag).toLowerCase()))
+            : mergeTags(getRowTags(row), incoming);
+          setRowTags(rowId, nextTags, "bulk-tags");
         });
-        updateShirtUpdateDate();
-        saveState();
-        scheduleSync();
-        renderRows();
-        renderFooter();
         if (bulkTagsInput) bulkTagsInput.value = "";
         renderBulkTagSuggestions("");
         if (bulkTagsCount) {
           bulkTagsCount.textContent = `${ids.length} rows selected`;
         }
+        restoreRowSelections(ids);
+        const label = mode === "remove" ? "Removed tags" : "Added tags";
+        addEventLog(label, `Bulk (${ids.length} rows): ${incoming.join(", ")}`);
       };
 
       const addBulkTags = (incoming) => {
@@ -7114,6 +7148,9 @@
         });
         window.__TAURI__.event.listen("menu-about", () => {
           openDialog(aboutDialog);
+        });
+        window.__TAURI__.event.listen("menu-event-log", () => {
+          openEventLogDialog();
         });
       }
 
@@ -7481,6 +7518,15 @@
       if (bulkTagsCloseButton) {
         bulkTagsCloseButton.addEventListener("click", () => {
           closeDialog(bulkTagsDialog);
+          bulkTagsSelectedIds = [];
+          clearRowSelections();
+        });
+      }
+
+      if (bulkTagsDialog) {
+        bulkTagsDialog.addEventListener("close", () => {
+          bulkTagsSelectedIds = [];
+          clearRowSelections();
         });
       }
 
