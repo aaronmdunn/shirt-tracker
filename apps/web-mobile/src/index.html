@@ -2608,6 +2608,7 @@
               <label for="filter-query">Filter</label>
               <select id="filter-column"><option value="all">All Columns</option></select>
               <input id="filter-query" type="text" placeholder="Type to filter">
+              <select id="filter-tags" style="display:none;"></select>
               <button class="btn" id="clear-filter">Reset Filters</button>
             </div>
             <div class="tab-logo-panel" id="tab-logo-panel"></div>
@@ -3518,6 +3519,7 @@
       const undoClearButton = document.getElementById("undo-clear");
       const filterColumnSelect = document.getElementById("filter-column");
       const filterQueryInput = document.getElementById("filter-query");
+      const filterTagsSelect = document.getElementById("filter-tags");
       const clearFilterButton = document.getElementById("clear-filter");
       const totalCountEl = document.getElementById("total-count");
       const totalCostEl = document.getElementById("total-cost");
@@ -6379,15 +6381,18 @@
             .map((id) => state.columns.find((col) => col.id === id))
             .filter(Boolean);
         })();
+        const allowTagsFilter = !publicShareToken;
         filterColumnSelect.innerHTML = "";
         const allOption = document.createElement("option");
         allOption.value = "all";
         allOption.textContent = "All Columns";
         filterColumnSelect.appendChild(allOption);
-        const tagsOption = document.createElement("option");
-        tagsOption.value = "tags";
-        tagsOption.textContent = "Tags";
-        filterColumnSelect.appendChild(tagsOption);
+        if (allowTagsFilter) {
+          const tagsOption = document.createElement("option");
+          tagsOption.value = "tags";
+          tagsOption.textContent = "Tags";
+          filterColumnSelect.appendChild(tagsOption);
+        }
         orderedColumns.forEach((column) => {
           const labelLower = getColumnLabel(column).trim().toLowerCase();
           if (column.type === "photo" || labelLower === "preview" || labelLower === "price") {
@@ -6398,8 +6403,76 @@
           option.textContent = getColumnLabel(column);
           filterColumnSelect.appendChild(option);
         });
+        const allowedIds = new Set(orderedColumns.map((column) => column.id));
+        if (allowTagsFilter) allowedIds.add("tags");
+        if (!allowedIds.has(state.filter.columnId)) {
+          state.filter.columnId = "all";
+          state.filter.query = "";
+        }
         filterColumnSelect.value = state.filter.columnId || "all";
         filterQueryInput.value = state.filter.query || "";
+        updateFilterInputMode();
+      };
+
+      const updateFilterInputMode = () => {
+        if (!filterTagsSelect || !filterQueryInput) return;
+        const columnId = filterColumnSelect.value;
+        if (columnId === "tags") {
+          if (publicShareToken) {
+            filterTagsSelect.style.display = "none";
+            filterQueryInput.style.display = "";
+            return;
+          }
+          const usedTags = getUsedTags()
+            .map((tag) => String(tag))
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+          filterTagsSelect.innerHTML = "";
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = usedTags.length ? "Select tag" : "No tags yet";
+          filterTagsSelect.appendChild(placeholder);
+          usedTags.forEach((tag) => {
+            const option = document.createElement("option");
+            option.value = tag;
+            option.textContent = tag;
+            filterTagsSelect.appendChild(option);
+          });
+          filterTagsSelect.value = state.filter.query || "";
+          filterTagsSelect.style.display = "";
+          filterQueryInput.style.display = "none";
+          return;
+        }
+        const optionColumn = state.columns.find((column) => column.id === columnId);
+        const optionLabel = optionColumn ? getColumnLabel(optionColumn).trim().toLowerCase() : "";
+        const supportsDropdown = ["condition", "type", "size", "fandom"].includes(optionLabel);
+        if (optionColumn && supportsDropdown) {
+          const rawOptions = Array.isArray(optionColumn.options) && optionColumn.options.length
+            ? optionColumn.options
+            : getUsedValuesForColumn(optionColumn.id);
+          const options = sortFilterOptionsForLabel(
+            optionLabel,
+            rawOptions
+              .map((value) => String(value))
+              .filter((value) => value.trim() !== "")
+          );
+          filterTagsSelect.innerHTML = "";
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = options.length ? `Select ${getColumnLabel(optionColumn)}` : "No options";
+          filterTagsSelect.appendChild(placeholder);
+          options.forEach((value) => {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = value;
+            filterTagsSelect.appendChild(option);
+          });
+          filterTagsSelect.value = state.filter.query || "";
+          filterTagsSelect.style.display = "";
+          filterQueryInput.style.display = "none";
+          return;
+        }
+        filterTagsSelect.style.display = "none";
+        filterQueryInput.style.display = "";
       };
 
       const getDefaultColumnWidth = (column) => {
@@ -6536,13 +6609,17 @@
         const value = row.cells[column.id] || "";
         const isNameColumn = isShirtNameColumn(column);
         if (column.type === "select") {
+          const labelLower = getColumnLabel(column).trim().toLowerCase();
           const select = document.createElement("select");
           const emptyOption = document.createElement("option");
           emptyOption.value = "";
           emptyOption.textContent = "";
           select.appendChild(emptyOption);
-          const sortedOptions = (column.options || []).slice().sort((a, b) =>
-            String(a).localeCompare(String(b))
+          const sortedOptions = sortFilterOptionsForLabel(
+            labelLower,
+            (column.options || [])
+              .map((option) => String(option))
+              .filter((option) => option.trim() !== "")
           );
           sortedOptions.forEach((option) => {
             const opt = document.createElement("option");
@@ -6773,6 +6850,73 @@
         return Array.from(merged.values());
       };
 
+      const getUsedTags = () => {
+        const merged = new Map();
+        state.rows.forEach((row) => {
+          getRowTags(row).forEach((tag) => {
+            const key = String(tag).toLowerCase();
+            if (key && !merged.has(key)) merged.set(key, String(tag));
+          });
+        });
+        return Array.from(merged.values());
+      };
+
+      const getUsedValuesForColumn = (columnId) => {
+        const merged = new Map();
+        state.rows.forEach((row) => {
+          const value = row && row.cells ? row.cells[columnId] : "";
+          String(value || "")
+            .split(",")
+            .map((item) => item.trim())
+            .filter((item) => item.length)
+            .forEach((item) => {
+              const key = item.toLowerCase();
+              if (!merged.has(key)) merged.set(key, item);
+            });
+        });
+        return Array.from(merged.values());
+      };
+
+      const normalizeFilterOption = (value) => String(value || "")
+        .toLowerCase()
+        .replace(/[\s\-\/\.]+/g, "");
+
+      const getSizeOrderIndex = (value) => {
+        const normalized = normalizeFilterOption(value);
+        const groups = [
+          ["xs", "extrasmall", "xsmall"],
+          ["s", "small"],
+          ["m", "medium"],
+          ["l", "large"],
+          ["xl", "xlarge", "extralarge"],
+          ["2xl", "xxl", "2x", "2xlarge", "2xlarge"],
+          ["3xl", "xxxl", "3x", "3xlarge", "3xlarge"],
+          ["4xl", "4x", "4xlarge", "4xlarge"],
+          ["5xl", "5x", "5xlarge", "5xlarge"],
+          ["na", "n/a"],
+        ];
+        for (let i = 0; i < groups.length; i += 1) {
+          if (groups[i].includes(normalized)) return i;
+        }
+        return null;
+      };
+
+      const sortFilterOptionsForLabel = (label, options) => {
+        if (label === "size") {
+          return options.slice().sort((a, b) => {
+            const aIndex = getSizeOrderIndex(a);
+            const bIndex = getSizeOrderIndex(b);
+            if (aIndex !== null && bIndex !== null) return aIndex - bIndex;
+            if (aIndex !== null) return -1;
+            if (bIndex !== null) return 1;
+            return String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
+          });
+        }
+        return options.slice().sort((a, b) =>
+          String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+        );
+      };
+
       const getSelectedRowIds = () => Array.from(
         sheetBody.querySelectorAll(".row-select:checked")
       ).map((input) => input.dataset.rowId).filter(Boolean);
@@ -6988,11 +7132,21 @@
           const actions = document.createElement("td");
           actions.setAttribute("data-label", "Actions");
           actions.className = "actions-cell";
+          actions.style.display = "flex";
+          actions.style.flexDirection = "column";
+          actions.style.alignItems = "center";
+          actions.style.gap = "6px";
           const tagsButton = document.createElement("button");
           tagsButton.type = "button";
           tagsButton.className = "btn-icon";
           tagsButton.textContent = "Tags";
-          tagsButton.style.marginRight = "8px";
+          tagsButton.style.marginRight = "0";
+          if (getRowTags(row).length) {
+            tagsButton.style.background = "#dbe9ff";
+            tagsButton.style.borderColor = "#8eb6ff";
+            tagsButton.style.color = "#234aa3";
+            tagsButton.style.fontWeight = "600";
+          }
           tagsButton.dataset.rowId = row.id;
           tagsButton.addEventListener("click", () => openTagsDialog(row.id));
           const checkbox = document.createElement("input");
@@ -7945,6 +8099,12 @@
 
       filterColumnSelect.addEventListener("change", (event) => {
         state.filter.columnId = event.target.value;
+        const optionColumn = state.columns.find((column) => column.id === state.filter.columnId);
+        const optionLabel = optionColumn ? getColumnLabel(optionColumn).trim().toLowerCase() : "";
+        if (state.filter.columnId === "tags" || ["condition", "type", "size", "fandom"].includes(optionLabel)) {
+          state.filter.query = "";
+        }
+        updateFilterInputMode();
         saveState();
         renderTable();
       });
@@ -7954,6 +8114,14 @@
         saveState();
         renderTable();
       });
+
+      if (filterTagsSelect) {
+        filterTagsSelect.addEventListener("change", (event) => {
+          state.filter.query = event.target.value;
+          saveState();
+          renderTable();
+        });
+      }
 
       clearFilterButton.addEventListener("click", () => {
         state.filter = { columnId: "all", query: "" };
