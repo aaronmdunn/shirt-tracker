@@ -2332,7 +2332,7 @@
                   <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
                 </div>
                 <div class="header-row auth-row">
-                  <button class="btn secondary compact" id="sync-now">Sync Now</button>
+                  <button class="btn secondary compact" id="sync-now">Save + Sync to Cloud</button>
                   <button class="btn secondary compact" id="auth-action">Sign In</button>
                   <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
                 </div>
@@ -2511,13 +2511,17 @@
             </div>
             <div class="backup-box">
               <div class="backup-title">Cloud Backup</div>
-              <button class="btn secondary" id="verify-backup">Verify Backup Status</button>
-              <div class="backup-status" id="backup-status">Not checked yet.</div>
-              <div class="unsaved-status" id="unsaved-status"></div>
+              <button class="btn secondary" id="verify-backup" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Verify Cloud Status</button>
+              <div class="backup-status" id="backup-status" style="text-align:center;">Cloud backup not checked yet.</div>
+              <div class="unsaved-status" id="unsaved-status" style="text-align:center;"></div>
+              <div style="font-size:0.78rem; color:var(--muted); margin-top:6px; text-align:center;">
+                <div>Local save = this device</div>
+                <div>Cloud sync = Supabase backup</div>
+              </div>
               <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
                 <div class="public-share-actions">
-                  <button class="btn secondary" id="edit-profile-name" type="button">Edit Profile Name</button>
+                  <button class="btn secondary" id="edit-profile-name" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Edit Profile Name</button>
                 </div>
               </div>
             </div>
@@ -2619,7 +2623,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.937.0 beta</div>
+        <div id="about-version">Shirt Tracker v1.938.0 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2978,7 +2982,7 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.937.0";
+      const APP_VERSION = "1.938.0";
       const IS_WEB_BUILD = true;
       const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
@@ -3324,6 +3328,7 @@
       const sheetBody = document.getElementById("sheet-body");
       const sheetColgroup = document.getElementById("sheet-colgroup");
       const sheetHeadRow = document.getElementById("sheet-head-row");
+      const aboutVersion = document.getElementById("about-version");
       const sheetTableScroll = document.getElementById("sheet-table-scroll");
       const sheetTable = document.getElementById("sheet-table");
       const tableScrollHint = document.getElementById("table-scroll-hint");
@@ -4687,32 +4692,32 @@
       const updateUnsavedStatus = () => {
         if (!unsavedStatusText) return;
         if (!supabase || !currentUser || isViewerSession) {
-          setUnsavedStatus("Sign in to sync.", "ok");
+          setUnsavedStatus("Sign in to save and sync.", "ok");
           return;
         }
         const lastChange = getBackupTimestamp(LAST_CHANGE_KEY);
         const lastSync = getBackupTimestamp(LAST_SYNC_KEY);
         if (!lastSync) {
-          setUnsavedStatus("Not synced yet.", "ok");
+          setUnsavedStatus("No local save yet.", "ok");
           return;
         }
         const toleranceMs = 2 * 60 * 1000;
         if (lastChange && lastChange > lastSync + toleranceMs) {
-          setUnsavedStatus("Not saved since last change.", "alert");
+          setUnsavedStatus("Unsaved local changes (not synced yet).", "alert");
           return;
         }
-        setUnsavedStatus(`Last saved: ${formatDateTime(lastSync)}.`, "ok");
+          setUnsavedStatus(`Last saved locally: ${formatDateTime(lastSync)}.`, "ok");
       };
 
       const updateBackupStatusFromStorage = () => {
         if (!backupStatusText) return;
         const lastCloud = getBackupTimestamp(LAST_CLOUD_UPDATE_KEY);
         if (!lastCloud) {
-          setBackupStatus("Not checked yet.");
+        setBackupStatus("Cloud backup not checked yet.");
           updateUnsavedStatus();
           return;
         }
-        setBackupStatus(`Last synced at ${formatDateTime(lastCloud)}.`);
+        setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}.`);
         updateUnsavedStatus();
       };
 
@@ -4729,7 +4734,13 @@
         footerVersionLine.textContent = `Shirt Tracker ${APP_VERSION} © 2026 Aaron Dunn`;
       };
 
+      const updateAboutVersionLine = () => {
+        if (!aboutVersion) return;
+        aboutVersion.textContent = `Shirt Tracker v${APP_VERSION} beta`;
+      };
+
       updateFooterVersionLine();
+      updateAboutVersionLine();
 
       const getShortVersion = () => {
         const parts = String(APP_VERSION).split(".");
@@ -4938,7 +4949,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.937.0",
+          version: "1.938.0",
         };
       };
 
@@ -7549,7 +7560,7 @@
 
       verifyBackupButton.addEventListener("click", async () => {
         if (!supabase || !currentUser) {
-          setBackupStatus("Sign in to verify backup.");
+          setBackupStatus("Sign in to check cloud backup.");
           return;
         }
         const originalLabel = verifyBackupButton.textContent;
@@ -7563,7 +7574,7 @@
             .eq("user_id", currentUser.id)
             .maybeSingle();
           if (error || !data || !data.updated_at) {
-            setBackupStatus("No cloud backup found yet.");
+          setBackupStatus("No cloud backup found yet.");
             return;
           }
           const cloudTime = Date.parse(data.updated_at);
@@ -7574,9 +7585,9 @@
           const cloudText = formatDateTime(cloudTime);
           const toleranceMs = 2 * 60 * 1000;
           if (!localSync || cloudTime + toleranceMs >= localSync) {
-            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText}.`);
+            setBackupStatus(`Cloud backup OK. Last cloud update: ${cloudText}. (May lag local changes.)`);
           } else {
-            setBackupStatus(`Local changes not backed up yet. Last cloud update: ${cloudText}.`);
+            setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}.`);
           }
         } finally {
           verifyBackupButton.textContent = originalLabel;
