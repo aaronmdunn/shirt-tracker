@@ -2436,6 +2436,14 @@
     </style>
   </head>
   <body data-auth="signed-out" data-viewer="false">
+    <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" style="display:none;">
+      <input type="hidden" name="form-name" value="contact">
+      <input type="text" name="bot-field">
+      <input type="text" name="name">
+      <input type="email" name="email">
+      <textarea name="comments"></textarea>
+      <input type="checkbox" name="require_response">
+    </form>
     <header>
       <div class="wrap">
           <div class="title-card">
@@ -2930,6 +2938,7 @@
             <input id="contact-require-response" name="require_response" type="checkbox">
             Require response?
           </label>
+          <div id="contact-form-message" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem; display: none;"></div>
         </div>
         <div class="dialog-actions contact-actions">
           <button type="submit" class="btn">Send</button>
@@ -3095,7 +3104,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.936.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T06:22:33-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T08:02:21-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3490,6 +3499,7 @@
       const privacyPolicyLink = document.getElementById("privacy-policy-link");
       const contactDialog = document.getElementById("contact-dialog");
       const contactForm = document.querySelector('form[name="contact"]');
+      const contactFormMessage = document.getElementById("contact-form-message");
       const contactCloseButton = document.getElementById("contact-close");
       const contactLink = document.getElementById("contact-link");
       const appTitleEl = document.getElementById("app-title");
@@ -4254,6 +4264,7 @@
       };
 
       const setAuthLoading = (isLoading) => {
+        if (publicShareToken) return;
         if (!document.body) return;
         if (isLoading) {
           document.body.setAttribute("data-auth", "loading");
@@ -4267,6 +4278,15 @@
         const authLoading = document.getElementById("auth-loading");
         if (authLoading) {
           authLoading.style.display = isLoading ? "block" : "none";
+          if (isLoading) {
+            authLoading.style.textAlign = "center";
+            authLoading.style.margin = "0 auto";
+            authLoading.style.width = "100%";
+          } else {
+            authLoading.style.textAlign = "";
+            authLoading.style.margin = "";
+            authLoading.style.width = "";
+          }
         }
         if (authActionSignedOutButton) {
           authActionSignedOutButton.style.display = isLoading ? "none" : "";
@@ -4539,6 +4559,7 @@
         if (signedOutLogin) {
           signedOutLogin.style.display = "none";
         }
+        setAuthLoading(false);
         if (shareColumnsButton) {
           shareColumnsButton.style.display = "none";
         }
@@ -7075,6 +7096,32 @@
           actionPath = (isMobileUA || isIpadDesktop) ? "/m/" : "/d/";
         }
         contactForm.setAttribute("action", actionPath);
+      }
+
+      if (contactForm && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
+        contactForm.addEventListener("submit", (event) => {
+          event.preventDefault();
+          const formData = new FormData(contactForm);
+          const payload = new URLSearchParams(formData).toString();
+          fetch(contactForm.getAttribute("action") || "/", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: payload,
+          })
+            .then(() => {
+              if (contactFormMessage) {
+                contactFormMessage.textContent = "Thank you! If you requested a response, please allow us some time to respond.";
+                contactFormMessage.style.display = "block";
+              }
+              contactForm.reset();
+            })
+            .catch(() => {
+              if (contactFormMessage) {
+                contactFormMessage.textContent = "Something went wrong. Please try again.";
+                contactFormMessage.style.display = "block";
+              }
+            });
+        });
       }
 
       if (contactLink && contactDialog) {
