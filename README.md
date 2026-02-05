@@ -109,11 +109,16 @@ To regenerate the Tauri icon set:
 npx tauri icon "apps/desktop-tauri/src/assets/icons/hawaiian-shirt.png"
 ```
 
-## License
-
-All rights reserved. See in-app Legal section for attribution and usage notes.
 ### Keep desktop app in sync
 
 Run this before building the desktop app:
 
 `npm run sync:tauri`
+
+### One-click sync app
+
+`Shirt Tracker Sync.app` lives in the repo root. Double-click it to run the Tauri sync + build, then it shows a success dialog with timestamp and version.
+
+## License
+
+All rights reserved. See in-app Legal section for attribution and usage notes.
