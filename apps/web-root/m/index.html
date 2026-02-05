@@ -2640,9 +2640,11 @@
           </table>
         </div>
         <div class="sheet-footer">
-          <div class="footer-actions" id="footer-actions">
-            <button class="btn" id="go-top">Go to Top</button>
-            <button class="btn" id="add-row-bottom">Add Row</button>
+          <div class="footer-actions" id="footer-actions" style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" id="go-top">Go to Top</button>
+              <button class="btn" id="add-row-bottom">Add Row</button>
+            </div>
             <div style="display:flex; gap:8px; align-items:center; width:100%; justify-content:center;">
               <button class="btn secondary compact" id="delete-selected-bottom" style="width:auto;">Delete Item(s)</button>
               <button class="btn secondary compact" id="bulk-tags" style="width:auto;">Tag Item(s)</button>
@@ -3141,7 +3143,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.936.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T09:49:22-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T09:58:52-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
