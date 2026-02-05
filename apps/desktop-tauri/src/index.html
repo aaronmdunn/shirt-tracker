@@ -2505,7 +2505,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/5/2026, 2:32:58 PM" readonly>
+                <input type="text" id="app-update-date" value="2/5/2026, 3:00:17 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2984,7 +2984,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.938.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T19:32:58.812Z";
+      const LAST_COMMIT_DATE = "2026-02-05T20:00:17.507Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3349,6 +3349,7 @@
       const unsavedStatusText = document.getElementById("unsaved-status");
       const publicShareLinkInput = document.getElementById("public-share-link");
       const copyShareLinkButton = document.getElementById("copy-share-link");
+      const bulkTagsButton = document.getElementById("bulk-tags");
       const shareColumnsButton = document.getElementById("share-columns-button");
       const shareColumnsSummary = document.getElementById("share-columns-summary");
       const shareColumnsDialog = document.getElementById("share-columns-dialog");
@@ -3401,7 +3402,6 @@
       const bulkTagsRemoveButton = document.getElementById("bulk-tags-remove");
       const bulkTagsSuggestions = document.getElementById("bulk-tags-suggestions");
       const bulkTagsCloseButton = document.getElementById("bulk-tags-close");
-      const bulkTagsButton = document.getElementById("bulk-tags");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -4471,6 +4471,12 @@
         setAuthLoading(false);
         if (shareColumnsButton) {
           shareColumnsButton.style.display = "none";
+        }
+        if (copyShareLinkButton) {
+          copyShareLinkButton.style.display = "none";
+        }
+        if (bulkTagsButton) {
+          bulkTagsButton.style.display = "none";
         }
         if (syncNowButton) syncNowButton.disabled = true;
         if (verifyBackupButton) verifyBackupButton.disabled = true;

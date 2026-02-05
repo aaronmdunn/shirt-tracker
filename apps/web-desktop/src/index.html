@@ -3349,6 +3349,7 @@
       const unsavedStatusText = document.getElementById("unsaved-status");
       const publicShareLinkInput = document.getElementById("public-share-link");
       const copyShareLinkButton = document.getElementById("copy-share-link");
+      const bulkTagsButton = document.getElementById("bulk-tags");
       const shareColumnsButton = document.getElementById("share-columns-button");
       const shareColumnsSummary = document.getElementById("share-columns-summary");
       const shareColumnsDialog = document.getElementById("share-columns-dialog");
@@ -3401,7 +3402,6 @@
       const bulkTagsRemoveButton = document.getElementById("bulk-tags-remove");
       const bulkTagsSuggestions = document.getElementById("bulk-tags-suggestions");
       const bulkTagsCloseButton = document.getElementById("bulk-tags-close");
-      const bulkTagsButton = document.getElementById("bulk-tags");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -4471,6 +4471,12 @@
         setAuthLoading(false);
         if (shareColumnsButton) {
           shareColumnsButton.style.display = "none";
+        }
+        if (copyShareLinkButton) {
+          copyShareLinkButton.style.display = "none";
+        }
+        if (bulkTagsButton) {
+          bulkTagsButton.style.display = "none";
         }
         if (syncNowButton) syncNowButton.disabled = true;
         if (verifyBackupButton) verifyBackupButton.disabled = true;
