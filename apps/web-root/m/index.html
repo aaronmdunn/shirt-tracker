@@ -2456,6 +2456,7 @@
             <div class="signedout-help">Please login to continue. You may also <a href="#register" id="register-link">register here</a>.</div>
             <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
+          <div class="auth-loading" id="auth-loading" style="display:none;">Loading...</div>
             <div class="header-actions">
               <div class="danger-zone">
                 <div id="mobile-action-table-wrap" style="width: 100%; display: flex; justify-content: center;">
@@ -2775,7 +2776,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.934 beta</div>
+        <div>Shirt Tracker v1.935 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3091,9 +3092,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.934.0";
+      const APP_VERSION = "1.935.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T17:24:56-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T05:29:56-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4248,6 +4249,26 @@
         closeDialog(shareColumnsDialog);
       };
 
+      const setAuthLoading = (isLoading) => {
+        if (!document.body) return;
+        if (isLoading) {
+          document.body.setAttribute("data-auth", "loading");
+        } else if (document.body.getAttribute("data-auth") === "loading") {
+          document.body.setAttribute("data-auth", "signed-out");
+        }
+        const signedOutLogin = document.querySelector(".signedout-login");
+        if (signedOutLogin) {
+          signedOutLogin.style.display = isLoading ? "none" : "";
+        }
+        const authLoading = document.getElementById("auth-loading");
+        if (authLoading) {
+          authLoading.style.display = isLoading ? "block" : "none";
+        }
+        if (authActionSignedOutButton) {
+          authActionSignedOutButton.style.display = isLoading ? "none" : "";
+        }
+      };
+
       const setAuthStatus = () => {
         if (publicShareToken) {
           applyPublicShareMode();
@@ -5019,7 +5040,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.934.0",
+          version: "1.935.0",
         };
       };
 
@@ -6781,6 +6802,7 @@
           applyPublicShareMode();
           loadPublicShareState(publicShareToken);
         }
+        setAuthLoading(true);
         supabase.auth.getSession()
           .then(({ data }) => {
             if (publicShareToken) {
@@ -6794,6 +6816,7 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateLastActivity();
@@ -6806,11 +6829,13 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateFooterVersionLine();
           });
         supabase.auth.onAuthStateChange((_event, session) => {
+          setAuthLoading(true);
           if (publicShareToken) {
             updateAppUpdateDate();
             updateFooterVersionLine();
@@ -6822,6 +6847,7 @@
           isViewerSession = false;
           document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
           setAuthStatus();
+          setAuthLoading(false);
           updateLastActivity();
           handleInactivityCheck();
           if (currentUser) {
@@ -6831,6 +6857,7 @@
       } else {
         document.body.setAttribute("data-viewer", "false");
         setAuthStatus();
+        setAuthLoading(false);
         updateBackupStatusFromStorage();
         updateAppUpdateDate();
         updateFooterVersionLine();

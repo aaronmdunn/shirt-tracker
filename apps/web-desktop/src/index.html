@@ -2315,6 +2315,7 @@
             <div class="signedout-help">Please login to continue. You may also <a href="#register" id="register-link">register here</a>.</div>
             <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
+          <div class="auth-loading" id="auth-loading" style="display:none;">Loading...</div>
             <div class="header-actions">
               <div class="danger-zone">
                 <div class="header-row columns-row">
@@ -4086,6 +4087,26 @@
           syncToSupabase();
         }
         closeDialog(shareColumnsDialog);
+      };
+
+      const setAuthLoading = (isLoading) => {
+        if (!document.body) return;
+        if (isLoading) {
+          document.body.setAttribute("data-auth", "loading");
+        } else if (document.body.getAttribute("data-auth") === "loading") {
+          document.body.setAttribute("data-auth", "signed-out");
+        }
+        const signedOutLogin = document.querySelector(".signedout-login");
+        if (signedOutLogin) {
+          signedOutLogin.style.display = isLoading ? "none" : "";
+        }
+        const authLoading = document.getElementById("auth-loading");
+        if (authLoading) {
+          authLoading.style.display = isLoading ? "block" : "none";
+        }
+        if (authActionSignedOutButton) {
+          authActionSignedOutButton.style.display = isLoading ? "none" : "";
+        }
       };
 
       const setAuthStatus = () => {
@@ -6577,6 +6598,7 @@
           applyPublicShareMode();
           loadPublicShareState(publicShareToken);
         }
+        setAuthLoading(true);
         supabase.auth.getSession()
           .then(({ data }) => {
             if (publicShareToken) {
@@ -6590,6 +6612,7 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateLastActivity();
@@ -6602,11 +6625,13 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateFooterVersionLine();
           });
         supabase.auth.onAuthStateChange((_event, session) => {
+          setAuthLoading(true);
           if (publicShareToken) {
             updateAppUpdateDate();
             updateFooterVersionLine();
@@ -6618,6 +6643,7 @@
           isViewerSession = false;
           document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
           setAuthStatus();
+          setAuthLoading(false);
           updateLastActivity();
           handleInactivityCheck();
           if (currentUser) {
@@ -6627,6 +6653,7 @@
       } else {
         document.body.setAttribute("data-viewer", "false");
         setAuthStatus();
+        setAuthLoading(false);
         updateBackupStatusFromStorage();
         updateAppUpdateDate();
         updateFooterVersionLine();

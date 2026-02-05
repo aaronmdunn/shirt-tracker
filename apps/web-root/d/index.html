@@ -2315,6 +2315,7 @@
             <div class="signedout-help">Please login to continue. You may also <a href="#register" id="register-link">register here</a>.</div>
             <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
+          <div class="auth-loading" id="auth-loading" style="display:none;">Loading...</div>
             <div class="header-actions">
               <div class="danger-zone">
                 <div class="header-row columns-row">
@@ -2603,7 +2604,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.934 beta</div>
+        <div>Shirt Tracker v1.935 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2656,81 +2657,81 @@
       </div>
     </dialog>
 	
-	<dialog id="privacy-policy-dialog" class="privacy-dialog">
-	  <div class="dialog-body">
-	    <h3>Privacy Policy</h3>
-	    <div><strong>Effective Date:</strong> January 30, 2026</div>
-	    <div><strong>App Name:</strong> Shirt Tracker</div>
+   <dialog id="privacy-policy-dialog" class="privacy-dialog">
+     <div class="dialog-body">
+       <h3>Privacy Policy</h3>
+       <div><strong>Effective Date:</strong> January 30, 2026</div>
+       <div><strong>App Name:</strong> Shirt Tracker</div>
 
-	    <div><strong>1. Introduction</strong></div>
-	    <p>At <strong>Shirt Tracker</strong>, accessible via this application, one of our main priorities is the privacy of our users. This Privacy Policy document describes the types of information that is collected and recorded by Shirt Tracker and how we use it.</p>
-	    <p>By using our application, you hereby consent to this Privacy Policy and agree to its terms.</p>
+       <div><strong>1. Introduction</strong></div>
+       <p>At <strong>Shirt Tracker</strong>, accessible via this application, one of our main priorities is the privacy of our users. This Privacy Policy document describes the types of information that is collected and recorded by Shirt Tracker and how we use it.</p>
+       <p>By using our application, you hereby consent to this Privacy Policy and agree to its terms.</p>
 
-	    <div><strong>2. Data Controller</strong></div>
-	    <p>For the purposes of the General Data Protection Regulation (GDPR) and other applicable data protection laws, the <strong>Data Controller</strong> responsible for your personal information is:</p>
-	    <div><strong>Aaron Dunn</strong> (Creator &amp; Developer)</div>
-	    <div><strong>Contact:</strong> Please use the contact form linked at the bottom of this policy.</div>
+       <div><strong>2. Data Controller</strong></div>
+       <p>For the purposes of the General Data Protection Regulation (GDPR) and other applicable data protection laws, the <strong>Data Controller</strong> responsible for your personal information is:</p>
+       <div><strong>Aaron Dunn</strong> (Creator &amp; Developer)</div>
+       <div><strong>Contact:</strong> Please use the contact form linked at the bottom of this policy.</div>
 
-	    <div><strong>3. Information We Collect</strong></div>
-	    <p>We only collect information necessary to provide the functionality of the app. This includes:</p>
-	    <ul>
-	      <li><strong>Account Information:</strong> When you register for an Account, we may ask for basic contact information, such as your name and email address.</li>
-	      <li><strong>User Content:</strong> We store the data you input into the application, such as your checklist of shirts, collection status, and notes.</li>
-	      <li><strong>Logs:</strong> Like most apps, we use standard log files that may collect internet protocol (IP) addresses, browser type, and timestamps. This is strictly for debugging and maintaining the security of the app.</li>
-	    </ul>
-	    <div><strong>We do NOT sell, trade, or rent your personal identification information to others.</strong></div>
+       <div><strong>3. Information We Collect</strong></div>
+       <p>We only collect information necessary to provide the functionality of the app. This includes:</p>
+       <ul>
+         <li><strong>Account Information:</strong> When you register for an Account, we may ask for basic contact information, such as your name and email address.</li>
+         <li><strong>User Content:</strong> We store the data you input into the application, such as your checklist of shirts, collection status, and notes.</li>
+         <li><strong>Logs:</strong> Like most apps, we use standard log files that may collect internet protocol (IP) addresses, browser type, and timestamps. This is strictly for debugging and maintaining the security of the app.</li>
+       </ul>
+       <div><strong>We do NOT sell, trade, or rent your personal identification information to others.</strong></div>
 
-	    <div><strong>4. Legal Basis for Processing</strong></div>
-	    <p>We process your personal data under the following legal bases:</p>
-	    <ul>
-	      <li><strong>Contractual Necessity:</strong> We need your email and shirt data to provide the service you signed up for (i.e., saving your list). The app cannot function without this.</li>
-	      <li><strong>Legitimate Interests:</strong> We log basic technical data (IP addresses) to ensure the security and stability of the app.</li>
-	    </ul>
+       <div><strong>4. Legal Basis for Processing</strong></div>
+       <p>We process your personal data under the following legal bases:</p>
+       <ul>
+         <li><strong>Contractual Necessity:</strong> We need your email and shirt data to provide the service you signed up for (i.e., saving your list). The app cannot function without this.</li>
+         <li><strong>Legitimate Interests:</strong> We log basic technical data (IP addresses) to ensure the security and stability of the app.</li>
+       </ul>
 
-	    <div><strong>5. How We Use Your Information</strong></div>
-	    <p>We use the information we collect in the following ways:</p>
-	    <ul>
-	      <li>To provide, operate, and maintain the Shirt Tracker application.</li>
-	      <li>To manage your account and login session.</li>
-	      <li>To find and prevent fraud or abuse of the app.</li>
-	      <li>To communicate with you regarding updates or support (only if you have contacted us first).</li>
-	    </ul>
+       <div><strong>5. How We Use Your Information</strong></div>
+       <p>We use the information we collect in the following ways:</p>
+       <ul>
+         <li>To provide, operate, and maintain the Shirt Tracker application.</li>
+         <li>To manage your account and login session.</li>
+         <li>To find and prevent fraud or abuse of the app.</li>
+         <li>To communicate with you regarding updates or support (only if you have contacted us first).</li>
+       </ul>
 
-	    <div><strong>6. Third-Party Services &amp; Infrastructure</strong></div>
-	    <p>To run this application securely and reliably, we utilize trusted third-party service providers. By using the app, you acknowledge that your data may pass through or be stored on servers managed by these providers:</p>
-	    <ul>
-	      <li><strong>Supabase:</strong> Used for secure database hosting, user data storage, and authentication management. Your email and shirt lists are stored here.</li>
-	      <li><strong>Netlify:</strong> Used for web hosting and content delivery. Netlify may collect IP addresses in their server logs for security and performance analysis.</li>
-	      <li><strong>GitHub:</strong> Used <strong>strictly</strong> for version control of the application's source code (the programming files). GitHub <strong>does not</strong> store, process, or have access to any user personal data, database records, or account information.</li>
-	    </ul>
-	    <p>These parties have access to necessary data only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.</p>
+       <div><strong>6. Third-Party Services &amp; Infrastructure</strong></div>
+       <p>To run this application securely and reliably, we utilize trusted third-party service providers. By using the app, you acknowledge that your data may pass through or be stored on servers managed by these providers:</p>
+       <ul>
+         <li><strong>Supabase:</strong> Used for secure database hosting, user data storage, and authentication management. Your email and shirt lists are stored here.</li>
+         <li><strong>Netlify:</strong> Used for web hosting and content delivery. Netlify may collect IP addresses in their server logs for security and performance analysis.</li>
+         <li><strong>GitHub:</strong> Used <strong>strictly</strong> for version control of the application's source code (the programming files). GitHub <strong>does not</strong> store, process, or have access to any user personal data, database records, or account information.</li>
+       </ul>
+       <p>These parties have access to necessary data only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.</p>
 
-	    <div><strong>7. Data Retention</strong></div>
-	    <p>We retain your personal information only for as long as is necessary to provide you with the Shirt Tracker service. If you delete your account, your personal data and shirt lists are permanently removed from our active database.</p>
+       <div><strong>7. Data Retention</strong></div>
+       <p>We retain your personal information only for as long as is necessary to provide you with the Shirt Tracker service. If you delete your account, your personal data and shirt lists are permanently removed from our active database.</p>
 
-	    <div><strong>8. User Rights (GDPR &amp; CCPA)</strong></div>
-	    <p>We respect your control over your data. Regardless of where you live, we extend these rights to all users:</p>
-	    <ul>
-	      <li><strong>Access:</strong> You can request a copy of the data we hold about you.</li>
-	      <li><strong>Correction:</strong> You can update your information within the app or request corrections if something is wrong.</li>
-	      <li><strong>Deletion:</strong> You have the right to request that we delete your account and all associated data.</li>
-	    </ul>
-	    <p>To exercise these rights, please contact the Data Controller using the link below.</p>
+       <div><strong>8. User Rights (GDPR &amp; CCPA)</strong></div>
+       <p>We respect your control over your data. Regardless of where you live, we extend these rights to all users:</p>
+       <ul>
+         <li><strong>Access:</strong> You can request a copy of the data we hold about you.</li>
+         <li><strong>Correction:</strong> You can update your information within the app or request corrections if something is wrong.</li>
+         <li><strong>Deletion:</strong> You have the right to request that we delete your account and all associated data.</li>
+       </ul>
+       <p>To exercise these rights, please contact the Data Controller using the link below.</p>
 
-	    <div><strong>9. Children's Privacy</strong></div>
-	    <p>Shirt Tracker does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you think that your child provided this kind of information on our website, please contact us immediately.</p>
+       <div><strong>9. Children's Privacy</strong></div>
+       <p>Shirt Tracker does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you think that your child provided this kind of information on our website, please contact us immediately.</p>
 
-	    <div><strong>10. Contact Us</strong></div>
-	    <p>If you have any questions about our Privacy Policy or wish to exercise your data rights, please contact the developer.</p>
+       <div><strong>10. Contact Us</strong></div>
+       <p>If you have any questions about our Privacy Policy or wish to exercise your data rights, please contact the developer.</p>
 
-	    <div><a href="#" id="privacy-contact-link">Contact Us</a></div>
-	  </div>
+       <div><a href="#" id="privacy-contact-link">Contact Us</a></div>
+     </div>
   
-	  <div class="dialog-actions">
-	    <button type="button" class="btn" id="privacy-policy-close">Close</button>
-	  </div>
-	</dialog>
-			
+     <div class="dialog-actions">
+       <button type="button" class="btn" id="privacy-policy-close">Close</button>
+     </div>
+   </dialog>
+	
     <dialog id="contact-dialog" class="contact-dialog">
       <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="contact-form">
         <input type="hidden" name="form-name" value="contact">
@@ -2926,9 +2927,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.934.0";
+      const APP_VERSION = "1.935.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-04T17:24:56-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T05:29:56-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4088,6 +4089,26 @@
         closeDialog(shareColumnsDialog);
       };
 
+      const setAuthLoading = (isLoading) => {
+        if (!document.body) return;
+        if (isLoading) {
+          document.body.setAttribute("data-auth", "loading");
+        } else if (document.body.getAttribute("data-auth") === "loading") {
+          document.body.setAttribute("data-auth", "signed-out");
+        }
+        const signedOutLogin = document.querySelector(".signedout-login");
+        if (signedOutLogin) {
+          signedOutLogin.style.display = isLoading ? "none" : "";
+        }
+        const authLoading = document.getElementById("auth-loading");
+        if (authLoading) {
+          authLoading.style.display = isLoading ? "block" : "none";
+        }
+        if (authActionSignedOutButton) {
+          authActionSignedOutButton.style.display = isLoading ? "none" : "";
+        }
+      };
+
       const setAuthStatus = () => {
         if (publicShareToken) {
           applyPublicShareMode();
@@ -4799,7 +4820,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.934.0",
+          version: "1.935.0",
         };
       };
 
@@ -6577,6 +6598,7 @@
           applyPublicShareMode();
           loadPublicShareState(publicShareToken);
         }
+        setAuthLoading(true);
         supabase.auth.getSession()
           .then(({ data }) => {
             if (publicShareToken) {
@@ -6590,6 +6612,7 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateLastActivity();
@@ -6602,11 +6625,13 @@
             isViewerSession = false;
             document.body.setAttribute("data-viewer", "false");
             setAuthStatus();
+            setAuthLoading(false);
             updateBackupStatusFromStorage();
             updateAppUpdateDate();
             updateFooterVersionLine();
           });
         supabase.auth.onAuthStateChange((_event, session) => {
+          setAuthLoading(true);
           if (publicShareToken) {
             updateAppUpdateDate();
             updateFooterVersionLine();
@@ -6618,6 +6643,7 @@
           isViewerSession = false;
           document.body.setAttribute("data-viewer", currentUser ? "pending" : "false");
           setAuthStatus();
+          setAuthLoading(false);
           updateLastActivity();
           handleInactivityCheck();
           if (currentUser) {
@@ -6627,6 +6653,7 @@
       } else {
         document.body.setAttribute("data-viewer", "false");
         setAuthStatus();
+        setAuthLoading(false);
         updateBackupStatusFromStorage();
         updateAppUpdateDate();
         updateFooterVersionLine();
