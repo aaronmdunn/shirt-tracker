@@ -2788,7 +2788,6 @@
     <dialog id="icon-credits-dialog" class="about-dialog">
       <div class="dialog-body">
         <h3>Credits &amp; Acknowledgements</h3>
-        <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
         <div><strong>Featured Brands:</strong></div>
         <div><a href="https://www.rsvlts.com/">RSVLTS</a></div>
         <div><a href="https://7-strong.com/">7-Strong</a></div>
@@ -2798,6 +2797,8 @@
         <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
         <div><strong>Community Credits:</strong></div>
         <div>Product images sourced in part from <a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a>, an independent fan-run catalog of RSVLTS products. Used with appreciation for their work in documenting the RSVLTS community.</div>
+        <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
+        <div>Fonts sourced from <a href="https://dafont.com">dafont.com</a></div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="icon-credits-close">Close</button>
@@ -3092,9 +3093,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.935.0";
+      const APP_VERSION = "1.936.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T05:29:56-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T06:22:33-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3455,6 +3456,7 @@
       const publicShareLinkInput = document.getElementById("public-share-link");
       const copyShareLinkButton = document.getElementById("copy-share-link");
       const shareColumnsButton = document.getElementById("share-columns-button");
+      let copyShareSizingObserver = null;
       const shareColumnsSummary = document.getElementById("share-columns-summary");
       const shareColumnsDialog = document.getElementById("share-columns-dialog");
       const shareColumnsList = document.getElementById("share-columns-list");
@@ -3487,6 +3489,7 @@
       const privacyPolicyCloseButton = document.getElementById("privacy-policy-close");
       const privacyPolicyLink = document.getElementById("privacy-policy-link");
       const contactDialog = document.getElementById("contact-dialog");
+      const contactForm = document.querySelector('form[name="contact"]');
       const contactCloseButton = document.getElementById("contact-close");
       const contactLink = document.getElementById("contact-link");
       const appTitleEl = document.getElementById("app-title");
@@ -4145,6 +4148,7 @@
           shareColumnsButton.innerHTML = "";
           shareColumnsButton.appendChild(mainSpan);
           shareColumnsButton.appendChild(subSpan);
+          scheduleCopyShareSizing();
         };
         if (!currentUser || isViewerSession) {
           setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
@@ -4408,6 +4412,19 @@
         dialog.setAttribute("open", "");
       };
 
+      const resetDialogScroll = (dialog) => {
+        if (!dialog) return;
+        const body = dialog.querySelector(".dialog-body");
+        const reset = () => {
+          dialog.scrollTop = 0;
+          if (body) body.scrollTop = 0;
+        };
+        reset();
+        requestAnimationFrame(reset);
+        setTimeout(reset, 0);
+        setTimeout(reset, 50);
+      };
+
       const closeDialog = (dialog) => {
         if (!dialog) return;
         if (dialog.close) {
@@ -4651,6 +4668,27 @@
         copyShareButton.style.setProperty("white-space", "normal", "important");
       };
 
+      const scheduleCopyShareSizing = () => {
+        syncCopyShareSizing();
+        requestAnimationFrame(syncCopyShareSizing);
+        setTimeout(syncCopyShareSizing, 80);
+      };
+
+      const setupCopyShareSizingObserver = () => {
+        if (copyShareSizingObserver || !shareColumnsButton || !copyShareLinkButton) return;
+        if (typeof ResizeObserver === "function") {
+          copyShareSizingObserver = new ResizeObserver(() => {
+            scheduleCopyShareSizing();
+          });
+          copyShareSizingObserver.observe(shareColumnsButton);
+        }
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(() => {
+            scheduleCopyShareSizing();
+          });
+        }
+      };
+
       const applyMobileHeaderInlineLayout = () => {
         const table = document.querySelector("table.mobile-action-grid");
         if (!table) return;
@@ -4759,10 +4797,10 @@
 
         positionAuthAction();
         syncAuthActionSizing();
-        syncCopyShareSizing();
-        requestAnimationFrame(syncCopyShareSizing);
-        setTimeout(syncCopyShareSizing, 80);
+        scheduleCopyShareSizing();
       };
+
+      requestAnimationFrame(applyMobileHeaderInlineLayout);
 
       const positionViewerBadge = () => {
       };
@@ -5040,7 +5078,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.935.0",
+          version: "1.936.0",
         };
       };
 
@@ -7017,10 +7055,26 @@
         privacyPolicyLink.addEventListener("click", (event) => {
           event.preventDefault();
           openDialog(privacyPolicyDialog);
-          privacyPolicyDialog.scrollTop = 0;
-          const privacyBody = privacyPolicyDialog.querySelector(".dialog-body");
-          if (privacyBody) privacyBody.scrollTop = 0;
+          resetDialogScroll(privacyPolicyDialog);
         });
+      }
+
+      if (contactForm && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
+        const path = window.location.pathname || "/";
+        const ua = navigator.userAgent || "";
+        const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+        const isIpadDesktop = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+        let actionPath = null;
+        if (path === "/" || path === "") {
+          actionPath = (isMobileUA || isIpadDesktop) ? "/m/" : "/d/";
+        } else if (path === "/m" || path.startsWith("/m/")) {
+          actionPath = "/m/";
+        } else if (path === "/d" || path.startsWith("/d/")) {
+          actionPath = "/d/";
+        } else {
+          actionPath = (isMobileUA || isIpadDesktop) ? "/m/" : "/d/";
+        }
+        contactForm.setAttribute("action", actionPath);
       }
 
       if (contactLink && contactDialog) {
@@ -7304,7 +7358,8 @@
         });
       }
 
-      syncCopyShareSizing();
+      scheduleCopyShareSizing();
+      setupCopyShareSizingObserver();
       if (shareColumnsSave) {
         shareColumnsSave.addEventListener("click", () => {
           saveShareColumnsSelection();
