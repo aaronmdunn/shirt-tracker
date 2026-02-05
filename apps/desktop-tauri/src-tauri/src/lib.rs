@@ -14,8 +14,6 @@ pub fn run() {
             let share_csv =
                 MenuItem::with_id(app, "share_csv", "Share Data (CSV)", true, None::<&str>)?;
             let event_log = MenuItem::with_id(app, "event_log", "Event Log", true, None::<&str>)?;
-            let icon_credits =
-                MenuItem::with_id(app, "icon_credits", "Attributes", true, None::<&str>)?;
             let about_item = MenuItem::with_id(
                 app,
                 "about_shirt_tracker",
@@ -28,7 +26,7 @@ pub fn run() {
                 app,
                 "Shirt Tracker",
                 true,
-                &[&about_item, &icon_credits, &quit_item],
+                &[&about_item, &quit_item],
             )?;
             let file_menu = Submenu::with_items(app, "File", true, &[&share_csv, &event_log])?;
             let menu = Menu::with_items(app, &[&app_menu, &file_menu])?;
@@ -44,9 +42,6 @@ pub fn run() {
             }
             "event_log" => {
                 let _ = app.emit("menu-event-log", ());
-            }
-            "icon_credits" => {
-                let _ = app.emit("menu-icon-credits", ());
             }
             "quit_app" => {
                 app.exit(0);
