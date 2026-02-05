@@ -2451,8 +2451,11 @@
           </div>
         </div>
         <div class="empty-state" id="empty-state"></div>
-        <div style="overflow-x:auto;">
-          <table aria-label="Shirt tracking sheet">
+        <div id="table-scroll-hint" style="display:none; text-align:right; padding:6px 12px;">
+          <span style="display:inline-block; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.78rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); background:rgba(0,0,0,0.04); border:1px solid var(--line); border-radius:999px; padding:4px 10px;">Scroll -&gt;</span>
+        </div>
+        <div id="sheet-table-scroll" style="overflow-x:auto; width:100%; max-width:100%; -webkit-overflow-scrolling:touch;">
+          <table id="sheet-table" aria-label="Shirt tracking sheet" style="width:max-content; min-width:100%;">
             <thead>
               <tr id="sheet-head-row"><th draggable="true" data-column-id="7ae82df2-d187-4885-8739-edf614480817">Condition</th><th draggable="true" data-column-id="0e43448b-f944-40d0-a4ac-b0e07bd8263a">Shirt Name</th><th draggable="true" data-column-id="b250c993-937e-4d3b-b608-5a7faff06d81">Size</th><th draggable="true" data-column-id="ee411b9b-f360-4407-bff2-986c4bfdaff2">Brand</th><th draggable="true" data-column-id="b7e1f2f1-3177-41b8-8730-c34ef1b754c0">Fandom</th><th draggable="true" data-column-id="c024056d-45c3-4d99-84e6-eb2277172b4a">Type</th><th draggable="true" data-column-id="6734c2f0-2e20-46e6-82dc-0f781c63563b">Price</th><th draggable="true" data-column-id="c3edc82a-84cb-44c9-9e8a-01c22f7f7af5">Preview</th><th draggable="true" data-column-id="e2aa0ffa-bdcc-43fe-9bb8-eba7c52b2d93">Notes</th><th>Actions</th></tr>
             </thead>
@@ -2502,7 +2505,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/5/2026, 1:23:37 PM" readonly>
+                <input type="text" id="app-update-date" value="2/5/2026, 1:52:09 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2616,7 +2619,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div>Shirt Tracker v1.935 beta</div>
+        <div>Shirt Tracker v1.937.0 beta</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -2975,9 +2978,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.936.0";
+      const APP_VERSION = "1.937.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T18:23:37.863Z";
+      const LAST_COMMIT_DATE = "2026-02-05T18:52:09.326Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3321,6 +3324,9 @@
       const sheetBody = document.getElementById("sheet-body");
       const sheetColgroup = document.getElementById("sheet-colgroup");
       const sheetHeadRow = document.getElementById("sheet-head-row");
+      const sheetTableScroll = document.getElementById("sheet-table-scroll");
+      const sheetTable = document.getElementById("sheet-table");
+      const tableScrollHint = document.getElementById("table-scroll-hint");
       const columnManager = document.getElementById("column-manager");
       const emptyState = document.getElementById("empty-state");
       const tabBar = document.getElementById("tab-bar");
@@ -4932,7 +4938,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.936.0",
+          version: "1.937.0",
         };
       };
 
@@ -6267,6 +6273,20 @@
         saveState();
       };
 
+      const syncTableScrollSizing = () => {
+        if (!sheetTableScroll || !sheetTable) return;
+        sheetTableScroll.style.overflowX = "auto";
+        sheetTableScroll.style.width = "100%";
+        sheetTableScroll.style.maxWidth = "100%";
+        sheetTableScroll.style.webkitOverflowScrolling = "touch";
+        sheetTable.style.width = "max-content";
+        sheetTable.style.minWidth = "100%";
+        if (tableScrollHint) {
+          const hasOverflow = sheetTableScroll.scrollWidth > sheetTableScroll.clientWidth + 1;
+          tableScrollHint.style.display = hasOverflow ? "block" : "none";
+        }
+      };
+
       const attachResizer = (th, col, columnId, minWidth = 80) => {
         if (state.readOnly) return;
         const resizer = document.createElement("span");
@@ -6286,6 +6306,7 @@
           const onUp = () => {
             const finalWidth = Math.round(col.getBoundingClientRect().width);
             setColumnWidth(columnId, finalWidth);
+            syncTableScrollSizing();
             if (originalDraggable === null) {
               th.removeAttribute("draggable");
             } else {
@@ -6353,6 +6374,7 @@
           deleteSelectedButton = null;
           attachResizer(actions, col, "actions", 60);
         }
+        syncTableScrollSizing();
       };
 
       const sortRows = () => {
@@ -7152,6 +7174,9 @@
         window.addEventListener(eventName, () => {
           updateLastActivity();
         }, { passive: true });
+      });
+      window.addEventListener("resize", () => {
+        syncTableScrollSizing();
       });
       window.setInterval(() => {
         handleInactivityCheck();
