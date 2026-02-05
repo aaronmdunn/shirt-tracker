@@ -17,7 +17,28 @@ if (!fs.existsSync(sourcePath)) {
   throw new Error(`Source file not found: ${sourcePath}`);
 }
 
-fs.copyFileSync(sourcePath, targetPath);
+const formatLocalDateTime = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
+};
+
+let html = fs.readFileSync(sourcePath, "utf8");
+const buildTimestamp = new Date();
+const buildIso = buildTimestamp.toISOString();
+const buildLocal = formatLocalDateTime(buildTimestamp);
+
+html = html.replace(
+  /const LAST_COMMIT_DATE = "[^"]+";/,
+  `const LAST_COMMIT_DATE = "${buildIso}";`
+);
+
+html = html.replace(
+  /id="app-update-date" value="[^"]*"/,
+  `id="app-update-date" value="${buildLocal}"`
+);
+
+fs.writeFileSync(targetPath, html, "utf8");
 
 if (fs.existsSync(sourceAssets)) {
   fs.cpSync(sourceAssets, targetAssets, { recursive: true });
@@ -36,6 +57,7 @@ if (fs.existsSync(sourceSteve)) {
 }
 
 console.log(`Synced ${sourcePath} -> ${targetPath}`);
+console.log(`Updated desktop app Last Deployment to ${buildLocal}`);
 console.log(`Synced assets -> ${targetAssets}`);
 console.log(`Synced fonts -> ${targetFonts}`);
 if (fs.existsSync(sourceManifest)) console.log(`Synced ${sourceManifest} -> ${targetManifest}`);
