@@ -2643,7 +2643,10 @@
           <div class="footer-actions" id="footer-actions">
             <button class="btn" id="go-top">Go to Top</button>
             <button class="btn" id="add-row-bottom">Add Row</button>
-            <button class="btn" id="delete-selected-bottom">Delete Selected</button>
+            <div style="display:flex; gap:8px; align-items:center; width:100%;">
+              <button class="btn secondary compact" id="delete-selected-bottom" style="width:auto;">Delete Item(s)</button>
+              <button class="btn secondary compact" id="bulk-tags" style="width:auto;">Tag Item(s)</button>
+            </div>
           </div>
           <div class="totals-row">
             <div class="totals-panel" id="totals-panel">
@@ -2947,6 +2950,40 @@
       </form>
     </dialog>
 
+    <dialog id="tags-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Tags</h3>
+        <div id="tags-row-name" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
+        <div style="display:flex; gap:8px; margin-top: 12px;">
+          <input id="tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
+          <button type="button" class="btn secondary" id="tags-add">Add</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
+        <div id="tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
+        <div id="tags-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 10px;"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="tags-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="bulk-tags-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Bulk Tags</h3>
+        <div id="bulk-tags-count" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
+        <div style="display:flex; gap:8px; margin-top: 12px;">
+          <input id="bulk-tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
+          <button type="button" class="btn secondary" id="bulk-tags-add">Add</button>
+          <button type="button" class="btn secondary" id="bulk-tags-remove">Remove</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
+        <div id="bulk-tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="bulk-tags-close">Close</button>
+      </div>
+    </dialog>
+
     <dialog id="auth-dialog">
       <form method="dialog" id="auth-form">
         <div class="dialog-body">
@@ -3164,6 +3201,7 @@
       const defaultRow = () => ({
         id: createId(),
         cells: {},
+        tags: [],
       });
 
       const PHOTO_DB = "shirt-tracker-photos";
@@ -3502,6 +3540,21 @@
       const contactFormMessage = document.getElementById("contact-form-message");
       const contactCloseButton = document.getElementById("contact-close");
       const contactLink = document.getElementById("contact-link");
+      const tagsDialog = document.getElementById("tags-dialog");
+      const tagsRowName = document.getElementById("tags-row-name");
+      const tagsInput = document.getElementById("tags-input");
+      const tagsAddButton = document.getElementById("tags-add");
+      const tagsSuggestions = document.getElementById("tags-suggestions");
+      const tagsList = document.getElementById("tags-list");
+      const tagsCloseButton = document.getElementById("tags-close");
+      const bulkTagsDialog = document.getElementById("bulk-tags-dialog");
+      const bulkTagsCount = document.getElementById("bulk-tags-count");
+      const bulkTagsInput = document.getElementById("bulk-tags-input");
+      const bulkTagsAddButton = document.getElementById("bulk-tags-add");
+      const bulkTagsRemoveButton = document.getElementById("bulk-tags-remove");
+      const bulkTagsSuggestions = document.getElementById("bulk-tags-suggestions");
+      const bulkTagsCloseButton = document.getElementById("bulk-tags-close");
+      const bulkTagsButton = document.getElementById("bulk-tags");
       const appTitleEl = document.getElementById("app-title");
       const appSubtitleEl = document.getElementById("app-subtitle");
       const signedOutGreetingEl = document.querySelector(".signedout-greeting");
@@ -3575,6 +3628,7 @@
       let sortTimer = null;
       let deleteSelectedButton = null;
       let pendingDeleteTabId = null;
+      let activeTagsRowId = null;
       let lastClearSnapshot = null;
       const storageStatus = { ok: null };
 
@@ -4453,6 +4507,26 @@
         }
         dialog.removeAttribute("open");
         dialog.style.display = "none";
+      };
+
+      const openTagsDialog = (rowId) => {
+        if (state.readOnly || !tagsDialog) return;
+        activeTagsRowId = rowId;
+        if (tagsInput) tagsInput.value = "";
+        renderTagsDialog();
+        openDialog(tagsDialog);
+        if (tagsInput) tagsInput.focus();
+      };
+
+      const openBulkTagsDialog = () => {
+        if (state.readOnly || !bulkTagsDialog) return;
+        const ids = getSelectedRowIds();
+        if (!ids.length) return;
+        if (bulkTagsCount) bulkTagsCount.textContent = `${ids.length} rows selected`;
+        if (bulkTagsInput) bulkTagsInput.value = "";
+        renderBulkTagSuggestions("");
+        openDialog(bulkTagsDialog);
+        if (bulkTagsInput) bulkTagsInput.focus();
       };
 
       const applyDialogFallback = (dialog) => {
@@ -5595,6 +5669,7 @@
       const ensureRowCells = () => {
         state.rows.forEach((row) => {
           if (!row.cells) row.cells = {};
+          if (!Array.isArray(row.tags)) row.tags = [];
           state.columns.forEach((column) => {
             if (!(column.id in row.cells)) {
               row.cells[column.id] = "";
@@ -5622,7 +5697,7 @@
         if (state.sort.columnId && !columnIds.has(state.sort.columnId)) {
           state.sort = { columnId: null, direction: "asc" };
         }
-        if (state.filter.columnId && state.filter.columnId !== "all" && !columnIds.has(state.filter.columnId)) {
+        if (state.filter.columnId && state.filter.columnId !== "all" && state.filter.columnId !== "tags" && !columnIds.has(state.filter.columnId)) {
           state.filter.columnId = "all";
         }
       };
@@ -6069,11 +6144,15 @@
       };
 
       const updateDeleteSelectedState = () => {
-        if (!deleteSelectedButton) return;
         const anyChecked = sheetBody.querySelector(".row-select:checked");
-        deleteSelectedButton.disabled = !anyChecked;
+        if (deleteSelectedButton) {
+          deleteSelectedButton.disabled = !anyChecked;
+        }
         if (deleteSelectedBottomButton) {
           deleteSelectedBottomButton.disabled = !anyChecked;
+        }
+        if (bulkTagsButton) {
+          bulkTagsButton.disabled = !anyChecked;
         }
       };
 
@@ -6303,6 +6382,10 @@
         allOption.value = "all";
         allOption.textContent = "All Columns";
         filterColumnSelect.appendChild(allOption);
+        const tagsOption = document.createElement("option");
+        tagsOption.value = "tags";
+        tagsOption.textContent = "Tags";
+        filterColumnSelect.appendChild(tagsOption);
         orderedColumns.forEach((column) => {
           const labelLower = getColumnLabel(column).trim().toLowerCase();
           if (column.type === "photo" || labelLower === "preview" || labelLower === "price") {
@@ -6415,25 +6498,13 @@
             ? state.columnWidths.actions
             : 90;
           actions.style.width = `${actionsWidth}px`;
-          const actionsContent = document.createElement("div");
-          actionsContent.className = "th-content";
-          const stack = document.createElement("div");
-          stack.className = "actions-stack";
-          const trashButton = document.createElement("button");
-          trashButton.type = "button";
-          trashButton.className = "btn-icon trash";
-          trashButton.id = "delete-selected";
-          trashButton.setAttribute("aria-label", "Delete selected rows");
-          trashButton.textContent = "🗑️";
-          stack.appendChild(trashButton);
-          actionsContent.appendChild(stack);
-          actions.appendChild(actionsContent);
+          actions.textContent = "Actions";
+          actions.style.textAlign = "center";
           sheetHeadRow.appendChild(actions);
           const col = document.createElement("col");
           col.style.width = `${actionsWidth}px`;
           sheetColgroup.appendChild(col);
-          deleteSelectedButton = trashButton;
-          deleteSelectedButton.addEventListener("click", () => deleteSelectedRows());
+          deleteSelectedButton = null;
           attachResizer(actions, col, "actions", 60);
         }
       };
@@ -6644,13 +6715,233 @@
         return String(value ?? "").toLowerCase().includes(queryLower);
       };
 
+      const getRowTags = (row) => {
+        if (!row || !Array.isArray(row.tags)) return [];
+        return row.tags.filter((tag) => String(tag || "").trim() !== "");
+      };
+
+      const matchesTagFilter = (row, queryLower) => {
+        const tags = getRowTags(row);
+        if (!tags.length) return false;
+        return tags.some((tag) => String(tag).toLowerCase().includes(queryLower));
+      };
+
+      const BASE_TAG_SUGGESTIONS = [
+        "Floral",
+        "Christmas",
+        "Halloween",
+        "Holiday",
+        "Patriotic",
+        "Movie",
+        "Animation",
+        "Original",
+        "Dropzone",
+      ];
+
+      const normalizeTagsInput = (value) => String(value || "")
+        .split(",")
+        .map((tag) => String(tag || "").trim())
+        .filter((tag) => tag.length > 0);
+
+      const mergeTags = (currentTags, incomingTags) => {
+        const merged = new Map();
+        currentTags.forEach((tag) => {
+          const key = String(tag || "").toLowerCase();
+          if (key) merged.set(key, String(tag));
+        });
+        incomingTags.forEach((tag) => {
+          const key = String(tag || "").toLowerCase();
+          if (key && !merged.has(key)) merged.set(key, String(tag));
+        });
+        return Array.from(merged.values());
+      };
+
+      const getAllTags = () => {
+        const merged = new Map();
+        BASE_TAG_SUGGESTIONS.forEach((tag) => {
+          const key = String(tag).toLowerCase();
+          if (key) merged.set(key, tag);
+        });
+        state.rows.forEach((row) => {
+          getRowTags(row).forEach((tag) => {
+            const key = String(tag).toLowerCase();
+            if (key && !merged.has(key)) merged.set(key, String(tag));
+          });
+        });
+        return Array.from(merged.values());
+      };
+
+      const getSelectedRowIds = () => Array.from(
+        sheetBody.querySelectorAll(".row-select:checked")
+      ).map((input) => input.dataset.rowId).filter(Boolean);
+
+      const renderTagSuggestions = (query, row) => {
+        if (!tagsSuggestions) return;
+        tagsSuggestions.innerHTML = "";
+        const queryLower = String(query || "").trim().toLowerCase();
+        const existing = new Set(getRowTags(row).map((tag) => String(tag).toLowerCase()));
+        const candidates = getAllTags().filter((tag) => {
+          const key = String(tag).toLowerCase();
+          if (existing.has(key)) return false;
+          if (!queryLower) return true;
+          return key.includes(queryLower);
+        });
+        if (!candidates.length) return;
+        candidates.slice(0, 12).forEach((tag) => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "btn secondary";
+          chip.textContent = tag;
+          chip.style.padding = "4px 8px";
+          chip.style.fontSize = "0.8rem";
+          chip.addEventListener("click", () => {
+            const merged = mergeTags(getRowTags(row), [tag]);
+            setRowTags(activeTagsRowId, merged);
+            if (tagsInput) tagsInput.value = "";
+            renderTagsDialog();
+          });
+          tagsSuggestions.appendChild(chip);
+        });
+      };
+
+      const renderBulkTagSuggestions = (query) => {
+        if (!bulkTagsSuggestions) return;
+        bulkTagsSuggestions.innerHTML = "";
+        const queryLower = String(query || "").trim().toLowerCase();
+        const candidates = getAllTags().filter((tag) => {
+          const key = String(tag).toLowerCase();
+          if (!queryLower) return true;
+          return key.includes(queryLower);
+        });
+        if (!candidates.length) return;
+        candidates.slice(0, 12).forEach((tag) => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "btn secondary";
+          chip.textContent = tag;
+          chip.style.padding = "4px 8px";
+          chip.style.fontSize = "0.8rem";
+          chip.addEventListener("click", () => {
+            addBulkTags([tag]);
+          });
+          bulkTagsSuggestions.appendChild(chip);
+        });
+      };
+
+      const setRowTags = (rowId, nextTags) => {
+        const row = state.rows.find((item) => item.id === rowId);
+        if (!row) return;
+        row.tags = Array.isArray(nextTags) ? nextTags : [];
+        updateShirtUpdateDate();
+        saveState();
+        scheduleSync();
+        renderRows();
+        renderFooter();
+      };
+
+      const renderTagsDialog = () => {
+        if (!tagsDialog || !tagsList || !activeTagsRowId) return;
+        const row = state.rows.find((item) => item.id === activeTagsRowId);
+        if (!row) return;
+        const tags = getRowTags(row);
+        renderTagSuggestions(tagsInput ? tagsInput.value : "", row);
+        if (tagsRowName) {
+          tagsRowName.textContent = `Row: ${getRowName(row)}`;
+        }
+        tagsList.innerHTML = "";
+        if (!tags.length) {
+          const empty = document.createElement("div");
+          empty.textContent = "No tags yet.";
+          empty.style.color = "var(--muted)";
+          empty.style.fontSize = "0.85rem";
+          tagsList.appendChild(empty);
+          return;
+        }
+        tags.forEach((tag) => {
+          const chip = document.createElement("div");
+          chip.style.display = "inline-flex";
+          chip.style.alignItems = "center";
+          chip.style.gap = "6px";
+          chip.style.padding = "4px 8px";
+          chip.style.border = "1px solid var(--line)";
+          chip.style.borderRadius = "12px";
+          chip.style.background = "#f7f7f7";
+          chip.style.fontSize = "0.85rem";
+          const label = document.createElement("span");
+          label.textContent = tag;
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "x";
+          remove.style.border = "none";
+          remove.style.background = "transparent";
+          remove.style.cursor = "pointer";
+          remove.style.fontSize = "0.85rem";
+          remove.addEventListener("click", () => {
+            const nextTags = tags.filter((item) => item !== tag);
+            setRowTags(activeTagsRowId, nextTags);
+            renderTagsDialog();
+          });
+          chip.appendChild(label);
+          chip.appendChild(remove);
+          tagsList.appendChild(chip);
+        });
+      };
+
+      const addTagsFromInput = () => {
+        if (!tagsInput || !activeTagsRowId) return;
+        const incoming = normalizeTagsInput(tagsInput.value);
+        if (!incoming.length) return;
+        const row = state.rows.find((item) => item.id === activeTagsRowId);
+        if (!row) return;
+        const merged = mergeTags(getRowTags(row), incoming);
+        setRowTags(activeTagsRowId, merged);
+        tagsInput.value = "";
+        renderTagsDialog();
+      };
+
+      const applyBulkTags = (incoming, mode = "add") => {
+        const ids = getSelectedRowIds();
+        if (!ids.length) return;
+        const incomingLower = new Set(incoming.map((tag) => String(tag).toLowerCase()));
+        ids.forEach((rowId) => {
+          const row = state.rows.find((item) => item.id === rowId);
+          if (!row) return;
+          if (mode === "remove") {
+            row.tags = getRowTags(row).filter((tag) => !incomingLower.has(String(tag).toLowerCase()));
+          } else {
+            row.tags = mergeTags(getRowTags(row), incoming);
+          }
+        });
+        updateShirtUpdateDate();
+        saveState();
+        scheduleSync();
+        renderRows();
+        renderFooter();
+        if (bulkTagsInput) bulkTagsInput.value = "";
+        renderBulkTagSuggestions("");
+        if (bulkTagsCount) {
+          bulkTagsCount.textContent = `${ids.length} rows selected`;
+        }
+      };
+
+      const addBulkTags = (incoming) => {
+        applyBulkTags(incoming, "add");
+      };
+
+      const removeBulkTags = (incoming) => {
+        applyBulkTags(incoming, "remove");
+      };
+
       const getFilteredRows = () => {
         const query = (state.filter.query || "").trim().toLowerCase();
         if (!query) return state.rows;
         if (state.filter.columnId === "all") {
           return state.rows.filter((row) =>
-            state.columns.some((column) => matchesFilter(row, column, query))
+            state.columns.some((column) => matchesFilter(row, column, query)) || matchesTagFilter(row, query)
           );
+        }
+        if (state.filter.columnId === "tags") {
+          return state.rows.filter((row) => matchesTagFilter(row, query));
         }
         const column = state.columns.find((col) => col.id === state.filter.columnId);
         if (!column) return state.rows;
@@ -6695,12 +6986,20 @@
           const actions = document.createElement("td");
           actions.setAttribute("data-label", "Actions");
           actions.className = "actions-cell";
+          const tagsButton = document.createElement("button");
+          tagsButton.type = "button";
+          tagsButton.className = "btn-icon";
+          tagsButton.textContent = "Tags";
+          tagsButton.style.marginRight = "8px";
+          tagsButton.dataset.rowId = row.id;
+          tagsButton.addEventListener("click", () => openTagsDialog(row.id));
           const checkbox = document.createElement("input");
           checkbox.className = "row-select";
           checkbox.type = "checkbox";
           checkbox.setAttribute("aria-label", "Select row");
           checkbox.dataset.rowId = row.id;
           checkbox.addEventListener("change", updateDeleteSelectedState);
+          actions.appendChild(tagsButton);
           actions.appendChild(checkbox);
           tr.appendChild(actions);
         }
@@ -7152,6 +7451,87 @@
       if (contactCloseButton) {
         contactCloseButton.addEventListener("click", () => {
           closeDialog(contactDialog);
+        });
+      }
+
+      if (tagsAddButton) {
+        tagsAddButton.addEventListener("click", () => {
+          addTagsFromInput();
+        });
+      }
+
+      if (bulkTagsButton) {
+        bulkTagsButton.addEventListener("click", () => {
+          openBulkTagsDialog();
+        });
+      }
+
+      if (bulkTagsAddButton) {
+        bulkTagsAddButton.addEventListener("click", () => {
+          if (!bulkTagsInput) return;
+          const incoming = normalizeTagsInput(bulkTagsInput.value);
+          if (!incoming.length) return;
+          addBulkTags(incoming);
+        });
+      }
+
+      if (bulkTagsRemoveButton) {
+        bulkTagsRemoveButton.addEventListener("click", () => {
+          if (!bulkTagsInput) return;
+          const incoming = normalizeTagsInput(bulkTagsInput.value);
+          if (!incoming.length) return;
+          removeBulkTags(incoming);
+        });
+      }
+
+      if (bulkTagsInput) {
+        bulkTagsInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            const incoming = normalizeTagsInput(bulkTagsInput.value);
+            if (!incoming.length) return;
+            addBulkTags(incoming);
+          }
+        });
+        bulkTagsInput.addEventListener("input", () => {
+          renderBulkTagSuggestions(bulkTagsInput.value);
+        });
+        bulkTagsInput.addEventListener("focus", () => {
+          renderBulkTagSuggestions(bulkTagsInput.value);
+        });
+      }
+
+      if (bulkTagsCloseButton) {
+        bulkTagsCloseButton.addEventListener("click", () => {
+          closeDialog(bulkTagsDialog);
+        });
+      }
+
+      if (tagsInput) {
+        tagsInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            addTagsFromInput();
+          }
+        });
+        tagsInput.addEventListener("input", () => {
+          if (!activeTagsRowId) return;
+          const row = state.rows.find((item) => item.id === activeTagsRowId);
+          if (!row) return;
+          renderTagSuggestions(tagsInput.value, row);
+        });
+        tagsInput.addEventListener("focus", () => {
+          if (!activeTagsRowId) return;
+          const row = state.rows.find((item) => item.id === activeTagsRowId);
+          if (!row) return;
+          renderTagSuggestions(tagsInput.value, row);
+        });
+      }
+
+      if (tagsCloseButton) {
+        tagsCloseButton.addEventListener("click", () => {
+          closeDialog(tagsDialog);
+          activeTagsRowId = null;
         });
       }
 
