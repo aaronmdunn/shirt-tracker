@@ -8109,6 +8109,10 @@
             passwordRequired = false;
             clearInviteHash();
             closeDialog(setPasswordDialog);
+            if (profileNameDialog) {
+              openDialog(profileNameDialog);
+              resetDialogScroll(profileNameDialog);
+            }
           } finally {
             if (setPasswordSave) setPasswordSave.disabled = false;
           }

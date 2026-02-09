@@ -2510,7 +2510,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/9/2026, 9:02:08 AM" readonly>
+                <input type="text" id="app-update-date" value="2/9/2026, 9:08:06 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3042,7 +3042,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T14:02:08.128Z";
+      const LAST_COMMIT_DATE = "2026-02-09T14:08:06.003Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -7944,6 +7944,10 @@
             passwordRequired = false;
             clearInviteHash();
             closeDialog(setPasswordDialog);
+            if (profileNameDialog) {
+              openDialog(profileNameDialog);
+              resetDialogScroll(profileNameDialog);
+            }
           } finally {
             if (setPasswordSave) setPasswordSave.disabled = false;
           }
