@@ -2320,7 +2320,7 @@
           <h2><span class="logo-letter">A</span></h2>
           <div class="signedout-login">
             <button class="btn secondary" id="auth-action-signedout">Sign In</button>
-            <div class="signedout-help">Please login to continue. You may also <a href="#register" id="register-link">register here</a>.</div>
+            <div class="signedout-help">Please login to continue. Need access? <a href="#request-access" id="request-access-link">Request access</a>.</div>
             <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
           <div class="auth-loading" id="auth-loading" style="display:none;">Loading...</div>
@@ -2510,7 +2510,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/9/2026, 8:20:30 AM" readonly>
+                <input type="text" id="app-update-date" value="2/9/2026, 8:43:01 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2843,11 +2843,46 @@
         </div>
         <div class="dialog-actions">
           <button type="button" class="btn secondary" id="auth-close">Close</button>
-          <button type="button" class="btn secondary" id="auth-send">Create Account</button>
           <button type="submit" class="btn" id="auth-verify">Sign In</button>
         </div>
       </form>
     </dialog>
+
+    <dialog id="request-access-dialog">
+      <form id="request-access-form" name="access-request" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" target="request-access-iframe">
+        <div class="dialog-body">
+          <h3>Request Access</h3>
+          <div style="display:none;">
+            <label>Do not fill this out: <input name="bot-field"></label>
+          </div>
+          <input type="hidden" name="form-name" value="access-request">
+          <div class="dialog-row">
+            <label for="request-access-name">Name</label>
+            <input id="request-access-name" type="text" name="name" placeholder="Your name" required>
+          </div>
+          <div class="dialog-row">
+            <label for="request-access-email">Email</label>
+            <input id="request-access-email" type="email" name="email" placeholder="you@email.com" required>
+          </div>
+          <div class="dialog-row" style="color: var(--muted); font-size: 0.8rem;">Requests go to the admin and take 24-72 hours for approval.</div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="request-access-close">Close</button>
+          <button type="submit" class="btn">Send Request</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="request-access-thanks">
+      <div class="dialog-body" style="text-align:center; font-family:inherit;">
+        <h3 style="font-family:inherit;">Thank You</h3>
+        <div style="color: var(--muted); font-size: 0.9rem; text-align:center; font-family:inherit;">We will review your request.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="request-access-thanks-close">Close</button>
+      </div>
+    </dialog>
+    <iframe name="request-access-iframe" style="display:none;"></iframe>
 
     <dialog id="reset-password-dialog">
       <div class="dialog-body">
@@ -2987,7 +3022,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T13:20:30.226Z";
+      const LAST_COMMIT_DATE = "2026-02-09T13:43:01.811Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3451,7 +3486,13 @@
       const authSendButton = document.getElementById("auth-send");
       const authCloseButton = document.getElementById("auth-close");
       const authMessage = document.getElementById("auth-message");
-      const registerLink = document.getElementById("register-link");
+      const requestAccessLink = document.getElementById("request-access-link");
+      const requestAccessDialog = document.getElementById("request-access-dialog");
+      const requestAccessForm = document.getElementById("request-access-form");
+      const requestAccessName = document.getElementById("request-access-name");
+      const requestAccessClose = document.getElementById("request-access-close");
+      const requestAccessThanks = document.getElementById("request-access-thanks");
+      const requestAccessThanksClose = document.getElementById("request-access-thanks-close");
       const forgotPasswordLink = document.getElementById("forgot-password-link");
       const resetPasswordDialog = document.getElementById("reset-password-dialog");
       const resetPasswordEmailInput = document.getElementById("reset-password-email");
@@ -5387,7 +5428,7 @@
           if (input.id === "filter-column" || input.id === "filter-query" || input.id === "find-bar-input") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
             return;
           }
           input.disabled = true;
@@ -5411,7 +5452,7 @@
           if (input.id === "filter-column" || input.id === "filter-query" || input.id === "find-bar-input") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#share-columns-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#share-columns-dialog")) {
             return;
           }
           input.disabled = false;
@@ -7695,7 +7736,7 @@
         }
       });
 
-      authSendButton.addEventListener("click", async () => {
+      if (authSendButton) authSendButton.addEventListener("click", async () => {
         if (authNameRow) authNameRow.style.display = "block";
         const email = authEmailInput ? authEmailInput.value.trim() : "";
         const password = authPasswordInput ? authPasswordInput.value : "";
@@ -7785,11 +7826,29 @@
           authActionButton.click();
         });
       }
-      if (registerLink) {
-        registerLink.addEventListener("click", (event) => {
+      if (requestAccessLink) {
+        requestAccessLink.addEventListener("click", (event) => {
           event.preventDefault();
-          if (authMessage) authMessage.textContent = "Create an account below.";
-          openDialog(authDialog);
+          if (!requestAccessDialog) return;
+          openDialog(requestAccessDialog);
+          if (requestAccessName) requestAccessName.focus();
+        });
+      }
+      if (requestAccessClose) {
+        requestAccessClose.addEventListener("click", () => {
+          closeDialog(requestAccessDialog);
+        });
+      }
+      if (requestAccessForm) {
+        requestAccessForm.addEventListener("submit", () => {
+          requestAccessForm.reset();
+          if (requestAccessDialog) closeDialog(requestAccessDialog);
+          if (requestAccessThanks) openDialog(requestAccessThanks);
+        });
+      }
+      if (requestAccessThanksClose) {
+        requestAccessThanksClose.addEventListener("click", () => {
+          closeDialog(requestAccessThanks);
         });
       }
       if (forgotPasswordLink) {
