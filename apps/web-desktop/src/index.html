@@ -7841,7 +7841,9 @@
       }
       if (requestAccessForm) {
         requestAccessForm.addEventListener("submit", () => {
-          requestAccessForm.reset();
+          setTimeout(() => {
+            requestAccessForm.reset();
+          }, 300);
           if (requestAccessDialog) closeDialog(requestAccessDialog);
           if (requestAccessThanks) openDialog(requestAccessThanks);
         });
