@@ -689,6 +689,7 @@
         border-bottom: none;
       }
 
+
       body[data-auth="signed-out"] .logo-letter {
         margin-bottom: 10px;
       }
@@ -696,6 +697,7 @@
       body[data-auth="signed-out"] .sheet-footer {
         border-top: none;
       }
+
 
       body[data-auth="signed-out"] .sheet {
         border-bottom: none;
@@ -770,7 +772,7 @@
       }
 
       body[data-auth="signed-out"] #app-subtitle {
-        display: none;
+        display: block;
       }
 
       body[data-auth="signed-out"] .auth-subtitle {
@@ -2449,7 +2451,7 @@
           <div class="title-card">
             <div class="title-row">
             <h1 id="app-title"><span class="title-emoji">🌺</span><span class="title-emoji">👕</span><span class="title-text"><span class="title-word">Shirt</span><span class="title-word">Tracker</span></span><span class="title-emoji">👕</span><span class="title-emoji">🌺</span></h1>
-            <p id="app-subtitle">Aaron's Shirt Inventory as of not updated yet</p>
+            <p id="app-subtitle">Shirt Tracker is a fan-made open-source clothing inventory system.</p>
             </div>
           </div>
       </div>
@@ -2697,7 +2699,7 @@
             </div>
             <div class="footer-note">
               <span class="legal-title">The Legal Stuff</span>
-              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. App created using GPT-5.2-Codex via OpenCode.</p>
+              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. Portions of this app were designed and coded with the help of artificial intelligence (AI).</p>
               <p><a href="#" id="legal-disclaimer-link">Legal Disclaimer &amp; Terms of Use</a></p>
               <p><a href="#" id="credits-link">Credits &amp; Acknowledgements</a></p>
               <p><a href="#" id="privacy-policy-link">Privacy Policy</a> | <a href="#" id="contact-link">Contact Us</a></p>
@@ -5249,6 +5251,10 @@
 
       const updateHeaderSubtitle = () => {
         if (!appSubtitleEl) return;
+        if (document.body.getAttribute("data-auth") === "signed-out") {
+          appSubtitleEl.textContent = "Shirt Tracker is a fan-made open-source clothing inventory system.";
+          return;
+        }
         const dateValue = shirtUpdateTimestamp
           ? formatDateOnly(shirtUpdateTimestamp)
           : "not updated yet";
