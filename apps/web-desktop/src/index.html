@@ -7896,8 +7896,7 @@
       };
       const enforcePasswordSet = (user) => {
         if (!user || !setPasswordDialog) return;
-        const alreadySet = user.user_metadata && user.user_metadata.password_set === true;
-        if (!isInviteLink() && alreadySet) return;
+        if (!isInviteLink()) return;
         passwordRequired = true;
         if (setPasswordMessage) setPasswordMessage.textContent = "Please set a password to continue.";
         if (setPasswordInput) setPasswordInput.value = "";

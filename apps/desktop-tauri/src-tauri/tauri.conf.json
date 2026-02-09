@@ -10,7 +10,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Shirt Tracker v1.939 beta",
+        "title": "Shirt Tracker",
         "width": 800,
         "height": 600
       }

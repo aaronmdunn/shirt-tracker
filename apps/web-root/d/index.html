@@ -3042,7 +3042,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T09:03:37-05:00";
+      const LAST_COMMIT_DATE = "2026-02-09T09:08:38-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -7896,8 +7896,7 @@
       };
       const enforcePasswordSet = (user) => {
         if (!user || !setPasswordDialog) return;
-        const alreadySet = user.user_metadata && user.user_metadata.password_set === true;
-        if (!isInviteLink() && alreadySet) return;
+        if (!isInviteLink()) return;
         passwordRequired = true;
         if (setPasswordMessage) setPasswordMessage.textContent = "Please set a password to continue.";
         if (setPasswordInput) setPasswordInput.value = "";
