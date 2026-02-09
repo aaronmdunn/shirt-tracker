@@ -3014,6 +3014,26 @@
       </form>
     </dialog>
 
+    <dialog id="set-password-dialog">
+      <form id="set-password-form" method="dialog">
+        <div class="dialog-body">
+          <h3>Set Password</h3>
+          <div class="dialog-row">
+            <label for="set-password-input">New Password</label>
+            <input id="set-password-input" type="password" placeholder="Enter new password" required>
+          </div>
+          <div class="dialog-row">
+            <label for="set-password-confirm">Confirm Password</label>
+            <input id="set-password-confirm" type="password" placeholder="Re-enter password" required>
+          </div>
+          <div class="dialog-row" id="set-password-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="submit" class="btn" id="set-password-save">Save Password</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="request-access-dialog">
       <form id="request-access-form" name="access-request" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" target="request-access-iframe">
         <div class="dialog-body">
@@ -3640,6 +3660,12 @@
       const authSendButton = document.getElementById("auth-send");
       const authCloseButton = document.getElementById("auth-close");
       const authMessage = document.getElementById("auth-message");
+      const setPasswordDialog = document.getElementById("set-password-dialog");
+      const setPasswordForm = document.getElementById("set-password-form");
+      const setPasswordInput = document.getElementById("set-password-input");
+      const setPasswordConfirm = document.getElementById("set-password-confirm");
+      const setPasswordMessage = document.getElementById("set-password-message");
+      const setPasswordSave = document.getElementById("set-password-save");
       const requestAccessLink = document.getElementById("request-access-link");
       const requestAccessDialog = document.getElementById("request-access-dialog");
       const requestAccessForm = document.getElementById("request-access-form");
@@ -5659,7 +5685,7 @@
           if (input.id === "filter-column" || input.id === "filter-query") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
             return;
           }
           input.disabled = true;
@@ -5683,7 +5709,7 @@
           if (input.id === "filter-column" || input.id === "filter-query") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#share-columns-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog")) {
             return;
           }
           input.disabled = false;
@@ -7449,7 +7475,10 @@
             updateAppUpdateDate();
             updateLastActivity();
             handleInactivityCheck();
-            if (currentUser) loadRemoteState();
+            if (currentUser) {
+              enforcePasswordSet(currentUser);
+              loadRemoteState();
+            }
           })
           .catch((error) => {
             console.warn("Auth session error", error);
@@ -7479,6 +7508,7 @@
           updateLastActivity();
           handleInactivityCheck();
           if (currentUser) {
+            enforcePasswordSet(currentUser);
             loadRemoteState();
           }
         });
@@ -8016,6 +8046,72 @@
       if (requestAccessThanksClose) {
         requestAccessThanksClose.addEventListener("click", () => {
           closeDialog(requestAccessThanks);
+        });
+      }
+      let passwordRequired = false;
+      const isInviteLink = () => {
+        const hash = window.location.hash ? window.location.hash.replace(/^#/, "") : "";
+        if (!hash) return false;
+        const params = new URLSearchParams(hash);
+        return (params.get("type") || "").toLowerCase() === "invite";
+      };
+      const clearInviteHash = () => {
+        if (!isInviteLink()) return;
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      };
+      const enforcePasswordSet = (user) => {
+        if (!user || !setPasswordDialog) return;
+        const alreadySet = user.user_metadata && user.user_metadata.password_set === true;
+        if (!isInviteLink() && alreadySet) return;
+        passwordRequired = true;
+        if (setPasswordMessage) setPasswordMessage.textContent = "Please set a password to continue.";
+        if (setPasswordInput) setPasswordInput.value = "";
+        if (setPasswordConfirm) setPasswordConfirm.value = "";
+        openDialog(setPasswordDialog);
+        resetDialogScroll(setPasswordDialog);
+      };
+      if (setPasswordDialog) {
+        setPasswordDialog.addEventListener("cancel", (event) => {
+          if (passwordRequired) event.preventDefault();
+        });
+      }
+      if (setPasswordForm) {
+        setPasswordForm.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          if (!supabase || !currentUser) return;
+          const password = setPasswordInput ? setPasswordInput.value : "";
+          const confirm = setPasswordConfirm ? setPasswordConfirm.value : "";
+          if (!password || !confirm) {
+            if (setPasswordMessage) setPasswordMessage.textContent = "Enter and confirm your new password.";
+            return;
+          }
+          if (password !== confirm) {
+            if (setPasswordMessage) setPasswordMessage.textContent = "Passwords do not match.";
+            return;
+          }
+          if (setPasswordMessage) setPasswordMessage.textContent = "Saving password...";
+          if (setPasswordSave) setPasswordSave.disabled = true;
+          try {
+            const { error } = await supabase.auth.updateUser({
+              password,
+              data: { password_set: true },
+            });
+            if (error) {
+              if (setPasswordMessage) setPasswordMessage.textContent = error.message;
+              return;
+            }
+            if (currentUser) {
+              currentUser.user_metadata = {
+                ...(currentUser.user_metadata || {}),
+                password_set: true,
+              };
+            }
+            passwordRequired = false;
+            clearInviteHash();
+            closeDialog(setPasswordDialog);
+          } finally {
+            if (setPasswordSave) setPasswordSave.disabled = false;
+          }
         });
       }
       if (forgotPasswordLink) {
