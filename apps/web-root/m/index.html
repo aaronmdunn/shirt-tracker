@@ -3148,7 +3148,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T16:23:39-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T16:55:44-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5887,16 +5887,38 @@
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "tab-btn add";
-        addBtn.textContent = "+";
+        addBtn.textContent = "+ Add Tab";
         addBtn.setAttribute("aria-label", "Add tab");
         addBtn.addEventListener("click", () => {
           openTabDialog();
         });
         controls.appendChild(addBtn);
+        const renameBtn = document.createElement("button");
+        renameBtn.type = "button";
+        renameBtn.className = "tab-btn rename";
+        renameBtn.textContent = "✏️ Edit Tab";
+        renameBtn.setAttribute("aria-label", "Rename current tab");
+        renameBtn.addEventListener("click", () => {
+          if (!tabsState.activeTabId) return;
+          const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
+          if (!activeTab) return;
+          const nextName = prompt("Rename tab:", activeTab.name || "");
+          if (!nextName) return;
+          const trimmed = nextName.trim();
+          if (!trimmed) return;
+          if (trimmed === activeTab.name) return;
+          activeTab.name = trimmed;
+          saveTabsState();
+          saveState();
+          renderTabs();
+        renderTable();
+        renderFooter();
+      });
+        controls.appendChild(renameBtn);
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "tab-btn delete";
-        deleteBtn.textContent = "🗑️";
+        deleteBtn.textContent = "🗑️ Delete Tab";
         deleteBtn.setAttribute("aria-label", "Delete current tab");
         deleteBtn.addEventListener("click", () => {
           if (!tabsState.activeTabId) return;

@@ -2483,7 +2483,7 @@
         <div class="sheet-footer">
           <div class="footer-actions" id="footer-actions">
             <button class="btn" id="go-top">Go to Top</button>
-            <button class="btn" id="add-row-bottom">Add Row</button>
+            <button class="btn" id="add-row-bottom" style="width:auto;">Add Row</button>
           </div>
           <div class="footer-stats" id="footer-stats">
             <div class="footer-item stat-cell" id="total-count">Total items: 3</div>
@@ -2989,7 +2989,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.0";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T16:23:39-05:00";
+      const LAST_COMMIT_DATE = "2026-02-05T16:55:44-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5651,7 +5651,7 @@
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "tab-btn add";
-        addBtn.textContent = "+";
+        addBtn.textContent = "+ Add Tab";
         addBtn.setAttribute("aria-label", "Add tab");
         addBtn.addEventListener("click", () => {
           openTabDialog();
@@ -5660,18 +5660,17 @@
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "tab-btn delete";
-        deleteBtn.textContent = "🗑️";
+        deleteBtn.textContent = "🗑️ Delete Tab";
         deleteBtn.setAttribute("aria-label", "Delete current tab");
         deleteBtn.addEventListener("click", () => {
           if (!tabsState.activeTabId) return;
           if (tabsState.tabs.length <= 1) return;
           openTabDeleteDialog(tabsState.activeTabId);
         });
-        tabBar.appendChild(deleteBtn);
         const renameBtn = document.createElement("button");
         renameBtn.type = "button";
         renameBtn.className = "tab-btn rename";
-        renameBtn.textContent = "✏️";
+        renameBtn.textContent = "✏️ Edit Tab";
         renameBtn.setAttribute("aria-label", "Rename current tab");
         renameBtn.addEventListener("click", () => {
           if (!tabsState.activeTabId) return;
@@ -5686,10 +5685,11 @@
           saveTabsState();
           saveState();
           renderTabs();
-          renderTable();
-          renderFooter();
-        });
+        renderTable();
+        renderFooter();
+      });
         tabBar.appendChild(renameBtn);
+        tabBar.appendChild(deleteBtn);
         updateTabLogo();
       };
 
