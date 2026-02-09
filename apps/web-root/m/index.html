@@ -3201,7 +3201,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T09:08:38-05:00";
+      const LAST_COMMIT_DATE = "2026-02-09T09:15:54-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5200,8 +5200,46 @@
         }
       };
 
+      const INVITE_FLOW_KEY = "shirt-tracker:invite-flow";
+      const inviteStorageStatus = { ok: null };
+      const canUseSessionStorage = () => {
+        if (inviteStorageStatus.ok !== null) return inviteStorageStatus.ok;
+        try {
+          const key = "__shirt_invite_storage_test__";
+          sessionStorage.setItem(key, "1");
+          sessionStorage.removeItem(key);
+          inviteStorageStatus.ok = true;
+        } catch (error) {
+          inviteStorageStatus.ok = false;
+        }
+        return inviteStorageStatus.ok;
+      };
+      const getInviteTypeFromUrl = () => {
+        const hash = window.location.hash ? window.location.hash.replace(/^#/, "") : "";
+        const hashParams = new URLSearchParams(hash);
+        const searchParams = new URLSearchParams(window.location.search);
+        return (hashParams.get("type") || searchParams.get("type") || "").toLowerCase();
+      };
+      const hasInviteInUrl = () => getInviteTypeFromUrl() === "invite";
+      const markInviteFlowSeen = () => {
+        if (!hasInviteInUrl()) return;
+        if (!canUseSessionStorage()) return;
+        sessionStorage.setItem(INVITE_FLOW_KEY, "true");
+      };
+      const hasInviteFlow = () => {
+        if (hasInviteInUrl()) return true;
+        if (!canUseSessionStorage()) return false;
+        return sessionStorage.getItem(INVITE_FLOW_KEY) === "true";
+      };
+      const clearInviteFlow = () => {
+        if (!canUseSessionStorage()) return;
+        sessionStorage.removeItem(INVITE_FLOW_KEY);
+      };
+      markInviteFlowSeen();
+
       const maybePromptProfileName = () => {
         if (!supabase || !currentUser || isViewerSession) return;
+        if (hasInviteFlow()) return;
         if (getUserDisplayName()) return;
         if (hasPromptedProfileName()) return;
         if (!profileNameDialog || !profileNameInput) return;
@@ -8049,19 +8087,18 @@
         });
       }
       let passwordRequired = false;
-      const isInviteLink = () => {
-        const hash = window.location.hash ? window.location.hash.replace(/^#/, "") : "";
-        if (!hash) return false;
-        const params = new URLSearchParams(hash);
-        return (params.get("type") || "").toLowerCase() === "invite";
-      };
       const clearInviteHash = () => {
-        if (!isInviteLink()) return;
+        if (!hasInviteFlow()) return;
+        clearInviteFlow();
         history.replaceState(null, "", window.location.pathname + window.location.search);
       };
       const enforcePasswordSet = (user) => {
         if (!user || !setPasswordDialog) return;
-        if (!isInviteLink()) return;
+        if (!hasInviteFlow()) return;
+        if (user.user_metadata && user.user_metadata.password_set === true) {
+          clearInviteFlow();
+          return;
+        }
         passwordRequired = true;
         if (setPasswordMessage) setPasswordMessage.textContent = "Please set a password to continue.";
         if (setPasswordInput) setPasswordInput.value = "";
