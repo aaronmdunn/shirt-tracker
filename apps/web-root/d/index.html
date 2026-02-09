@@ -2520,8 +2520,6 @@
               <div class="backup-status" id="backup-status" style="text-align:center;">Cloud backup not checked yet.</div>
               <div class="unsaved-status" id="unsaved-status" style="text-align:center;"></div>
               <div style="font-size:0.78rem; color:var(--muted); margin-top:6px; text-align:center;">
-                <div>Local save = this device</div>
-                <div>Cloud sync = Supabase backup</div>
               </div>
               <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
@@ -2987,9 +2985,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.939.0";
+      const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-05T16:55:44-05:00";
+      const LAST_COMMIT_DATE = "2026-02-09T07:45:45-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3361,7 +3359,7 @@
       const shareColumnsList = document.getElementById("share-columns-list");
       const shareColumnsCancel = document.getElementById("share-columns-cancel");
       const shareColumnsSave = document.getElementById("share-columns-save");
-      const editProfileNameButton = document.getElementById("edit-profile-name");
+        let editProfileNameButton = document.getElementById("edit-profile-name");
       const eventLogLink = document.getElementById("event-log-link");
       const toggleColumnsButton = document.getElementById("toggle-columns");
       const clearAllButton = document.getElementById("clear-all");
@@ -5651,7 +5649,7 @@
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "tab-btn add";
-        addBtn.textContent = "+ Add Tab";
+        addBtn.textContent = "+ Add";
         addBtn.setAttribute("aria-label", "Add tab");
         addBtn.addEventListener("click", () => {
           openTabDialog();
@@ -5660,7 +5658,7 @@
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "tab-btn delete";
-        deleteBtn.textContent = "🗑️ Delete Tab";
+        deleteBtn.textContent = "🗑️ Delete";
         deleteBtn.setAttribute("aria-label", "Delete current tab");
         deleteBtn.addEventListener("click", () => {
           if (!tabsState.activeTabId) return;
@@ -5670,7 +5668,7 @@
         const renameBtn = document.createElement("button");
         renameBtn.type = "button";
         renameBtn.className = "tab-btn rename";
-        renameBtn.textContent = "✏️ Edit Tab";
+        renameBtn.textContent = "✏️ Edit";
         renameBtn.setAttribute("aria-label", "Rename current tab");
         renameBtn.addEventListener("click", () => {
           if (!tabsState.activeTabId) return;
@@ -6040,6 +6038,7 @@
         "misc": "assets/icons/backpack.png",
         "hat": "assets/icons/hat.png",
         "outwear": "assets/icons/jacket.png",
+        "outerwear": "assets/icons/jacket.png",
         "joggers": "assets/icons/pant.png",
         "polo": "assets/icons/polo.png",
         "breakfast balls polo": "assets/icons/polo.png",
@@ -7832,7 +7831,21 @@
           }
         });
       }
+      if (!editProfileNameButton) {
+        const authRow = document.querySelector(".header-row.auth-row");
+        if (authRow) {
+          editProfileNameButton = document.createElement("button");
+          editProfileNameButton.type = "button";
+          editProfileNameButton.id = "edit-profile-name";
+          editProfileNameButton.className = "btn secondary compact";
+          editProfileNameButton.textContent = "Edit Profile Name";
+          authRow.insertBefore(editProfileNameButton, authRow.firstChild);
+        }
+      }
       if (editProfileNameButton) {
+        editProfileNameButton.style.display = "inline-flex";
+        editProfileNameButton.style.alignItems = "center";
+        editProfileNameButton.style.justifyContent = "center";
         editProfileNameButton.addEventListener("click", () => {
           if (!profileNameDialog || !profileNameInput) return;
           profileNameInput.value = getUserDisplayName() || "";
