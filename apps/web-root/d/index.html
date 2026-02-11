@@ -1863,6 +1863,46 @@
         font-size: 0.85rem;
       }
 
+      .event-log-item[data-has-snapshot="true"] {
+        cursor: pointer;
+      }
+
+      .event-log-item[data-has-snapshot="true"]:hover {
+        background: #eef0f3;
+      }
+
+      .event-log-snapshot {
+        display: none;
+        font-size: 0.78rem;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+        padding-top: 6px;
+        margin-top: 4px;
+        line-height: 1.45;
+      }
+
+      .event-log-snapshot.open {
+        display: block;
+      }
+
+      .event-log-snapshot-row {
+        margin-bottom: 6px;
+        padding-bottom: 6px;
+        border-bottom: 1px dashed var(--line);
+      }
+
+      .event-log-snapshot-row:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .event-log-expand-hint {
+        font-size: 0.7rem;
+        color: var(--muted);
+        font-style: italic;
+      }
+
       .event-log-time {
         font-size: 0.72rem;
         color: var(--muted);
@@ -2990,6 +3030,7 @@
     <dialog id="event-log-dialog">
       <div class="dialog-body">
         <h3>Event Log</h3>
+        <input type="text" id="event-log-search" placeholder="Search events..." style="font-size:0.85rem; padding:8px 10px; border:1px solid var(--line); border-radius:10px; width:100%; box-sizing:border-box; font-family:inherit;">
         <div class="event-log-list" id="event-log-list"></div>
         <div class="event-log-empty" id="event-log-empty">No events yet.</div>
       </div>
@@ -3058,7 +3099,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-11T08:09:43-05:00";
+      const LAST_COMMIT_DATE = "2026-02-11T10:31:19-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3550,6 +3591,7 @@
       const eventLogDialog = document.getElementById("event-log-dialog");
       const eventLogList = document.getElementById("event-log-list");
       const eventLogEmpty = document.getElementById("event-log-empty");
+      const eventLogSearch = document.getElementById("event-log-search");
       const eventLogClearButton = document.getElementById("event-log-clear");
       const eventLogCloseButton = document.getElementById("event-log-close");
       const photoDialog = document.getElementById("photo-dialog");
@@ -3613,16 +3655,26 @@
         }
       };
 
-      const renderEventLog = () => {
+      const renderEventLog = (filterQuery) => {
         if (!eventLogList || !eventLogEmpty) return;
         const entries = loadEventLog();
         eventLogList.innerHTML = "";
-        if (!entries.length) {
+        const query = (filterQuery || "").trim().toLowerCase();
+        const filtered = query
+          ? entries.filter((entry) => {
+              const timeText = new Date(entry.at).toLocaleString();
+              const searchable = [entry.action, entry.detail, entry.tabName, timeText]
+                .filter(Boolean).join(" ").toLowerCase();
+              return searchable.includes(query);
+            })
+          : entries;
+        if (!filtered.length) {
           eventLogEmpty.style.display = "block";
+          eventLogEmpty.textContent = query ? "No matching events." : "No events yet.";
           return;
         }
         eventLogEmpty.style.display = "none";
-        entries.forEach((entry) => {
+        filtered.forEach((entry) => {
           const item = document.createElement("div");
           item.className = "event-log-item";
           const time = new Date(entry.at);
@@ -3635,19 +3687,67 @@
           message.textContent = entry.detail ? `${entry.action} - ${entry.detail}` : entry.action;
           item.appendChild(meta);
           item.appendChild(message);
+          if (entry.snapshot) {
+            item.setAttribute("data-has-snapshot", "true");
+            const hint = document.createElement("div");
+            hint.className = "event-log-expand-hint";
+            hint.textContent = "Click for details";
+            item.appendChild(hint);
+            const snapDiv = document.createElement("div");
+            snapDiv.className = "event-log-snapshot";
+            const snapData = Array.isArray(entry.snapshot) ? entry.snapshot : [entry.snapshot];
+            snapData.forEach((rowSnap, idx) => {
+              const rowDiv = document.createElement("div");
+              rowDiv.className = "event-log-snapshot-row";
+              if (snapData.length > 1) {
+                const rowLabel = document.createElement("div");
+                rowLabel.style.fontWeight = "600";
+                rowLabel.style.marginBottom = "2px";
+                rowLabel.textContent = "Row " + (idx + 1);
+                rowDiv.appendChild(rowLabel);
+              }
+              Object.entries(rowSnap).forEach(([key, val]) => {
+                const line = document.createElement("div");
+                line.textContent = key + ": " + val;
+                rowDiv.appendChild(line);
+              });
+              snapDiv.appendChild(rowDiv);
+            });
+            item.appendChild(snapDiv);
+            item.addEventListener("click", () => {
+              snapDiv.classList.toggle("open");
+              hint.textContent = snapDiv.classList.contains("open") ? "Click to collapse" : "Click for details";
+            });
+          }
           eventLogList.appendChild(item);
         });
       };
 
-      const addEventLog = (action, detail = "") => {
+      const snapshotRow = (row) => {
+        if (!row || !row.cells) return {};
+        const snap = {};
+        state.columns.forEach((col) => {
+          if (col.type === "photo") return;
+          const label = getColumnLabel(col);
+          const val = row.cells[col.id];
+          if (val) snap[label] = String(val);
+        });
+        const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+        if (tags.length) snap["Tags"] = tags.join(", ");
+        return snap;
+      };
+
+      const addEventLog = (action, detail = "", snapshot = null) => {
         const entries = loadEventLog();
-        entries.unshift({
+        const entry = {
           id: createId(),
           at: new Date().toISOString(),
           action,
           detail,
           tabName: getActiveTabName(),
-        });
+        };
+        if (snapshot) entry.snapshot = snapshot;
+        entries.unshift(entry);
         if (entries.length > EVENT_LOG_LIMIT) {
           entries.length = EVENT_LOG_LIMIT;
         }
@@ -4470,6 +4570,7 @@
       };
 
       const openEventLogDialog = () => {
+        if (eventLogSearch) eventLogSearch.value = "";
         renderEventLog();
         openDialog(eventLogDialog);
       };
@@ -5045,8 +5146,8 @@
           : "not updated yet";
         const displayName = getUserDisplayName();
         appSubtitleEl.textContent = displayName
-          ? `${displayName}'s Shirt Inventory as of ${dateValue}`
-          : `Shirt Inventory as of ${dateValue}`;
+          ? `${displayName}'s Inventory as of ${dateValue}`
+          : `Inventory as of ${dateValue}`;
       };
 
       const updateSignedOutGreeting = () => {
@@ -5821,9 +5922,6 @@
       const switchTab = (tabId) => {
         if (!tabId || tabId === tabsState.activeTabId) return;
         const nextTab = tabsState.tabs.find((tab) => tab.id === tabId);
-        if (nextTab) {
-          addEventLog("Switched tab", nextTab.name);
-        }
         activeTypeFilter = new Set();
         saveState();
         tabsState.activeTabId = tabId;
@@ -6065,7 +6163,7 @@
       const deleteRow = (id) => {
         const target = state.rows.find((row) => row.id === id);
         if (target) {
-          addEventLog("Deleted row", getRowName(target));
+          addEventLog("Deleted row", getRowName(target), snapshotRow(target));
         }
         state.rows = state.rows.filter((row) => row.id !== id);
         if (state.rows.length === 0) {
@@ -6101,7 +6199,7 @@
         if (state.rows.length === 0) {
           state.rows.push(defaultRow());
         }
-        addEventLog("Deleted rows", formatRowNameList(removedRows));
+        addEventLog("Deleted rows", formatRowNameList(removedRows), removedRows.map(snapshotRow));
         updateShirtUpdateDate();
         saveState();
         renderRows();
@@ -7582,7 +7680,7 @@
         undoClearButton.disabled = false;
         state.rows = [defaultRow()];
         ensureRowCells();
-        addEventLog("Cleared all rows");
+        addEventLog("Cleared all rows", "", lastClearSnapshot.map(snapshotRow));
         updateShirtUpdateDate();
         saveState();
         sortRows();
@@ -8385,8 +8483,15 @@
 
       eventLogClearButton.addEventListener("click", () => {
         saveEventLog([]);
+        if (eventLogSearch) eventLogSearch.value = "";
         renderEventLog();
       });
+
+      if (eventLogSearch) {
+        eventLogSearch.addEventListener("input", () => {
+          renderEventLog(eventLogSearch.value);
+        });
+      }
 
       eventLogCloseButton.addEventListener("click", () => {
         closeDialog(eventLogDialog);
