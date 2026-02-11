@@ -3240,6 +3240,13 @@
           <label for="type-icon-select">Icon</label>
           <select id="type-icon-select"></select>
         </div>
+        <div class="dialog-row" id="type-icon-upload-row" style="display:none;">
+          <label for="type-icon-upload">Upload Image</label>
+          <input type="file" id="type-icon-upload" accept="image/*" style="font-size:0.85rem;">
+        </div>
+        <div id="type-icon-preview" style="text-align:center; display:none;">
+          <img id="type-icon-preview-img" style="width:48px; height:48px; object-fit:contain;" alt="Preview">
+        </div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="type-icon-skip">Skip</button>
@@ -6302,8 +6309,25 @@
         if (column && isShirtNameColumn(column)) scheduleNameSort();
         if (event.type === "change" && column) {
           const labelLower = getColumnLabel(column).trim().toLowerCase();
-          if (labelLower === "type" && target.value) {
-            queueTypeIconPrompt(target.value);
+          if (labelLower === "type") {
+            const typeVal = (target.value || "").trim().toLowerCase();
+            const iconSrc = getTypeIconSrc(typeVal);
+            const tr = target.closest("tr");
+            if (tr) {
+              const iconTd = tr.querySelector(".icon-cell");
+              if (iconTd) {
+                iconTd.innerHTML = "";
+                if (iconSrc) {
+                  const img = document.createElement("img");
+                  img.src = iconSrc;
+                  img.alt = typeVal + " icon";
+                  iconTd.appendChild(img);
+                }
+              }
+            }
+            if (typeVal) {
+              queueTypeIconPrompt(typeVal);
+            }
           }
         }
       };
@@ -6586,18 +6610,20 @@
         { label: "Boxers", src: "assets/icons/boxers.png" },
         { label: "Hat", src: "assets/icons/hat.png" },
         { label: "Jacket", src: "assets/icons/jacket.png" },
-        { label: "Pants", src: "assets/icons/pant.jpg" },
+        { label: "Pants", src: "assets/icons/pant.png" },
         { label: "Shorts", src: "assets/icons/shorts.png" },
         { label: "Backpack", src: "assets/icons/backpack.png" },
       ];
 
       const promptedTypeIcons = new Set();
       let pendingTypeIcon = null;
+      let customIconDataUrl = "";
 
       const openTypeIconDialog = (typeValue) => {
         if (!typeIconDialog || !typeIconSelect || !typeIconMessage) return;
         pendingTypeIcon = typeValue;
-        typeIconMessage.textContent = `Pick an icon for “${typeValue}”.`;
+        customIconDataUrl = "";
+        typeIconMessage.textContent = `Pick an icon for "${typeValue}".`;
         typeIconSelect.innerHTML = "";
         ICON_CHOICES.forEach((option) => {
           const opt = document.createElement("option");
@@ -6605,6 +6631,16 @@
           opt.textContent = option.label;
           typeIconSelect.appendChild(opt);
         });
+        const customOpt = document.createElement("option");
+        customOpt.value = "__custom__";
+        customOpt.textContent = "Upload custom\u2026";
+        typeIconSelect.appendChild(customOpt);
+        const uploadRow = document.getElementById("type-icon-upload-row");
+        const uploadInput = document.getElementById("type-icon-upload");
+        const previewDiv = document.getElementById("type-icon-preview");
+        if (uploadRow) uploadRow.style.display = "none";
+        if (previewDiv) previewDiv.style.display = "none";
+        if (uploadInput) uploadInput.value = "";
         openDialog(typeIconDialog);
       };
 
@@ -6971,6 +7007,9 @@
                 }
                 updateRow(row.id, column.id, trimmed);
                 renderTable();
+                if (labelLower === "type") {
+                  setTimeout(() => queueTypeIconPrompt(trimmed.toLowerCase()), 0);
+                }
               } else {
                 select.value = value;
               }
@@ -7464,16 +7503,13 @@
           const iconTd = document.createElement("td");
           iconTd.className = "icon-cell";
           iconTd.setAttribute("data-label", "");
-          const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
           const typeValue = getTypeValueForRow(row);
-          if (activeTab && ["7-Strong", "Dixxon", "Park Candy", "Project Good", "Reyn Spooner", "RSVLTS"].includes(activeTab.name)) {
-            const iconSrc = getTypeIconSrc(typeValue);
-            if (iconSrc) {
-              const img = document.createElement("img");
-              img.src = iconSrc;
-              img.alt = `${typeValue} icon`;
-              iconTd.appendChild(img);
-            }
+          const iconSrc = getTypeIconSrc(typeValue);
+          if (iconSrc) {
+            const img = document.createElement("img");
+            img.src = iconSrc;
+            img.alt = `${typeValue} icon`;
+            iconTd.appendChild(img);
           }
           tr.appendChild(iconTd);
           state.columns.forEach((column) => {
@@ -8650,12 +8686,59 @@
         closeDialog(typeIconDialog);
       });
 
+      typeIconSelect.addEventListener("change", () => {
+        const uploadRow = document.getElementById("type-icon-upload-row");
+        const previewDiv = document.getElementById("type-icon-preview");
+        const uploadInput = document.getElementById("type-icon-upload");
+        if (typeIconSelect.value === "__custom__") {
+          if (uploadRow) uploadRow.style.display = "flex";
+          if (previewDiv) previewDiv.style.display = "none";
+          if (uploadInput) uploadInput.value = "";
+          customIconDataUrl = "";
+        } else {
+          if (uploadRow) uploadRow.style.display = "none";
+          if (previewDiv) previewDiv.style.display = "none";
+          customIconDataUrl = "";
+        }
+      });
+
+      const typeIconUpload = document.getElementById("type-icon-upload");
+      if (typeIconUpload) {
+        typeIconUpload.addEventListener("change", (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+          if (file.size > 200 * 1024) {
+            alert("Image is too large. Please use an image under 200KB.");
+            event.target.value = "";
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            customIconDataUrl = e.target.result;
+            const previewDiv = document.getElementById("type-icon-preview");
+            const previewImg = document.getElementById("type-icon-preview-img");
+            if (previewImg) previewImg.src = customIconDataUrl;
+            if (previewDiv) previewDiv.style.display = "block";
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
       typeIconSaveButton.addEventListener("click", () => {
         if (!pendingTypeIcon) return;
         const map = loadTypeIconMap();
-        map[pendingTypeIcon] = typeIconSelect.value;
+        if (typeIconSelect.value === "__custom__") {
+          if (!customIconDataUrl) {
+            alert("Please upload an image first.");
+            return;
+          }
+          map[pendingTypeIcon] = customIconDataUrl;
+        } else {
+          map[pendingTypeIcon] = typeIconSelect.value;
+        }
         saveTypeIconMap(map);
         pendingTypeIcon = null;
+        customIconDataUrl = "";
         closeDialog(typeIconDialog);
         renderRows();
         scheduleSync();
