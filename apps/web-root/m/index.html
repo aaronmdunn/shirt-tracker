@@ -1977,6 +1977,10 @@
         padding-left: 18px;
       }
 
+      #icon-credits-dialog .dialog-body {
+        text-align: center;
+      }
+
       dialog::backdrop {
         background: rgba(31, 26, 23, 0.3);
       }
@@ -2715,6 +2719,10 @@
                   <button class="btn secondary" id="edit-profile-name" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Edit Profile Name</button>
                 </div>
               </div>
+              <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+                <button class="btn secondary" id="export-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Export CSV</button>
+                <button class="btn secondary" id="import-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Import CSV</button>
+              </div>
             </div>
             <div class="danger-box">
               <div class="danger-title">Danger Zone</div>
@@ -2831,7 +2839,7 @@
         <button type="button" class="btn" id="about-close">Close</button>
       </div>
     </dialog>
-    <dialog id="icon-credits-dialog" class="about-dialog">
+    <dialog id="icon-credits-dialog" class="privacy-dialog">
       <div class="dialog-body">
         <h3>Credits &amp; Acknowledgements</h3>
         <div><strong>Featured Brands:</strong></div>
@@ -3231,7 +3239,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T15:58:36-05:00";
+      const LAST_COMMIT_DATE = "2026-02-11T08:09:43-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3588,6 +3596,8 @@
       const authActionSignedOutButton = document.getElementById("auth-action-signedout");
       const syncNowButton = document.getElementById("sync-now");
       const verifyBackupButton = document.getElementById("verify-backup");
+      const exportCsvButton = document.getElementById("export-csv");
+      const importCsvButton = document.getElementById("import-csv");
       const backupStatusText = document.getElementById("backup-status");
       const unsavedStatusText = document.getElementById("unsaved-status");
       const publicShareLinkInput = document.getElementById("public-share-link");
@@ -6827,12 +6837,45 @@
             opt.textContent = option;
             select.appendChild(opt);
           });
+          if (!state.readOnly) {
+            const addNewOpt = document.createElement("option");
+            addNewOpt.value = "__add_new__";
+            addNewOpt.textContent = "Add new\u2026";
+            select.appendChild(addNewOpt);
+          }
           select.value = value;
           select.addEventListener("input", (event) => {
+            if (event.target.value === "__add_new__") return;
             updateRow(row.id, column.id, event.target.value);
             if (isNameColumn) scheduleNameSort();
           });
           select.addEventListener("change", (event) => {
+            if (event.target.value === "__add_new__") {
+              const newValue = prompt("Enter new option for " + getColumnLabel(column) + ":");
+              if (newValue && newValue.trim()) {
+                const trimmed = newValue.trim();
+                const existing = (column.options || []).map((o) => String(o).toLowerCase());
+                if (!existing.includes(trimmed.toLowerCase())) {
+                  column.options.push(trimmed);
+                  const colLabel = labelLower;
+                  if (colLabel === "fandom" && tabsState.activeTabId) {
+                    columnOverrides.fandomOptionsByTab[tabsState.activeTabId] = column.options.slice();
+                    saveColumnOverrides();
+                  }
+                  if (colLabel === "type" && tabsState.activeTabId) {
+                    columnOverrides.typeOptionsByTab[tabsState.activeTabId] = column.options.slice();
+                    saveColumnOverrides();
+                  }
+                  setGlobalColumns(state.columns);
+                  saveState();
+                }
+                updateRow(row.id, column.id, trimmed);
+                renderTable();
+              } else {
+                select.value = value;
+              }
+              return;
+            }
             updateRow(row.id, column.id, event.target.value);
             if (isNameColumn) scheduleNameSort();
           });
@@ -7447,21 +7490,143 @@
         const exportState = buildStateFromDom();
         const exportColumns = exportState.columns.filter((column) => {
           const labelLower = getColumnLabel(column).trim().toLowerCase();
-          return column.type !== "photo" && labelLower !== "price" && labelLower !== "preview";
+          return column.type !== "photo" && labelLower !== "preview";
         });
         const headers = exportColumns.map((column) => escapeCsv(getColumnLabel(column)));
+        headers.push(escapeCsv("Tags"));
         const lines = [headers.join(",")];
         exportState.rows.forEach((row) => {
           const cells = exportColumns.map((column) => {
             const value = row.cells ? row.cells[column.id] : "";
             return escapeCsv(value || "");
           });
+          const tags = getRowTags(row).join(", ");
+          cells.push(escapeCsv(tags));
           lines.push(cells.join(","));
         });
         downloadFile(lines.join("\n"), "shirt-tracker.csv", "text/csv;charset=utf-8;");
         addEventLog("Exported CSV");
       };
 
+      const parseCsvLine = (line) => {
+        const cells = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inQuotes) {
+            if (ch === '"' && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else if (ch === '"') {
+              inQuotes = false;
+            } else {
+              current += ch;
+            }
+          } else {
+            if (ch === '"') {
+              inQuotes = true;
+            } else if (ch === ",") {
+              cells.push(current);
+              current = "";
+            } else {
+              current += ch;
+            }
+          }
+        }
+        cells.push(current);
+        return cells;
+      };
+
+      const importCsv = () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".csv,text/csv";
+        input.addEventListener("change", (event) => {
+          const file = event.target.files && event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const text = e.target.result;
+            const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+            if (lines.length < 2) {
+              alert("CSV file is empty or has no data rows.");
+              return;
+            }
+            const headerCells = parseCsvLine(lines[0]);
+            const columnMap = [];
+            let tagsIndex = -1;
+            headerCells.forEach((header, index) => {
+              const headerLower = header.trim().toLowerCase();
+              if (headerLower === "tags") {
+                tagsIndex = index;
+                columnMap.push(null);
+                return;
+              }
+              const match = state.columns.find(
+                (col) => getColumnLabel(col).trim().toLowerCase() === headerLower
+              );
+              columnMap.push(match || null);
+            });
+            if (columnMap.every((col) => col === null) && tagsIndex === -1) {
+              alert("No CSV columns matched your current columns. Check that the CSV header names match.");
+              return;
+            }
+            let importedCount = 0;
+            for (let i = 1; i < lines.length; i++) {
+              const cells = parseCsvLine(lines[i]);
+              const row = defaultRow();
+              let hasData = false;
+              if (tagsIndex !== -1 && cells[tagsIndex]) {
+                const tagValues = cells[tagsIndex].split(",").map((t) => t.trim()).filter(Boolean);
+                if (tagValues.length) {
+                  row.tags = tagValues;
+                  hasData = true;
+                }
+              }
+              cells.forEach((cellValue, index) => {
+                if (index === tagsIndex) return;
+                const column = columnMap[index];
+                if (!column) return;
+                const trimmed = cellValue.trim();
+                if (!trimmed) return;
+                hasData = true;
+                row.cells[column.id] = trimmed;
+                if (column.type === "select" && trimmed) {
+                  const existing = (column.options || []).map((o) => String(o).toLowerCase());
+                  if (!existing.includes(trimmed.toLowerCase())) {
+                    column.options.push(trimmed);
+                    const colLabel = getColumnLabel(column).trim().toLowerCase();
+                    if (colLabel === "fandom" && tabsState.activeTabId) {
+                      columnOverrides.fandomOptionsByTab[tabsState.activeTabId] = column.options.slice();
+                      saveColumnOverrides();
+                    }
+                    if (colLabel === "type" && tabsState.activeTabId) {
+                      columnOverrides.typeOptionsByTab[tabsState.activeTabId] = column.options.slice();
+                      saveColumnOverrides();
+                    }
+                  }
+                }
+              });
+              if (hasData) {
+                state.rows.push(row);
+                importedCount++;
+              }
+            }
+            if (importedCount === 0) {
+              alert("No rows were imported. The CSV may be empty or have no matching data.");
+              return;
+            }
+            setGlobalColumns(state.columns);
+            saveState();
+            renderTable();
+            addEventLog("Imported CSV", importedCount + " rows");
+            alert("Imported " + importedCount + " row" + (importedCount !== 1 ? "s" : "") + " from CSV.");
+          };
+          reader.readAsText(file);
+        });
+        input.click();
+      };
 
       const formatCurrency = (value) => {
         const amount = Number.parseFloat(value);
@@ -8005,6 +8170,9 @@
           verifyBackupButton.disabled = false;
         }
       });
+
+      if (exportCsvButton) exportCsvButton.addEventListener("click", () => exportCsv());
+      if (importCsvButton) importCsvButton.addEventListener("click", () => importCsv());
 
       if (authSendButton) authSendButton.addEventListener("click", async () => {
         if (authNameRow) authNameRow.style.display = "block";
