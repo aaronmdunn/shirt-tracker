@@ -549,6 +549,7 @@
         display: none !important;
       }
 
+      body[data-auth="signed-out"] .filter-row,
       body[data-auth="signed-out"] .filter-bar,
       body[data-auth="signed-out"] .tab-logo-panel {
         display: none !important;
@@ -575,6 +576,7 @@
         align-items: center;
         gap: 10px;
         border-bottom: none;
+        background: transparent;
       }
 
 
@@ -584,11 +586,13 @@
 
       body[data-auth="signed-out"] .sheet-footer {
         border-top: none;
+        background: transparent;
       }
 
 
       body[data-auth="signed-out"] .sheet {
         border-bottom: none;
+        background: linear-gradient(90deg, #c0c0c0, #efefef);
       }
 
       body[data-auth="signed-out"] .sheet {
@@ -2004,6 +2008,7 @@
 
       .photo-dialog {
         width: min(800px, 94vw);
+        min-height: 60vh;
         max-height: 90vh;
         display: none;
         flex-direction: column;
@@ -2026,6 +2031,7 @@
         height: auto;
         max-width: 100%;
         max-height: calc(90vh - 140px);
+        object-fit: contain;
         display: block;
       }
 
@@ -2512,7 +2518,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/9/2026, 3:46:58 PM" readonly>
+                <input type="text" id="app-update-date" value="2/11/2026, 8:08:02 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2656,7 +2662,7 @@
         <button type="button" class="btn" id="icon-credits-close">Close</button>
       </div>
     </dialog>
-    <dialog id="legal-disclaimer-dialog" class="about-dialog">
+    <dialog id="legal-disclaimer-dialog" class="privacy-dialog">
       <div class="dialog-body">
         <div><strong>Legal Disclaimer &amp; Terms of Use</strong></div>
         <div><strong>App Name:</strong> Shirt Tracker</div>
@@ -3044,7 +3050,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-09T20:46:58.466Z";
+      const LAST_COMMIT_DATE = "2026-02-11T13:08:02.819Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
