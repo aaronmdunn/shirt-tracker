@@ -2562,7 +2562,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/11/2026, 11:01:19 AM" readonly>
+                <input type="text" id="app-update-date" value="2/11/2026, 11:24:56 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3099,7 +3099,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.001";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-11T16:01:19.172Z";
+      const LAST_COMMIT_DATE = "2026-02-11T16:24:56.620Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6028,6 +6028,7 @@
         const rowId = target.dataset.rowId;
         const columnId = target.dataset.columnId;
         if (!rowId || !columnId) return;
+        if (target.tagName === "SELECT" && target.value === "__add_new__") return;
         if (event.type === "input") {
           rememberEditStart(rowId, columnId);
         }
@@ -6054,6 +6055,7 @@
           const rowId = input.dataset.rowId;
           const columnId = input.dataset.columnId;
           if (!rowId || !columnId) return;
+          if (input.tagName === "SELECT" && input.value === "__add_new__") return;
           const row = state.rows.find((item) => item.id === rowId);
           if (!row) return;
           if (!row.cells) row.cells = {};
@@ -7248,6 +7250,7 @@
       };
 
       const renderRows = () => {
+        flushInputsToState();
         sheetBody.innerHTML = "";
         if (state.columns.length === 0) {
           return;

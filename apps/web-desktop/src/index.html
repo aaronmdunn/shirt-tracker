@@ -6028,6 +6028,7 @@
         const rowId = target.dataset.rowId;
         const columnId = target.dataset.columnId;
         if (!rowId || !columnId) return;
+        if (target.tagName === "SELECT" && target.value === "__add_new__") return;
         if (event.type === "input") {
           rememberEditStart(rowId, columnId);
         }
@@ -6054,6 +6055,7 @@
           const rowId = input.dataset.rowId;
           const columnId = input.dataset.columnId;
           if (!rowId || !columnId) return;
+          if (input.tagName === "SELECT" && input.value === "__add_new__") return;
           const row = state.rows.find((item) => item.id === rowId);
           if (!row) return;
           if (!row.cells) row.cells = {};
@@ -7248,6 +7250,7 @@
       };
 
       const renderRows = () => {
+        flushInputsToState();
         sheetBody.innerHTML = "";
         if (state.columns.length === 0) {
           return;
