@@ -119,6 +119,11 @@
         --shadow: rgba(0, 0, 0, 0.2);
       }
 
+      @keyframes loading-pulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 1; }
+      }
+
       * {
         box-sizing: border-box;
       }
@@ -2538,7 +2543,7 @@
             <div class="signedout-help">Please login to continue. Need access? <a href="#request-access" id="request-access-link">Request access</a>.</div>
             <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
-          <div class="auth-loading" id="auth-loading" style="display:none;">Loading...</div>
+          <div class="auth-loading" id="auth-loading" style="display:none; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.8rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); animation:loading-pulse 1.8s ease-in-out infinite;">Loading</div>
             <div class="header-actions">
               <div class="danger-zone">
                 <div id="mobile-action-table-wrap" style="width: 100%; display: flex; justify-content: center;">
