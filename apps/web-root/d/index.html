@@ -2498,7 +2498,7 @@
           </div>
           <div class="filter-center">
             <div class="filter-bar">
-              <label for="filter-query">Filter</label>
+              <label for="filter-query">Filter <span id="filter-hint" style="font-size:0.65rem; font-weight:400; letter-spacing:0.04em; color:#999; text-transform:none;"></span></label>
               <select id="filter-column"><option value="all">All Columns</option></select>
               <input id="filter-query" type="text" placeholder="Type to filter">
               <select id="filter-tags" style="display:none;"></select>
@@ -3106,7 +3106,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.002";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-11T13:26:14-05:00";
+      const LAST_COMMIT_DATE = "2026-02-12T08:03:08-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6061,6 +6061,11 @@
               const iconTd = tr.querySelector(".icon-cell");
               if (iconTd) {
                 iconTd.innerHTML = "";
+                if (typeVal) {
+                  iconTd.setAttribute("data-type", typeVal);
+                } else {
+                  iconTd.removeAttribute("data-type");
+                }
                 if (iconSrc) {
                   const img = document.createElement("img");
                   img.src = iconSrc;
@@ -7305,6 +7310,10 @@
           iconTd.setAttribute("data-label", "");
           const typeValue = getTypeValueForRow(row);
           const iconSrc = getTypeIconSrc(typeValue);
+          if (typeValue) iconTd.setAttribute("data-type", typeValue);
+          if (!state.readOnly && currentUser && !isViewerSession) {
+            iconTd.style.cursor = "pointer";
+          }
           if (iconSrc) {
             const img = document.createElement("img");
             img.src = iconSrc;
@@ -8223,6 +8232,20 @@
           closeDialog(profileNameDialog);
         });
       }
+      if (profileNameInput) {
+        profileNameInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (profileNameSaveButton) profileNameSaveButton.click();
+          }
+        });
+      }
+      if (profileNameDialog) {
+        profileNameDialog.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          if (profileNameSkipButton) profileNameSkipButton.click();
+        });
+      }
       if (authActionSignedOutButton && authActionButton) {
         authActionSignedOutButton.addEventListener("click", () => {
           authActionButton.click();
@@ -8682,6 +8705,14 @@
       });
 
 
+      sheetBody.addEventListener("click", (event) => {
+        if (!currentUser || isViewerSession || state.readOnly) return;
+        const iconTd = event.target.closest(".icon-cell");
+        if (!iconTd) return;
+        const typeVal = iconTd.getAttribute("data-type");
+        if (!typeVal) return;
+        openTypeIconDialog(typeVal);
+      });
       sheetBody.addEventListener("input", handleCellEvent);
       sheetBody.addEventListener("change", handleCellEvent);
       sheetBody.addEventListener("focusin", (event) => {
@@ -8715,6 +8746,13 @@
       }
       loadState();
       resetFilterDefault();
+      (() => {
+        const hint = document.getElementById("filter-hint");
+        if (hint) {
+          const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          hint.textContent = isMac ? "(⌘F to find)" : "(Ctrl+F to find)";
+        }
+      })();
       loadShirtUpdateDate();
       updateHeaderTitle();
       updateHeaderSubtitle();
