@@ -3287,7 +3287,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.002";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-11T13:05:52-05:00";
+      const LAST_COMMIT_DATE = "2026-02-11T13:26:14-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3603,7 +3603,6 @@
         { id: createId(), name: "Condition", type: "select", options: [] },
         { id: createId(), name: "Shirt Name", type: "text", options: [] },
         { id: createId(), name: "Size", type: "select", options: [] },
-        { id: createId(), name: "Brand", type: "select", options: [] },
         { id: createId(), name: "Type", type: "select", options: [] },
         { id: createId(), name: "Fandom", type: "select", options: [] },
         { id: createId(), name: "Price", type: "number", options: [] },
@@ -5331,6 +5330,10 @@
       };
 
       const hasPromptedProfileName = () => {
+        if (currentUser) {
+          const meta = currentUser.user_metadata || {};
+          if (meta.display_name_skipped) return true;
+        }
         if (!canUseLocalStorage()) return false;
         try {
           return localStorage.getItem(PROFILE_NAME_PROMPT_KEY) === "true";
@@ -8369,8 +8372,19 @@
       });
 
       if (profileNameSkipButton) {
-        profileNameSkipButton.addEventListener("click", () => {
+        profileNameSkipButton.addEventListener("click", async () => {
           setPromptedProfileName();
+          if (supabase && currentUser) {
+            try {
+              await supabase.auth.updateUser({ data: { display_name_skipped: true } });
+              currentUser.user_metadata = {
+                ...(currentUser.user_metadata || {}),
+                display_name_skipped: true,
+              };
+            } catch (error) {
+              // localStorage fallback is already set
+            }
+          }
           closeDialog(profileNameDialog);
         });
       }
