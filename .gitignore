@@ -25,3 +25,9 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+
+# Auto-generated lock files
+deno.lock
+
+# macOS app bundles
+*.app
