@@ -4912,12 +4912,13 @@
           .from("shirt_state")
           .select("data, updated_at, user_id")
           .filter("data->>publicShareId", "eq", token)
-          .maybeSingle();
-        if (error || !data) {
+          .order("updated_at", { ascending: false })
+          .limit(1);
+        if (error || !data || !data.length) {
           console.warn("Failed to load public share state", error);
           return;
         }
-        applyPublicSharePayload(data);
+        applyPublicSharePayload(data[0]);
       };
 
       const setBackupStatus = (message) => {
