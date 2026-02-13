@@ -388,7 +388,6 @@
         align-items: stretch;
         gap: 12px;
         padding: 16px 20px;
-        border-bottom: 1px solid var(--line);
         background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
@@ -937,8 +936,7 @@
         display: grid;
         gap: 10px;
         padding: 10px 20px;
-        border-bottom: 1px solid var(--line);
-        background: #efefef;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
         font-family: "Work Sans", "Trebuchet MS", sans-serif;
       }
 
@@ -1232,8 +1230,7 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 8px 20px;
-        border-bottom: 1px solid var(--line);
-        background: #efefef;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
       .danger-box {
@@ -1517,7 +1514,7 @@
         align-items: stretch;
         padding: 10px 20px;
         border-bottom: 1px solid var(--line);
-        background: #e5e5e5;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
       .top-table-actions {
@@ -7598,6 +7595,10 @@
 
       const renderRows = () => {
         flushInputsToState();
+        if (emptyState.textContent && !(state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id]))) {
+          emptyState.textContent = "";
+          emptyState.style.cssText = "";
+        }
         sheetBody.innerHTML = "";
         if (state.columns.length === 0) {
           return;
@@ -7699,10 +7700,35 @@
       const renderTable = () => {
         if (state.columns.length === 0) {
           emptyState.textContent = "Your sheet is empty. Add a column to start tracking shirts.";
+          emptyState.style.cssText = "";
         } else if (state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id])) {
-          emptyState.textContent = "Welcome! Start by filling in your first row. Tap the ? button in the bottom-right corner for help.";
+          emptyState.textContent = "";
+          Object.assign(emptyState.style, {
+            textAlign: "center",
+            padding: "32px 20px 24px",
+          });
+          const heading = document.createElement("div");
+          Object.assign(heading.style, {
+            fontSize: "1.1rem",
+            fontWeight: "700",
+            color: "#444",
+            marginBottom: "6px",
+            letterSpacing: "0.02em",
+          });
+          heading.textContent = "Welcome to Shirt Tracker!";
+          const body = document.createElement("div");
+          Object.assign(body.style, {
+            fontSize: "0.88rem",
+            fontWeight: "400",
+            color: "#888",
+            lineHeight: "1.5",
+          });
+          body.textContent = "Start by filling in your first row below. Tap the ? button in the bottom-right corner anytime for help.";
+          emptyState.appendChild(heading);
+          emptyState.appendChild(body);
         } else {
           emptyState.textContent = "";
+          emptyState.style.cssText = "";
         }
         renderColumns();
         renderHeader();

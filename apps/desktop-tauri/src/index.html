@@ -386,7 +386,6 @@
         justify-content: space-between;
         align-items: center;
         padding: 16px 20px;
-        border-bottom: 1px solid var(--line);
         background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
@@ -819,8 +818,7 @@
         flex-wrap: wrap;
         gap: 8px;
         padding: 10px 20px;
-        border-bottom: 1px solid var(--line);
-        background: #efefef;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
         font-family: "Work Sans", "Trebuchet MS", sans-serif;
       }
 
@@ -1128,8 +1126,7 @@
         justify-content: flex-end;
         gap: 10px;
         padding: 8px 20px;
-        border-bottom: 1px solid var(--line);
-        background: #efefef;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
       .danger-box {
@@ -1404,7 +1401,7 @@
         justify-content: start;
         padding: 10px 20px;
         border-bottom: 1px solid var(--line);
-        background: #e5e5e5;
+        background: linear-gradient(90deg, #eeeeee, #e1e1e1);
       }
 
       .top-table-actions {
@@ -2572,7 +2569,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/13/2026, 11:20:33 AM" readonly>
+                <input type="text" id="app-update-date" value="2/13/2026, 11:34:54 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3159,7 +3156,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-13T16:20:33.872Z";
+      const LAST_COMMIT_DATE = "2026-02-13T16:34:54.668Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -7394,6 +7391,10 @@
 
       const renderRows = () => {
         flushInputsToState();
+        if (emptyState.textContent && !(state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id]))) {
+          emptyState.textContent = "";
+          emptyState.style.cssText = "";
+        }
         sheetBody.innerHTML = "";
         if (state.columns.length === 0) {
           return;
@@ -7495,10 +7496,35 @@
       const renderTable = () => {
         if (state.columns.length === 0) {
           emptyState.textContent = "Your sheet is empty. Add a column to start tracking shirts.";
+          emptyState.style.cssText = "";
         } else if (state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id])) {
-          emptyState.textContent = "Welcome! Start by filling in your first row. Click the ? button in the bottom-right corner for help.";
+          emptyState.textContent = "";
+          Object.assign(emptyState.style, {
+            textAlign: "center",
+            padding: "32px 20px 24px",
+          });
+          const heading = document.createElement("div");
+          Object.assign(heading.style, {
+            fontSize: "1.1rem",
+            fontWeight: "700",
+            color: "#444",
+            marginBottom: "6px",
+            letterSpacing: "0.02em",
+          });
+          heading.textContent = "Welcome to Shirt Tracker!";
+          const body = document.createElement("div");
+          Object.assign(body.style, {
+            fontSize: "0.88rem",
+            fontWeight: "400",
+            color: "#888",
+            lineHeight: "1.5",
+          });
+          body.textContent = "Start by filling in your first row below. Click the ? button in the bottom-right corner anytime for help.";
+          emptyState.appendChild(heading);
+          emptyState.appendChild(body);
         } else {
           emptyState.textContent = "";
+          emptyState.style.cssText = "";
         }
         renderColumns();
         renderHeader();
