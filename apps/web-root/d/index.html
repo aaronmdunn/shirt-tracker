@@ -2696,6 +2696,49 @@
         <button type="button" class="btn" id="about-close">Close</button>
       </div>
     </dialog>
+    <dialog id="help-dialog" class="privacy-dialog">
+      <div class="dialog-body">
+        <h3>Help</h3>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Header Buttons</strong></div>
+        <div><strong>Add Column</strong> &mdash; Add a new column to the current tab. You can choose from text, dropdown, number, notes, photo, or tags.</div>
+        <div><strong>Edit Columns</strong> &mdash; Rename, reorder, or remove columns. Drag columns to rearrange them.</div>
+        <div><strong>Share Columns</strong> &mdash; Create a public read-only link so others can view your inventory. You can choose which columns are visible.</div>
+        <div><strong>Save + Sync to Cloud</strong> &mdash; Manually save your data and sync it to the cloud. Your data also auto-saves periodically.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Table Controls</strong></div>
+        <div><strong>Add Row</strong> &mdash; Add a new blank row to the table.</div>
+        <div><strong>Go to Bottom / Go to Top</strong> &mdash; Jump to the bottom or top of the table.</div>
+        <div><strong>Filter</strong> &mdash; Filter rows by typing in the filter bar. You can filter by a specific column or across all columns.</div>
+        <div><strong>Reset Filters</strong> &mdash; Clear all active filters and show all rows.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Tabs</strong></div>
+        <div><strong>Add</strong> &mdash; Create a new tab to organize your inventory into separate collections.</div>
+        <div><strong>Delete / Edit</strong> &mdash; Delete or rename the current tab.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Selection Actions</strong></div>
+        <div><strong>Delete Item(s)</strong> &mdash; Delete all rows that are selected with checkboxes.</div>
+        <div><strong>Tag Item(s)</strong> &mdash; Add or remove tags on all selected rows at once.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Cloud Backup</strong></div>
+        <div><strong>Verify Cloud Status</strong> &mdash; Check if your local data matches what&rsquo;s saved in the cloud.</div>
+        <div><strong>Edit Profile Name</strong> &mdash; Change your display name.</div>
+        <div><strong>Export CSV</strong> &mdash; Download the current tab&rsquo;s data as a CSV spreadsheet.</div>
+        <div><strong>Import CSV</strong> &mdash; Upload a CSV file to add rows to the current tab.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Danger Zone</strong></div>
+        <div><strong>Reset Tab</strong> &mdash; Delete all rows on the current tab. This can be undone with the Undo button.</div>
+        <div><strong>Wipe &amp; Reset</strong> &mdash; Erase everything and start fresh with default columns. This cannot be undone.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Other</strong></div>
+        <div><strong>Icon cells</strong> &mdash; Click the icon to the left of each row to pick or change the icon for that shirt type.</div>
+        <div><strong>Dropdowns</strong> &mdash; All dropdown columns have an &ldquo;Add new...&rdquo; option at the bottom to create new values on the fly.</div>
+        <div><strong>Photos</strong> &mdash; Click a photo thumbnail to view, upload, or clear the photo for that row.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="help-close">Close</button>
+      </div>
+    </dialog>
     <dialog id="icon-credits-dialog" class="privacy-dialog">
         <div class="dialog-body">
           <h3>Credits &amp; Acknowledgements</h3>
@@ -3109,9 +3152,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.939.002";
+      const APP_VERSION = "1.939.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-12T09:49:08-05:00";
+      const LAST_COMMIT_DATE = "2026-02-12T10:46:06-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3567,6 +3610,48 @@
       const clearFinalConfirm = document.getElementById("clear-final-confirm");
       const aboutDialog = document.getElementById("about-dialog");
       const aboutCloseButton = document.getElementById("about-close");
+      const helpDialog = document.getElementById("help-dialog");
+      const helpCloseButton = document.getElementById("help-close");
+      const helpButton = (() => {
+        const btn = document.createElement("button");
+        btn.id = "help-button";
+        btn.type = "button";
+        btn.textContent = "?";
+        Object.assign(btn.style, {
+          position: "fixed",
+          bottom: "18px",
+          right: "18px",
+          zIndex: "9999",
+          width: "36px",
+          height: "36px",
+          borderRadius: "50%",
+          border: "1px solid #bbb",
+          background: "#f5f5f5",
+          color: "#888",
+          fontSize: "16px",
+          fontFamily: "'Work Sans','Trebuchet MS',sans-serif",
+          fontWeight: "600",
+          cursor: "pointer",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0",
+          lineHeight: "1",
+        });
+        btn.addEventListener("mouseenter", () => {
+          btn.style.background = "#e8e8e8";
+          btn.style.borderColor = "#999";
+          btn.style.color = "#555";
+        });
+        btn.addEventListener("mouseleave", () => {
+          btn.style.background = "#f5f5f5";
+          btn.style.borderColor = "#bbb";
+          btn.style.color = "#888";
+        });
+        document.body.appendChild(btn);
+        return btn;
+      })();
       const authDialog = document.getElementById("auth-dialog");
       const authForm = document.getElementById("auth-form");
       const authNameRow = document.getElementById("auth-name-row");
@@ -5893,7 +5978,7 @@
         const addBtn = document.createElement("button");
         addBtn.type = "button";
         addBtn.className = "tab-btn add";
-        addBtn.textContent = "+ Add";
+        addBtn.textContent = "➕ Add";
         addBtn.setAttribute("aria-label", "Add tab");
         addBtn.addEventListener("click", () => {
           openTabDialog();
@@ -7851,6 +7936,16 @@
       aboutCloseButton.addEventListener("click", () => {
         closeDialog(aboutDialog);
       });
+
+      if (helpButton && helpDialog && helpCloseButton) {
+        helpButton.addEventListener("click", () => {
+          openDialog(helpDialog);
+          resetDialogScroll(helpDialog);
+        });
+        helpCloseButton.addEventListener("click", () => {
+          closeDialog(helpDialog);
+        });
+      }
 
       if (creditsLink && iconCreditsDialog) {
         creditsLink.addEventListener("click", (event) => {
