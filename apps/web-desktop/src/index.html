@@ -734,6 +734,10 @@
         display: none !important;
       }
 
+      body[data-viewer="true"] #help-button {
+        display: none !important;
+      }
+
       .btn.auth-signed-in {
         background: #ffffff;
         color: #0a7a2f;
@@ -7489,9 +7493,13 @@
       };
 
       const renderTable = () => {
-        emptyState.textContent = state.columns.length === 0
-          ? "Your sheet is empty. Add a column to start tracking shirts."
-          : "";
+        if (state.columns.length === 0) {
+          emptyState.textContent = "Your sheet is empty. Add a column to start tracking shirts.";
+        } else if (state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id])) {
+          emptyState.textContent = "Welcome! Start by filling in your first row. Click the ? button in the bottom-right corner for help.";
+        } else {
+          emptyState.textContent = "";
+        }
         renderColumns();
         renderHeader();
         renderFilterOptions();

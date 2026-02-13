@@ -838,6 +838,10 @@
         display: none !important;
       }
 
+      body[data-viewer="true"] #help-button {
+        display: none !important;
+      }
+
       .btn.auth-signed-in {
         background: #ffffff;
         color: #0a7a2f;
@@ -3337,7 +3341,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-13T08:31:10-05:00";
+      const LAST_COMMIT_DATE = "2026-02-13T11:08:14-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -7693,9 +7697,13 @@
       };
 
       const renderTable = () => {
-        emptyState.textContent = state.columns.length === 0
-          ? "Your sheet is empty. Add a column to start tracking shirts."
-          : "";
+        if (state.columns.length === 0) {
+          emptyState.textContent = "Your sheet is empty. Add a column to start tracking shirts.";
+        } else if (state.rows.length === 1 && state.columns.every((col) => !state.rows[0].cells[col.id])) {
+          emptyState.textContent = "Welcome! Start by filling in your first row. Tap the ? button in the bottom-right corner for help.";
+        } else {
+          emptyState.textContent = "";
+        }
         renderColumns();
         renderHeader();
         renderFilterOptions();
