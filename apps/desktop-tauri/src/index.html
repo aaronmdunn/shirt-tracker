@@ -1042,7 +1042,7 @@
         height: 64px;
         border-radius: 10px;
         border: 1px dashed var(--line);
-        background: #111111;
+        background: #ffffff;
         display: grid;
         place-items: center;
         overflow: hidden;
@@ -2569,7 +2569,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/13/2026, 11:34:54 AM" readonly>
+                <input type="text" id="app-update-date" value="2/14/2026, 3:09:33 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3042,6 +3042,20 @@
       </div>
     </dialog>
 
+    <dialog id="text-prompt-dialog">
+      <div class="dialog-body">
+        <h3 id="text-prompt-title">Enter Value</h3>
+        <div class="dialog-row">
+          <label for="text-prompt-input" id="text-prompt-label">Value</label>
+          <input id="text-prompt-input" type="text" placeholder="">
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="text-prompt-cancel">Cancel</button>
+        <button type="button" class="btn" id="text-prompt-save">Save</button>
+      </div>
+    </dialog>
+
     <dialog id="share-columns-dialog">
       <div class="dialog-body">
         <h3>Shared Columns</h3>
@@ -3156,7 +3170,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-13T16:34:54.668Z";
+      const LAST_COMMIT_DATE = "2026-02-14T08:09:33.284Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3686,6 +3700,12 @@
       const profileNameInput = document.getElementById("profile-name-input");
       const profileNameSkipButton = document.getElementById("profile-name-skip");
       const profileNameSaveButton = document.getElementById("profile-name-save");
+      const textPromptDialog = document.getElementById("text-prompt-dialog");
+      const textPromptTitle = document.getElementById("text-prompt-title");
+      const textPromptLabel = document.getElementById("text-prompt-label");
+      const textPromptInput = document.getElementById("text-prompt-input");
+      const textPromptCancelButton = document.getElementById("text-prompt-cancel");
+      const textPromptSaveButton = document.getElementById("text-prompt-save");
       const eventLogDialog = document.getElementById("event-log-dialog");
       const eventLogList = document.getElementById("event-log-list");
       const eventLogEmpty = document.getElementById("event-log-empty");
@@ -4642,6 +4662,50 @@
           return;
         }
         dialog.removeAttribute("open");
+      };
+
+      const showTextPrompt = (title, label, defaultValue) => {
+        return new Promise((resolve) => {
+          if (!textPromptDialog || !textPromptInput) { resolve(null); return; }
+          if (textPromptTitle) textPromptTitle.textContent = title || "Enter Value";
+          if (textPromptLabel) textPromptLabel.textContent = label || "Value";
+          textPromptInput.value = defaultValue || "";
+          textPromptInput.placeholder = "";
+          let resolved = false;
+          const cleanup = () => {
+            if (resolved) return;
+            resolved = true;
+            textPromptSaveButton.removeEventListener("click", onSave);
+            textPromptCancelButton.removeEventListener("click", onCancel);
+            textPromptInput.removeEventListener("keydown", onKeydown);
+            textPromptDialog.removeEventListener("cancel", onDialogCancel);
+          };
+          const onSave = () => {
+            const val = textPromptInput.value;
+            cleanup();
+            closeDialog(textPromptDialog);
+            resolve(val);
+          };
+          const onCancel = () => {
+            cleanup();
+            closeDialog(textPromptDialog);
+            resolve(null);
+          };
+          const onKeydown = (e) => {
+            if (e.key === "Enter") { e.preventDefault(); onSave(); }
+          };
+          const onDialogCancel = (e) => {
+            e.preventDefault();
+            onCancel();
+          };
+          textPromptSaveButton.addEventListener("click", onSave);
+          textPromptCancelButton.addEventListener("click", onCancel);
+          textPromptInput.addEventListener("keydown", onKeydown);
+          textPromptDialog.addEventListener("cancel", onDialogCancel);
+          openDialog(textPromptDialog);
+          textPromptInput.focus();
+          textPromptInput.select();
+        });
       };
 
       const openTagsDialog = (rowId) => {
@@ -5718,7 +5782,7 @@
           if (input.id === "filter-column" || input.id === "filter-query" || input.id === "find-bar-input") {
             return;
           }
-          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog")) {
+          if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog") || input.closest("#text-prompt-dialog")) {
             return;
           }
           input.disabled = true;
@@ -6001,11 +6065,11 @@
         renameBtn.className = "tab-btn rename";
         renameBtn.textContent = "✏️ Edit";
         renameBtn.setAttribute("aria-label", "Rename current tab");
-        renameBtn.addEventListener("click", () => {
+        renameBtn.addEventListener("click", async () => {
           if (!tabsState.activeTabId) return;
           const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
           if (!activeTab) return;
-          const nextName = prompt("Rename tab:", activeTab.name || "");
+          const nextName = await showTextPrompt("Rename Tab", "Tab name", activeTab.name || "");
           if (!nextName) return;
           const trimmed = nextName.trim();
           if (!trimmed) return;
@@ -6883,9 +6947,9 @@
             updateRow(row.id, column.id, event.target.value);
             if (isNameColumn) scheduleNameSort();
           });
-          select.addEventListener("change", (event) => {
+          select.addEventListener("change", async (event) => {
             if (event.target.value === "__add_new__") {
-              const newValue = prompt("Enter new option for " + getColumnLabel(column) + ":");
+              const newValue = await showTextPrompt("Add New " + getColumnLabel(column), "New option");
               if (newValue && newValue.trim()) {
                 const trimmed = newValue.trim();
                 const existing = (column.options || []).map((o) => String(o).toLowerCase());
