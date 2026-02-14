@@ -2,7 +2,7 @@
 
 Shirt Tracker is a personal inventory app for tracking shirts across brands, types, and collections. It supports a desktop app (Tauri), a desktop web app, and a mobile web app, all backed by Supabase for authentication, storage, and syncing.
 
-Current version: 1.939.2
+Current version: 1.939.3
 
 ## Apps
 
