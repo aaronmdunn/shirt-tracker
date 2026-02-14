@@ -2075,13 +2075,14 @@
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        min-height: 0;
       }
 
       .photo-dialog img {
         width: auto;
         height: auto;
         max-width: 100%;
-        max-height: calc(90vh - 140px);
+        max-height: 100%;
         object-fit: contain;
         display: block;
       }
@@ -2569,7 +2570,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/14/2026, 3:39:39 AM" readonly>
+                <input type="text" id="app-update-date" value="2/14/2026, 8:09:43 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3171,7 +3172,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.3";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-14T08:39:39.537Z";
+      const LAST_COMMIT_DATE = "2026-02-14T13:09:43.964Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
