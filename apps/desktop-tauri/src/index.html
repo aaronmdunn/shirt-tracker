@@ -2560,7 +2560,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/14/2026, 10:45:42 AM" readonly>
+                <input type="text" id="app-update-date" value="2/14/2026, 11:37:19 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -2680,7 +2680,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v1.938.0 beta</div>
+        <div id="about-version">Shirt Tracker v2.0.1</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3160,9 +3160,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "1.939.3";
+      const APP_VERSION = "2.0.1";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-14T15:45:42.875Z";
+      const LAST_COMMIT_DATE = "2026-02-14T16:37:19.096Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5092,7 +5092,7 @@
 
       const updateAboutVersionLine = () => {
         if (!aboutVersion) return;
-        aboutVersion.textContent = `Shirt Tracker v${APP_VERSION} beta`;
+        aboutVersion.textContent = `Shirt Tracker v${APP_VERSION}`;
       };
 
       updateFooterVersionLine();
@@ -5351,7 +5351,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "1.938.0",
+          version: "2.0.1",
         };
       };
 
@@ -7522,7 +7522,7 @@
         sheetBody.appendChild(tr);
       });
       updateDeleteSelectedState();
-    };
+          };
 
       const renderFooter = () => {
         const rowsToRender = getFilteredRows();
@@ -8998,6 +8998,4 @@
         }
       }
     </script>
-  
-
 </body></html>

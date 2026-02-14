@@ -31,3 +31,6 @@ deno.lock
 
 # macOS app bundles
 *.app
+
+# Local refactor prompt
+REFACTOR-PROMPT.md
