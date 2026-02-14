@@ -2940,6 +2940,7 @@
         <div><a href="https://www.projectgoodapparel.co/">Project Good Apparel</a></div>
         <div><a href="https://www.dixxon.com/">Dixxon</a></div>
         <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
+        <div><a href="https://retro-rifle.com/">Retro Rifle</a></div>
         <div><strong>Community Credits:</strong></div>
         <div>Product images sourced in part from <a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a>, an independent fan-run catalog of RSVLTS products. Used with appreciation for their work in documenting the RSVLTS community.</div>
         <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
@@ -3352,7 +3353,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "1.939.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-14T02:53:40-05:00";
+      const LAST_COMMIT_DATE = "2026-02-14T03:11:04-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -7701,10 +7702,11 @@
           const actions = document.createElement("td");
           actions.setAttribute("data-label", "Actions");
           actions.className = "actions-cell";
-          actions.style.display = "flex";
-          actions.style.flexDirection = "column";
-          actions.style.alignItems = "center";
-          actions.style.gap = "6px";
+          const actionsWrap = document.createElement("div");
+          actionsWrap.style.display = "flex";
+          actionsWrap.style.flexDirection = "column";
+          actionsWrap.style.alignItems = "center";
+          actionsWrap.style.gap = "6px";
           const tagsButton = document.createElement("button");
           tagsButton.type = "button";
           tagsButton.className = "btn-icon";
@@ -7724,8 +7726,9 @@
           checkbox.setAttribute("aria-label", "Select row");
           checkbox.dataset.rowId = row.id;
           checkbox.addEventListener("change", updateDeleteSelectedState);
-          actions.appendChild(tagsButton);
-          actions.appendChild(checkbox);
+          actionsWrap.appendChild(tagsButton);
+          actionsWrap.appendChild(checkbox);
+          actions.appendChild(actionsWrap);
           tr.appendChild(actions);
         }
 

@@ -11,8 +11,10 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
             }
-            let share_csv =
-                MenuItem::with_id(app, "share_csv", "Share Data (CSV)", true, None::<&str>)?;
+            let export_csv =
+                MenuItem::with_id(app, "export_csv", "Export CSV", true, None::<&str>)?;
+            let import_csv =
+                MenuItem::with_id(app, "import_csv", "Import CSV", true, None::<&str>)?;
             let event_log = MenuItem::with_id(app, "event_log", "Event Log", true, None::<&str>)?;
             let about_item = MenuItem::with_id(
                 app,
@@ -28,14 +30,17 @@ pub fn run() {
                 true,
                 &[&about_item, &quit_item],
             )?;
-            let file_menu = Submenu::with_items(app, "File", true, &[&share_csv, &event_log])?;
+            let file_menu = Submenu::with_items(app, "File", true, &[&export_csv, &import_csv, &event_log])?;
             let menu = Menu::with_items(app, &[&app_menu, &file_menu])?;
             app.set_menu(menu)?;
             Ok(())
         })
         .on_menu_event(|app, event| match event.id().0.as_str() {
-            "share_csv" => {
-                let _ = app.emit("menu-share-csv", ());
+            "export_csv" => {
+                let _ = app.emit("menu-export-csv", ());
+            }
+            "import_csv" => {
+                let _ = app.emit("menu-import-csv", ());
             }
             "about_shirt_tracker" => {
                 let _ = app.emit("menu-about", ());
