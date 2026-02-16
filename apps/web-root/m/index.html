@@ -1421,7 +1421,7 @@
 
       .column-row {
         display: grid;
-        grid-template-columns: minmax(80px, 1.2fr) minmax(0, 0.6fr) auto auto;
+        grid-template-columns: minmax(80px, 1fr) auto auto;
         gap: 8px;
         align-items: center;
         padding: 8px 8px;
@@ -1429,6 +1429,10 @@
         background: #f6f6f6;
         border: 1px solid var(--line);
         overflow: hidden;
+      }
+
+      .column-row > .column-type {
+        display: none;
       }
 
 
@@ -3344,7 +3348,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.1";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-16T14:16:27-05:00";
+      const LAST_COMMIT_DATE = "2026-02-16T14:19:55-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
