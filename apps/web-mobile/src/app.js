@@ -3578,12 +3578,67 @@ const queueTypeIconPrompt = (typeValue) => {
 const renderColumns = () => {
   columnManager.innerHTML = "";
   if (state.columns.length === 0) {
-    columnManager.textContent = "No columns yet. Use “Add Column” to build your sheet.";
+    columnManager.textContent = "No columns yet. Use \u201cAdd Column\u201d to build your sheet.";
     return;
   }
   const list = document.createElement("div");
   list.className = "column-manager-list";
   const hiddenIds = getHiddenColumnIds();
+
+  let dragState = null;
+
+  const getRows = () => Array.from(list.querySelectorAll(".column-row"));
+
+  const onPointerMove = (clientY) => {
+    if (!dragState) return;
+    const dy = clientY - dragState.startY;
+    dragState.row.style.transform = `translateY(${dy}px)`;
+    dragState.row.style.zIndex = "10";
+    const rows = getRows();
+    for (const other of rows) {
+      if (other === dragState.row) continue;
+      const rect = other.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      if (clientY < mid && other.compareDocumentPosition(dragState.row) & Node.DOCUMENT_POSITION_FOLLOWING) {
+        list.insertBefore(dragState.row, other);
+        dragState.startY = clientY;
+        dragState.row.style.transform = "translateY(0)";
+        break;
+      }
+      if (clientY > mid && other.compareDocumentPosition(dragState.row) & Node.DOCUMENT_POSITION_PRECEDING) {
+        list.insertBefore(dragState.row, other.nextSibling);
+        dragState.startY = clientY;
+        dragState.row.style.transform = "translateY(0)";
+        break;
+      }
+    }
+  };
+
+  const onPointerUp = () => {
+    if (!dragState) return;
+    dragState.row.classList.remove("dragging");
+    dragState.row.style.transform = "";
+    dragState.row.style.zIndex = "";
+    document.removeEventListener("mousemove", dragState.onMouseMove);
+    document.removeEventListener("mouseup", dragState.onMouseUp);
+    document.removeEventListener("touchmove", dragState.onTouchMove);
+    document.removeEventListener("touchend", dragState.onTouchEnd);
+    const newOrder = getRows().map((r) => r.dataset.columnId).filter(Boolean);
+    const oldOrder = state.columns.map((c) => c.id);
+    let changed = false;
+    for (let i = 0; i < newOrder.length; i++) {
+      if (newOrder[i] !== oldOrder[i]) { changed = true; break; }
+    }
+    if (changed) {
+      const reordered = newOrder.map((id) => state.columns.find((c) => c.id === id)).filter(Boolean);
+      state.columns = reordered;
+      setGlobalColumns(state.columns);
+      saveState();
+      renderTable();
+    }
+    dragState = null;
+  };
+
   state.columns.forEach((column) => {
     const isHidden = hiddenIds.has(column.id);
     const row = document.createElement("div");
@@ -3596,8 +3651,9 @@ const renderColumns = () => {
     }
     const optionsSummary = column.type === "select" && Array.isArray(column.options)
       ? column.options.join(", ")
-      : "—";
+      : "\u2014";
     row.innerHTML = `
+      <div class="column-drag-handle" aria-label="Drag to reorder">\u2261</div>
       <div class="column-meta">
         <div class="column-name">${getColumnLabel(column)}</div>
         <div class="column-type">${column.type || "text"}</div>
@@ -3608,19 +3664,27 @@ const renderColumns = () => {
         <button type="button" class="hide-button" aria-label="${isHidden ? "Show" : "Hide"} column on this tab">${isHidden ? "Show" : "Hide"}</button>
         <button type="button" aria-label="Remove column">Delete</button>
       </div>
-      <div class="column-order">
-        <button type="button" class="move-up" aria-label="Move column up">▲</button>
-        <button type="button" class="move-down" aria-label="Move column down">▼</button>
-      </div>
     `;
+    const handle = row.querySelector(".column-drag-handle");
+    if (handle && !state.readOnly) {
+      const startDrag = (clientY) => {
+        const onMouseMove = (e) => { e.preventDefault(); onPointerMove(e.clientY); };
+        const onMouseUp = () => onPointerUp();
+        const onTouchMove = (e) => { e.preventDefault(); onPointerMove(e.touches[0].clientY); };
+        const onTouchEnd = () => onPointerUp();
+        dragState = { row, startY: clientY, onMouseMove, onMouseUp, onTouchMove, onTouchEnd };
+        row.classList.add("dragging");
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+        document.addEventListener("touchmove", onTouchMove, { passive: false });
+        document.addEventListener("touchend", onTouchEnd);
+      };
+      handle.addEventListener("mousedown", (e) => { e.preventDefault(); startDrag(e.clientY); });
+      handle.addEventListener("touchstart", (e) => { e.preventDefault(); startDrag(e.touches[0].clientY); }, { passive: false });
+    }
     const editButton = row.querySelector(".edit-button");
     const hideButton = row.querySelector(".hide-button");
     const deleteButton = row.querySelector(".column-actions button:not(.edit-button):not(.hide-button)");
-    const moveUpButton = row.querySelector(".move-up");
-    const moveDownButton = row.querySelector(".move-down");
-    const index = state.columns.findIndex((col) => col.id === column.id);
-    moveUpButton.disabled = index <= 0;
-    moveDownButton.disabled = index === -1 || index >= state.columns.length - 1;
     editButton.addEventListener("click", () => openColumnDialog(column));
     hideButton.addEventListener("click", () => {
       const tabId = tabsState.activeTabId;
@@ -3628,27 +3692,17 @@ const renderColumns = () => {
       if (!Array.isArray(columnOverrides.hiddenColumnsByTab[tabId])) {
         columnOverrides.hiddenColumnsByTab[tabId] = [];
       }
-      const list = columnOverrides.hiddenColumnsByTab[tabId];
-      const idx = list.indexOf(column.id);
+      const hidList = columnOverrides.hiddenColumnsByTab[tabId];
+      const idx = hidList.indexOf(column.id);
       if (idx === -1) {
-        list.push(column.id);
+        hidList.push(column.id);
       } else {
-        list.splice(idx, 1);
+        hidList.splice(idx, 1);
       }
       saveColumnOverrides();
       renderTable();
     });
     deleteButton.addEventListener("click", () => deleteColumn(column.id));
-    moveUpButton.addEventListener("click", () => {
-      if (index <= 0) return;
-      const targetId = state.columns[index - 1].id;
-      reorderColumns(column.id, targetId);
-    });
-    moveDownButton.addEventListener("click", () => {
-      if (index === -1 || index >= state.columns.length - 1) return;
-      const targetId = state.columns[index + 1].id;
-      reorderColumns(column.id, targetId);
-    });
     list.appendChild(row);
   });
   columnManager.appendChild(list);
