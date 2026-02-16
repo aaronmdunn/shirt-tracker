@@ -1358,7 +1358,7 @@ td[data-label="Preview"] {
 
 .column-row {
   display: grid;
-  grid-template-columns: minmax(80px, 1.2fr) minmax(0, 0.6fr) auto auto;
+  grid-template-columns: minmax(80px, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px 8px;
@@ -1366,6 +1366,10 @@ td[data-label="Preview"] {
   background: #f6f6f6;
   border: 1px solid var(--line);
   overflow: hidden;
+}
+
+.column-row > .column-type {
+  display: none;
 }
 
 
