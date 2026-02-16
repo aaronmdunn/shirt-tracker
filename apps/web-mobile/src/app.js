@@ -368,6 +368,7 @@ const applyFreshUserDefaults = () => {
 const columnOverrides = {
   fandomOptionsByTab: {},
   typeOptionsByTab: {},
+  hiddenColumnsByTab: {},
 };
 let globalColumns = null;
 const sheetBody = document.getElementById("sheet-body");
@@ -832,6 +833,9 @@ const loadColumnOverrides = () => {
         if (parsed.typeOptionsByTab) {
           columnOverrides.typeOptionsByTab = parsed.typeOptionsByTab;
         }
+        if (parsed.hiddenColumnsByTab) {
+          columnOverrides.hiddenColumnsByTab = parsed.hiddenColumnsByTab;
+        }
         if (parsed.globalColumns) {
           globalColumns = parsed.globalColumns;
         }
@@ -847,11 +851,25 @@ const saveColumnOverrides = () => {
     localStorage.setItem(COLUMNS_KEY, JSON.stringify({
       fandomOptionsByTab: columnOverrides.fandomOptionsByTab,
       typeOptionsByTab: columnOverrides.typeOptionsByTab,
+      hiddenColumnsByTab: columnOverrides.hiddenColumnsByTab,
       globalColumns,
     }));
   } catch (error) {
     console.warn("Local storage unavailable", error);
   }
+};
+
+const getHiddenColumnIds = () => {
+  const tabId = tabsState.activeTabId;
+  if (!tabId) return new Set();
+  const ids = columnOverrides.hiddenColumnsByTab[tabId];
+  return new Set(Array.isArray(ids) ? ids : []);
+};
+
+const getVisibleColumns = () => {
+  const hidden = getHiddenColumnIds();
+  if (hidden.size === 0) return state.columns;
+  return state.columns.filter((col) => !hidden.has(col.id));
 };
 
 const setGlobalColumns = (columns) => {
@@ -3565,9 +3583,14 @@ const renderColumns = () => {
   }
   const list = document.createElement("div");
   list.className = "column-manager-list";
+  const hiddenIds = getHiddenColumnIds();
   state.columns.forEach((column) => {
+    const isHidden = hiddenIds.has(column.id);
     const row = document.createElement("div");
     row.className = "column-row";
+    if (isHidden) {
+      row.style.opacity = "0.55";
+    }
     if (!state.readOnly) {
       row.dataset.columnId = column.id;
     }
@@ -3582,6 +3605,7 @@ const renderColumns = () => {
       <div class="column-type">${optionsSummary}</div>
       <div class="column-actions">
         <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+        <button type="button" class="hide-button" aria-label="${isHidden ? "Show" : "Hide"} column on this tab">${isHidden ? "Show" : "Hide"}</button>
         <button type="button" aria-label="Remove column">Delete</button>
       </div>
       <div class="column-order">
@@ -3590,13 +3614,30 @@ const renderColumns = () => {
       </div>
     `;
     const editButton = row.querySelector(".edit-button");
-    const deleteButton = row.querySelector(".column-actions button:not(.edit-button)");
+    const hideButton = row.querySelector(".hide-button");
+    const deleteButton = row.querySelector(".column-actions button:not(.edit-button):not(.hide-button)");
     const moveUpButton = row.querySelector(".move-up");
     const moveDownButton = row.querySelector(".move-down");
     const index = state.columns.findIndex((col) => col.id === column.id);
     moveUpButton.disabled = index <= 0;
     moveDownButton.disabled = index === -1 || index >= state.columns.length - 1;
     editButton.addEventListener("click", () => openColumnDialog(column));
+    hideButton.addEventListener("click", () => {
+      const tabId = tabsState.activeTabId;
+      if (!tabId) return;
+      if (!Array.isArray(columnOverrides.hiddenColumnsByTab[tabId])) {
+        columnOverrides.hiddenColumnsByTab[tabId] = [];
+      }
+      const list = columnOverrides.hiddenColumnsByTab[tabId];
+      const idx = list.indexOf(column.id);
+      if (idx === -1) {
+        list.push(column.id);
+      } else {
+        list.splice(idx, 1);
+      }
+      saveColumnOverrides();
+      renderTable();
+    });
     deleteButton.addEventListener("click", () => deleteColumn(column.id));
     moveUpButton.addEventListener("click", () => {
       if (index <= 0) return;
@@ -3618,7 +3659,7 @@ const renderFilterOptions = () => {
     const ids = Array.from(sheetHeadRow.querySelectorAll("th[data-column-id]"))
       .map((th) => th.dataset.columnId)
       .filter(Boolean);
-    if (ids.length === 0) return state.columns;
+    if (ids.length === 0) return getVisibleColumns();
     return ids
       .map((id) => state.columns.find((col) => col.id === id))
       .filter(Boolean);
@@ -3629,12 +3670,6 @@ const renderFilterOptions = () => {
   allOption.value = "all";
   allOption.textContent = "All Columns";
   filterColumnSelect.appendChild(allOption);
-  if (allowTagsFilter) {
-    const tagsOption = document.createElement("option");
-    tagsOption.value = "tags";
-    tagsOption.textContent = "Tags";
-    filterColumnSelect.appendChild(tagsOption);
-  }
   orderedColumns.forEach((column) => {
     const labelLower = getColumnLabel(column).trim().toLowerCase();
     if (column.type === "photo" || labelLower === "preview" || labelLower === "price") {
@@ -3645,6 +3680,12 @@ const renderFilterOptions = () => {
     option.textContent = getColumnLabel(column);
     filterColumnSelect.appendChild(option);
   });
+  if (allowTagsFilter) {
+    const tagsOption = document.createElement("option");
+    tagsOption.value = "tags";
+    tagsOption.textContent = "Tags";
+    filterColumnSelect.appendChild(tagsOption);
+  }
   const allowedIds = new Set(orderedColumns.map((column) => column.id));
   allowedIds.add("all");
   if (allowTagsFilter) allowedIds.add("tags");
@@ -3784,7 +3825,7 @@ const renderHeader = () => {
   iconTh.className = "icon-header";
   iconTh.style.width = "36px";
   sheetHeadRow.appendChild(iconTh);
-  state.columns.forEach((column) => {
+  getVisibleColumns().forEach((column) => {
     const col = document.createElement("col");
     const width = getColumnWidth(column.id, column);
     col.style.width = `${width}px`;
@@ -4417,7 +4458,7 @@ const renderRows = () => {
       iconTd.appendChild(img);
     }
     tr.appendChild(iconTd);
-    state.columns.forEach((column) => {
+    getVisibleColumns().forEach((column) => {
       const td = document.createElement("td");
       td.setAttribute("data-label", getColumnLabel(column));
       const labelLower = getColumnLabel(column).trim().toLowerCase();
