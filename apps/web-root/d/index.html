@@ -2070,21 +2070,21 @@
       }
 
       .photo-dialog .dialog-body {
-        flex: 1;
+        flex: 1 1 0;
         display: flex;
-        align-items: center;
+        align-items: stretch;
         justify-content: center;
         overflow: hidden;
         min-height: 0;
+        padding: 12px;
       }
 
       .photo-dialog img {
-        width: auto;
-        height: auto;
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
         display: block;
+        margin: auto;
       }
 
       @media print {
@@ -3160,7 +3160,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.1";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-16T08:29:37-05:00";
+      const LAST_COMMIT_DATE = "2026-02-16T14:09:09-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
