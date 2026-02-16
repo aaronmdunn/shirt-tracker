@@ -3449,36 +3449,89 @@ const ICON_CHOICES = [
   { label: "Flannel", src: "assets/icons/flannel.png" },
   { label: "Polo", src: "assets/icons/polo.png" },
   { label: "Socks", src: "assets/icons/socks.png" },
-  { label: "Hoodie", src: "assets/icons/hoodie.png" },
+  { label: "Performance Hoodie", src: "assets/icons/hoodie.png" },
   { label: "Comfort Hoodie", src: "assets/icons/comfort.png" },
   { label: "Boxers", src: "assets/icons/boxers.png" },
   { label: "Hat", src: "assets/icons/hat.png" },
   { label: "Jacket", src: "assets/icons/jacket.png" },
   { label: "Pants", src: "assets/icons/pant.png" },
   { label: "Shorts", src: "assets/icons/shorts.png" },
-  { label: "Backpack", src: "assets/icons/backpack.png" },
+  { label: "Misc", src: "assets/icons/backpack.png" },
 ];
 
 const promptedTypeIcons = new Set();
 let pendingTypeIcon = null;
 let customIconDataUrl = "";
 
+let selectedIconValue = "";
+
 const openTypeIconDialog = (typeValue) => {
-  if (!typeIconDialog || !typeIconSelect || !typeIconMessage) return;
+  if (!typeIconDialog || !typeIconMessage) return;
   pendingTypeIcon = typeValue;
   customIconDataUrl = "";
+  selectedIconValue = "";
   typeIconMessage.textContent = `Pick an icon for "${typeValue}".`;
-  typeIconSelect.innerHTML = "";
+
+  const grid = document.getElementById("type-icon-grid");
+  if (!grid) return;
+  grid.innerHTML = "";
+  grid.style.cssText = "display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; padding:8px 0; max-height:260px; overflow-y:auto;";
+
+  const tileStyle = "display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 4px; border:2px solid #ccc; border-radius:8px; cursor:pointer; background:#fafafa; min-height:72px;";
+  const selectedTileStyle = tileStyle.replace("border:2px solid #ccc", "border:2px solid #4a90d9");
+  const imgStyle = "width:36px; height:36px; object-fit:contain;";
+  const labelStyle = "font-size:0.7rem; margin-top:4px; text-align:center; line-height:1.1; color:#333;";
+
+  const selectTile = (tile, value) => {
+    grid.querySelectorAll("[data-icon-tile]").forEach((t) => {
+      t.style.cssText = tileStyle;
+    });
+    tile.style.cssText = selectedTileStyle;
+    selectedIconValue = value;
+    const uploadRow = document.getElementById("type-icon-upload-row");
+    const previewDiv = document.getElementById("type-icon-preview");
+    const uploadInput = document.getElementById("type-icon-upload");
+    if (value === "__custom__") {
+      if (uploadRow) uploadRow.style.display = "flex";
+    } else {
+      if (uploadRow) uploadRow.style.display = "none";
+      if (previewDiv) previewDiv.style.display = "none";
+      if (uploadInput) uploadInput.value = "";
+      customIconDataUrl = "";
+    }
+  };
+
   ICON_CHOICES.forEach((option) => {
-    const opt = document.createElement("option");
-    opt.value = option.src;
-    opt.textContent = option.label;
-    typeIconSelect.appendChild(opt);
+    const tile = document.createElement("div");
+    tile.setAttribute("data-icon-tile", "");
+    tile.style.cssText = tileStyle;
+    const img = document.createElement("img");
+    img.src = option.src;
+    img.alt = option.label;
+    img.style.cssText = imgStyle;
+    const label = document.createElement("span");
+    label.style.cssText = labelStyle;
+    label.textContent = option.label;
+    tile.appendChild(img);
+    tile.appendChild(label);
+    tile.addEventListener("click", () => selectTile(tile, option.src));
+    grid.appendChild(tile);
   });
-  const customOpt = document.createElement("option");
-  customOpt.value = "__custom__";
-  customOpt.textContent = "Upload custom\u2026";
-  typeIconSelect.appendChild(customOpt);
+
+  const customTile = document.createElement("div");
+  customTile.setAttribute("data-icon-tile", "");
+  customTile.style.cssText = tileStyle;
+  const plusSign = document.createElement("span");
+  plusSign.textContent = "+";
+  plusSign.style.cssText = "font-size:24px; color:#888; line-height:1;";
+  const customLabel = document.createElement("span");
+  customLabel.style.cssText = labelStyle;
+  customLabel.textContent = "Upload\u2026";
+  customTile.appendChild(plusSign);
+  customTile.appendChild(customLabel);
+  customTile.addEventListener("click", () => selectTile(customTile, "__custom__"));
+  grid.appendChild(customTile);
+
   const uploadRow = document.getElementById("type-icon-upload-row");
   const uploadInput = document.getElementById("type-icon-upload");
   const previewDiv = document.getElementById("type-icon-preview");
@@ -5604,22 +5657,6 @@ typeIconSkipButton.addEventListener("click", () => {
   closeDialog(typeIconDialog);
 });
 
-typeIconSelect.addEventListener("change", () => {
-  const uploadRow = document.getElementById("type-icon-upload-row");
-  const previewDiv = document.getElementById("type-icon-preview");
-  const uploadInput = document.getElementById("type-icon-upload");
-  if (typeIconSelect.value === "__custom__") {
-    if (uploadRow) uploadRow.style.display = "flex";
-    if (previewDiv) previewDiv.style.display = "none";
-    if (uploadInput) uploadInput.value = "";
-    customIconDataUrl = "";
-  } else {
-    if (uploadRow) uploadRow.style.display = "none";
-    if (previewDiv) previewDiv.style.display = "none";
-    customIconDataUrl = "";
-  }
-});
-
 const typeIconUpload = document.getElementById("type-icon-upload");
 if (typeIconUpload) {
   typeIconUpload.addEventListener("change", (event) => {
@@ -5644,19 +5681,24 @@ if (typeIconUpload) {
 
 typeIconSaveButton.addEventListener("click", () => {
   if (!pendingTypeIcon) return;
+  if (!selectedIconValue) {
+    alert("Please select an icon first.");
+    return;
+  }
   const map = loadTypeIconMap();
-  if (typeIconSelect.value === "__custom__") {
+  if (selectedIconValue === "__custom__") {
     if (!customIconDataUrl) {
       alert("Please upload an image first.");
       return;
     }
     map[pendingTypeIcon] = customIconDataUrl;
   } else {
-    map[pendingTypeIcon] = typeIconSelect.value;
+    map[pendingTypeIcon] = selectedIconValue;
   }
   saveTypeIconMap(map);
   pendingTypeIcon = null;
   customIconDataUrl = "";
+  selectedIconValue = "";
   closeDialog(typeIconDialog);
   renderRows();
   scheduleSync();
