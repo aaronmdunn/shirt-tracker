@@ -2121,21 +2121,21 @@ html[data-public-share="true"] #go-bottom {
 }
 
 .photo-dialog .dialog-body {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   overflow: hidden;
   min-height: 0;
+  padding: 12px;
 }
 
 .photo-dialog img {
-  width: auto;
-  height: auto;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   display: block;
+  margin: auto;
 }
 
 @media print {
