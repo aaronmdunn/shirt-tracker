@@ -2357,8 +2357,8 @@
       <div class="wrap">
           <div class="title-card">
             <div class="title-row">
-            <h1 id="app-title"><span class="title-emoji">🌺</span><span class="title-emoji">👕</span><span class="title-text"><span class="title-word">Shirt</span><span class="title-word">Tracker</span></span><span class="title-emoji">👕</span><span class="title-emoji">🌺</span></h1>
-            <p id="app-subtitle">Shirt Tracker is a fan-made open-source clothing inventory system.</p>
+            <h1 id="app-title"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></h1>
+            <p id="app-subtitle">An open-source, fan-made clothing inventory system for hobbyists.</p>
             </div>
           </div>
       </div>
@@ -2560,7 +2560,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">Last Deployment</label>
-                <input type="text" id="app-update-date" value="2/17/2026, 3:50:24 AM" readonly>
+                <input type="text" id="app-update-date" value="2/17/2026, 8:48:50 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3161,7 +3161,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T08:50:24.179Z";
+      const LAST_COMMIT_DATE = "2026-02-17T13:48:50.153Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5225,7 +5225,7 @@
       const updateHeaderTitle = () => {
         if (!appTitleEl) return;
         const shortVersion = getShortVersion();
-        appTitleEl.innerHTML = `<img class="title-icon" src="assets/icons/hawaiian-shirt.png" alt="Hawaiian shirt"><span class="title-text"><span class="title-word">Shirt</span><span class="title-word">Tracker</span></span><img class="title-icon" src="assets/icons/hawaiian-shirt.png" alt="Hawaiian shirt">`;
+        appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
       };
 
       const formatDateOnly = (value) => {
@@ -5314,7 +5314,7 @@
       const updateHeaderSubtitle = () => {
         if (!appSubtitleEl) return;
         if (document.body.getAttribute("data-auth") === "signed-out") {
-          appSubtitleEl.textContent = "Shirt Tracker is a fan-made open-source clothing inventory system.";
+          appSubtitleEl.textContent = "An open-source, fan-made clothing inventory system for hobbyists.";
           return;
         }
         const dateValue = shirtUpdateTimestamp
