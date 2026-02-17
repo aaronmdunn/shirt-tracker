@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/17/2026, 3:09:32 PM" readonly>
+                <input type="text" id="app-update-date" value="2/17/2026, 3:33:18 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T20:09:32.638Z";
+      const LAST_COMMIT_DATE = "2026-02-17T20:33:18.284Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6604,48 +6604,50 @@
           btn.addEventListener("click", () => switchTab(tab.id));
           tabBar.appendChild(btn);
         });
-        const addBtn = document.createElement("button");
-        addBtn.type = "button";
-        addBtn.className = "tab-btn add";
-        addBtn.textContent = "➕ Add";
-        addBtn.setAttribute("aria-label", "Add tab");
-        addBtn.addEventListener("click", () => {
-          openTabDialog();
-        });
-        tabBar.appendChild(addBtn);
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "tab-btn delete";
-        deleteBtn.textContent = "🗑️ Delete";
-        deleteBtn.setAttribute("aria-label", "Delete current tab");
-        deleteBtn.addEventListener("click", () => {
-          if (!tabsState.activeTabId) return;
-          if (tabsState.tabs.length <= 1) return;
-          openTabDeleteDialog(tabsState.activeTabId);
-        });
-        const renameBtn = document.createElement("button");
-        renameBtn.type = "button";
-        renameBtn.className = "tab-btn rename";
-        renameBtn.textContent = "✏️ Edit";
-        renameBtn.setAttribute("aria-label", "Rename current tab");
-        renameBtn.addEventListener("click", async () => {
-          if (!tabsState.activeTabId) return;
-          const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
-          if (!activeTab) return;
-          const nextName = await showTextPrompt("Rename Tab", "Tab name", activeTab.name || "");
-          if (!nextName) return;
-          const trimmed = nextName.trim();
-          if (!trimmed) return;
-          if (trimmed === activeTab.name) return;
-          activeTab.name = trimmed;
-          saveTabsState();
-          saveState();
-          renderTabs();
-        renderTable();
-        renderFooter();
-      });
-        tabBar.appendChild(renameBtn);
-        tabBar.appendChild(deleteBtn);
+        if (appMode !== "wishlist") {
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.className = "tab-btn add";
+          addBtn.textContent = "➕ Add";
+          addBtn.setAttribute("aria-label", "Add tab");
+          addBtn.addEventListener("click", () => {
+            openTabDialog();
+          });
+          tabBar.appendChild(addBtn);
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "tab-btn delete";
+          deleteBtn.textContent = "🗑️ Delete";
+          deleteBtn.setAttribute("aria-label", "Delete current tab");
+          deleteBtn.addEventListener("click", () => {
+            if (!tabsState.activeTabId) return;
+            if (tabsState.tabs.length <= 1) return;
+            openTabDeleteDialog(tabsState.activeTabId);
+          });
+          const renameBtn = document.createElement("button");
+          renameBtn.type = "button";
+          renameBtn.className = "tab-btn rename";
+          renameBtn.textContent = "✏️ Edit";
+          renameBtn.setAttribute("aria-label", "Rename current tab");
+          renameBtn.addEventListener("click", async () => {
+            if (!tabsState.activeTabId) return;
+            const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
+            if (!activeTab) return;
+            const nextName = await showTextPrompt("Rename Tab", "Tab name", activeTab.name || "");
+            if (!nextName) return;
+            const trimmed = nextName.trim();
+            if (!trimmed) return;
+            if (trimmed === activeTab.name) return;
+            activeTab.name = trimmed;
+            saveTabsState();
+            saveState();
+            renderTabs();
+            renderTable();
+            renderFooter();
+          });
+          tabBar.appendChild(renameBtn);
+          tabBar.appendChild(deleteBtn);
+        }
         updateTabLogo();
       };
 
