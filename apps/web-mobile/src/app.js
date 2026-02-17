@@ -2166,7 +2166,7 @@ const updateTabLogo = async () => {
 const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
-  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
+  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
 };
 
 const formatDateOnly = (value) => {
