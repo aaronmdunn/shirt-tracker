@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T14:52:47-05:00";
+      const LAST_COMMIT_DATE = "2026-02-17T14:58:26-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6573,6 +6573,7 @@
           localStorage.setItem(`${STORAGE_KEY}:${chosenTabId}`, JSON.stringify(invState));
           localStorage.setItem(COLUMNS_KEY, JSON.stringify(invColOverrides));
         } catch (error) { /* ignore */ }
+        delete savedModeState["inventory"];
         state.rows = state.rows.filter((r) => r.id !== rowId);
         if (state.rows.length === 0) state.rows = [defaultRow()];
         saveState();

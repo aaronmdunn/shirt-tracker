@@ -3453,6 +3453,7 @@ const moveRowToInventory = async (rowId) => {
     localStorage.setItem(`${STORAGE_KEY}:${chosenTabId}`, JSON.stringify(invState));
     localStorage.setItem(COLUMNS_KEY, JSON.stringify(invColOverrides));
   } catch (error) { /* ignore */ }
+  delete savedModeState["inventory"];
   state.rows = state.rows.filter((r) => r.id !== rowId);
   if (state.rows.length === 0) state.rows = [defaultRow()];
   saveState();
