@@ -2166,7 +2166,7 @@ const updateTabLogo = async () => {
 const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
-  appTitleEl.innerHTML = `<img class="title-icon" src="assets/icons/hawaiian-shirt.png" alt="Hawaiian shirt"><span class="title-text"><span class="title-word">Shirt</span><span class="title-word">Tracker</span></span><img class="title-icon" src="assets/icons/hawaiian-shirt.png" alt="Hawaiian shirt">`;
+  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
 };
 
 const formatDateOnly = (value) => {
@@ -2255,7 +2255,7 @@ const maybePromptProfileName = () => {
 const updateHeaderSubtitle = () => {
   if (!appSubtitleEl) return;
   if (document.body.getAttribute("data-auth") === "signed-out") {
-    appSubtitleEl.textContent = "Shirt Tracker is a fan-made open-source clothing inventory system.";
+    appSubtitleEl.textContent = "An open-source, fan-made clothing inventory system for hobbyists.";
     return;
   }
   const dateValue = shirtUpdateTimestamp
