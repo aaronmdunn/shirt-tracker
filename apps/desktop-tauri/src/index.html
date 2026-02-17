@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/17/2026, 2:38:39 PM" readonly>
+                <input type="text" id="app-update-date" value="2/17/2026, 2:50:44 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T19:38:39.710Z";
+      const LAST_COMMIT_DATE = "2026-02-17T19:50:44.213Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5177,6 +5177,12 @@
 
       const updateTabLogo = async () => {
         if (!tabLogoPanel) return;
+        if (appMode === "wishlist") {
+          tabLogoPanel.style.display = "none";
+          tabLogoPanel.innerHTML = "";
+          return;
+        }
+        tabLogoPanel.style.display = "";
         const renderId = ++tabLogoRenderId;
         tabLogoPanel.innerHTML = "";
         const active = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
@@ -6445,10 +6451,77 @@
         }
       };
 
-      const moveRowToInventory = (rowId) => {
+      const moveRowToInventory = async (rowId) => {
         if (appMode !== "wishlist") return;
         const row = state.rows.find((r) => r.id === rowId);
         if (!row) return;
+        let invTabs = [];
+        try {
+          const stored = localStorage.getItem(TAB_STORAGE_KEY);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            invTabs = Array.isArray(parsed.tabs) ? parsed.tabs : [];
+          }
+        } catch (error) { /* ignore */ }
+        if (!invTabs.length) return;
+        invTabs.sort((a, b) => a.name.localeCompare(b.name));
+        let chosenTabId = null;
+        if (invTabs.length === 1) {
+          chosenTabId = invTabs[0].id;
+        } else {
+          chosenTabId = await new Promise((resolve) => {
+            const dialog = document.createElement("dialog");
+            dialog.className = "privacy-dialog";
+            Object.assign(dialog.style, { maxWidth: "340px", padding: "0" });
+            const body = document.createElement("div");
+            body.className = "dialog-body";
+            const heading = document.createElement("h3");
+            heading.textContent = "Move to Inventory";
+            heading.style.marginTop = "0";
+            body.appendChild(heading);
+            const label = document.createElement("label");
+            label.textContent = "Choose a tab:";
+            label.style.display = "block";
+            label.style.marginBottom = "6px";
+            label.style.fontSize = "0.9rem";
+            body.appendChild(label);
+            const select = document.createElement("select");
+            Object.assign(select.style, { width: "100%", padding: "6px", fontSize: "0.9rem" });
+            invTabs.forEach((tab) => {
+              const opt = document.createElement("option");
+              opt.value = tab.id;
+              opt.textContent = tab.name;
+              select.appendChild(opt);
+            });
+            body.appendChild(select);
+            dialog.appendChild(body);
+            const actions = document.createElement("div");
+            actions.className = "dialog-actions";
+            const cancelBtn = document.createElement("button");
+            cancelBtn.type = "button";
+            cancelBtn.className = "btn";
+            cancelBtn.textContent = "Cancel";
+            const moveBtn = document.createElement("button");
+            moveBtn.type = "button";
+            moveBtn.className = "btn";
+            moveBtn.textContent = "Move";
+            Object.assign(moveBtn.style, { background: "#2e7d32", color: "#fff", fontWeight: "600" });
+            actions.appendChild(cancelBtn);
+            actions.appendChild(moveBtn);
+            dialog.appendChild(actions);
+            document.body.appendChild(dialog);
+            const cleanup = (result) => {
+              dialog.close();
+              dialog.remove();
+              resolve(result);
+            };
+            cancelBtn.addEventListener("click", () => cleanup(null));
+            moveBtn.addEventListener("click", () => cleanup(select.value));
+            dialog.addEventListener("cancel", (e) => { e.preventDefault(); cleanup(null); });
+            dialog.showModal();
+          });
+        }
+        if (!chosenTabId) return;
         const wishlistColumns = state.columns;
         const cellValuesByName = {};
         wishlistColumns.forEach((col) => {
@@ -6456,35 +6529,47 @@
           const val = row.cells[col.id];
           if (val) cellValuesByName[label] = val;
         });
-        let invTabs = [];
-        let invActiveTabId = null;
-        try {
-          const stored = localStorage.getItem(TAB_STORAGE_KEY);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            invTabs = parsed.tabs || [];
-            invActiveTabId = parsed.activeTabId || (invTabs[0] && invTabs[0].id);
-          }
-        } catch (error) { /* ignore */ }
-        if (!invTabs.length || !invActiveTabId) return;
         let invState = null;
         try {
-          const stored = localStorage.getItem(`${STORAGE_KEY}:${invActiveTabId}`);
+          const stored = localStorage.getItem(`${STORAGE_KEY}:${chosenTabId}`);
           if (stored) invState = JSON.parse(stored);
         } catch (error) { /* ignore */ }
         if (!invState || !Array.isArray(invState.columns)) return;
         const newRow = { id: createId(), cells: {}, tags: row.tags ? row.tags.slice() : [] };
+        let invColOverrides = null;
+        try {
+          const s = localStorage.getItem(COLUMNS_KEY);
+          if (s) invColOverrides = JSON.parse(s);
+        } catch (error) { /* ignore */ }
+        if (!invColOverrides) invColOverrides = {};
         invState.columns.forEach((col) => {
           const label = getColumnLabel(col).trim().toLowerCase();
           if (cellValuesByName[label]) {
             newRow.cells[col.id] = cellValuesByName[label];
+            if (col.type === "select" && cellValuesByName[label].trim()) {
+              const val = cellValuesByName[label].trim();
+              const existing = (col.options || []).map((o) => String(o).toLowerCase());
+              if (!existing.includes(val.toLowerCase())) {
+                col.options = col.options || [];
+                col.options.push(val);
+                if (label === "fandom") {
+                  invColOverrides.fandomOptionsByTab = invColOverrides.fandomOptionsByTab || {};
+                  invColOverrides.fandomOptionsByTab[chosenTabId] = col.options.slice();
+                }
+                if (label === "type") {
+                  invColOverrides.typeOptionsByTab = invColOverrides.typeOptionsByTab || {};
+                  invColOverrides.typeOptionsByTab[chosenTabId] = col.options.slice();
+                }
+              }
+            }
           } else {
             newRow.cells[col.id] = "";
           }
         });
         invState.rows.push(newRow);
         try {
-          localStorage.setItem(`${STORAGE_KEY}:${invActiveTabId}`, JSON.stringify(invState));
+          localStorage.setItem(`${STORAGE_KEY}:${chosenTabId}`, JSON.stringify(invState));
+          localStorage.setItem(COLUMNS_KEY, JSON.stringify(invColOverrides));
         } catch (error) { /* ignore */ }
         state.rows = state.rows.filter((r) => r.id !== rowId);
         if (state.rows.length === 0) state.rows = [defaultRow()];
@@ -6849,6 +6934,7 @@
         }
         if (bulkTagsButton) {
           bulkTagsButton.disabled = !anyChecked;
+          bulkTagsButton.style.display = appMode === "wishlist" ? "none" : "";
         }
       };
 
@@ -8132,7 +8218,7 @@
           checkbox.setAttribute("aria-label", "Select row");
           checkbox.dataset.rowId = row.id;
           checkbox.addEventListener("change", updateDeleteSelectedState);
-          actionsWrap.appendChild(tagsButton);
+          if (appMode !== "wishlist") actionsWrap.appendChild(tagsButton);
           if (appMode === "wishlist") {
             const moveBtn = document.createElement("button");
             moveBtn.type = "button";
