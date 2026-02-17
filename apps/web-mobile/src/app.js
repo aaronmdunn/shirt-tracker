@@ -28,7 +28,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.0.2";
 const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-04T10:36:12-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
@@ -2309,7 +2309,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.1",
+    version: "2.0.2",
   };
 };
 
