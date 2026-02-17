@@ -34,4 +34,3 @@ deno.lock
 
 # Local prompts (not synced to repo)
 REFACTOR-PROMPT.md
-CONTINUATION-PROMPT.md
