@@ -3559,51 +3559,53 @@ const renderTabs = () => {
     grid.appendChild(btn);
   });
   tabBar.appendChild(grid);
-  const controls = document.createElement("div");
-  controls.className = "tab-controls";
-  const addBtn = document.createElement("button");
-  addBtn.type = "button";
-  addBtn.className = "tab-btn add";
-  addBtn.textContent = "➕ Add";
-  addBtn.setAttribute("aria-label", "Add tab");
-  addBtn.addEventListener("click", () => {
-    openTabDialog();
-  });
-  controls.appendChild(addBtn);
-  const renameBtn = document.createElement("button");
-  renameBtn.type = "button";
-  renameBtn.className = "tab-btn rename";
-  renameBtn.textContent = "✏️ Edit";
-  renameBtn.setAttribute("aria-label", "Rename current tab");
-  renameBtn.addEventListener("click", async () => {
-    if (!tabsState.activeTabId) return;
-    const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
-    if (!activeTab) return;
-    const nextName = await showTextPrompt("Rename Tab", "Tab name", activeTab.name || "");
-    if (!nextName) return;
-    const trimmed = nextName.trim();
-    if (!trimmed) return;
-    if (trimmed === activeTab.name) return;
-    activeTab.name = trimmed;
-    saveTabsState();
-    saveState();
-    renderTabs();
-  renderTable();
-  renderFooter();
-});
-  controls.appendChild(renameBtn);
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "tab-btn delete";
-  deleteBtn.textContent = "🗑️ Delete";
-  deleteBtn.setAttribute("aria-label", "Delete current tab");
-  deleteBtn.addEventListener("click", () => {
-    if (!tabsState.activeTabId) return;
-    if (tabsState.tabs.length <= 1) return;
-    openTabDeleteDialog(tabsState.activeTabId);
-  });
-  controls.appendChild(deleteBtn);
-  tabBar.appendChild(controls);
+  if (appMode !== "wishlist") {
+    const controls = document.createElement("div");
+    controls.className = "tab-controls";
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "tab-btn add";
+    addBtn.textContent = "➕ Add";
+    addBtn.setAttribute("aria-label", "Add tab");
+    addBtn.addEventListener("click", () => {
+      openTabDialog();
+    });
+    controls.appendChild(addBtn);
+    const renameBtn = document.createElement("button");
+    renameBtn.type = "button";
+    renameBtn.className = "tab-btn rename";
+    renameBtn.textContent = "✏️ Edit";
+    renameBtn.setAttribute("aria-label", "Rename current tab");
+    renameBtn.addEventListener("click", async () => {
+      if (!tabsState.activeTabId) return;
+      const activeTab = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
+      if (!activeTab) return;
+      const nextName = await showTextPrompt("Rename Tab", "Tab name", activeTab.name || "");
+      if (!nextName) return;
+      const trimmed = nextName.trim();
+      if (!trimmed) return;
+      if (trimmed === activeTab.name) return;
+      activeTab.name = trimmed;
+      saveTabsState();
+      saveState();
+      renderTabs();
+      renderTable();
+      renderFooter();
+    });
+    controls.appendChild(renameBtn);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "tab-btn delete";
+    deleteBtn.textContent = "🗑️ Delete";
+    deleteBtn.setAttribute("aria-label", "Delete current tab");
+    deleteBtn.addEventListener("click", () => {
+      if (!tabsState.activeTabId) return;
+      if (tabsState.tabs.length <= 1) return;
+      openTabDeleteDialog(tabsState.activeTabId);
+    });
+    controls.appendChild(deleteBtn);
+    tabBar.appendChild(controls);
+  }
   updateTabLogo();
 };
 
