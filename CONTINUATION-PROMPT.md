@@ -1,8 +1,8 @@
 # Shirt Tracker -- Continuation Prompt
 
 > **Last updated:** February 17, 2026
-> **Current version:** 2.0.1
-> **Latest commit:** `dc21fea` -- Restore hidden column preferences from cloud sync payload
+> **Current version:** 2.0.2
+> **Latest commit:** `3bfa805` -- Bump to v2.0.2 with release notes and continuation prompt
 > **Repo:** `https://github.com/aaronmdunn/shirt-tracker` (branch: `main`)
 > **Repo root:** `/Users/ad21/Documents/shirt-tracker/`
 
@@ -59,7 +59,7 @@ shirt-tracker/
 |       +-- src/main.js                 (legacy Tauri boilerplate, unused)
 |       +-- src/styles.css              (legacy Tauri boilerplate, unused)
 |       +-- src-tauri/
-|           +-- tauri.conf.json         (version: "2.0.1")
+|           +-- tauri.conf.json         (version: "2.0.2")
 +-- scripts/
 |   +-- build-web-root.mjs             (copies source -> web-root, inlines CSS/JS)
 |   +-- sync-tauri-html.mjs            (inlines CSS/JS, syncs to Tauri)
@@ -73,6 +73,7 @@ shirt-tracker/
     +-- 1.939.002.md
     +-- 1.939.2.md
     +-- 1.939.3.md
+    +-- 2.0.2.md
 ```
 
 
@@ -116,19 +117,19 @@ The version bump script was rewritten from scratch. It now:
 
 | # | File | What |
 |---|------|------|
-| 1 | `apps/desktop-tauri/src-tauri/tauri.conf.json` line 4 | `"version": "2.0.1"` |
-| 2 | `apps/web-desktop/src/app.js` line 31 | `const APP_VERSION = "2.0.1"` |
-| 3 | `apps/web-mobile/src/app.js` line 31 | `const APP_VERSION = "2.0.1"` |
-| 4 | `apps/web-desktop/src/index.html` line 401 | About dialog: `Shirt Tracker v2.0.1` |
-| 5 | `apps/web-mobile/src/index.html` ~line 426 | About dialog: `Shirt Tracker v2.0.1` |
-| 6 | `apps/web-desktop/src/app.js` ~line 2240 | Backup metadata: `version: "2.0.1"` |
-| 7 | `apps/web-mobile/src/app.js` ~line 2312 | Backup metadata: `version: "2.0.1"` |
+| 1 | `apps/desktop-tauri/src-tauri/tauri.conf.json` line 4 | `"version": "2.0.2"` |
+| 2 | `apps/web-desktop/src/app.js` line 31 | `const APP_VERSION = "2.0.2"` |
+| 3 | `apps/web-mobile/src/app.js` line 31 | `const APP_VERSION = "2.0.2"` |
+| 4 | `apps/web-desktop/src/index.html` line 401 | About dialog: `Shirt Tracker v2.0.2` |
+| 5 | `apps/web-mobile/src/index.html` ~line 426 | About dialog: `Shirt Tracker v2.0.2` |
+| 6 | `apps/web-desktop/src/app.js` ~line 2240 | Backup metadata: `version: "2.0.2"` |
+| 7 | `apps/web-mobile/src/app.js` ~line 2312 | Backup metadata: `version: "2.0.2"` |
 
 There's also a dynamic JS function that sets the about dialog text at runtime:
 - Desktop `app.js` ~line 1981: `` aboutVersion.textContent = `Shirt Tracker v${APP_VERSION}` ``
 - Mobile `app.js` ~line 2053: same
 
-The `tauri.conf.json` window title is also set by the bump script: `"title": "Shirt Tracker v2.0.1"`.
+The `tauri.conf.json` window title is also set by the bump script: `"title": "Shirt Tracker v2.0.2"`.
 
 ### Version Bump Workflow
 
@@ -283,6 +284,7 @@ Currently 8 brands listed in both the credits dialog and legal disclaimer:
 ## Recent Commit History (Newest First)
 
 ```
+3bfa805 Bump to v2.0.2 with release notes and continuation prompt
 dc21fea Restore hidden column preferences from cloud sync payload
 7ae4ad2 Update .gitignore
 75b11e3 Add Hales Speed Shop to featured brands and update legal disclaimer
@@ -369,12 +371,6 @@ bbbf4c2 Replace window.prompt() with custom dialog and change preview background
 
 
 ## Suggested Next Steps / Known Issues
-
-### Release Notes for 2.0.2
-A new release notes file (`release-notes/2.0.2.md`) should be written when the user is ready to version bump. It should cover all the changes from this session: icon grid picker, per-tab column hiding, drag-and-drop column reorder, photo dialog fix, filter dropdown order, bump-version rewrite, mobile layout fixes, credits updates.
-
-### Version Bump to 2.0.2
-When ready, run `node scripts/bump-version.mjs 2.0.2` followed by builds. The current version is still 2.0.1.
 
 ### Potential Future Features
 - **Tab reordering** -- tabs are currently in creation order; drag-and-drop reordering like columns would be nice
