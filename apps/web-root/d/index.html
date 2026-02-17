@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T14:39:46-05:00";
+      const LAST_COMMIT_DATE = "2026-02-17T14:52:47-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6345,7 +6345,9 @@
         Object.assign(modeSwitcher.style, {
           display: "flex",
           justifyContent: "center",
-          margin: "12px 0 4px",
+          padding: "12px 0 4px",
+          margin: "0",
+          background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
         });
         const container = document.createElement("div");
         Object.assign(container.style, {

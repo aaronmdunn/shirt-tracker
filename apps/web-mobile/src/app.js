@@ -3297,7 +3297,9 @@ const renderModeSwitcher = () => {
   Object.assign(modeSwitcher.style, {
     display: "flex",
     justifyContent: "center",
-    margin: "12px 0 4px",
+    padding: "12px 0 4px",
+    margin: "0",
+    background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
   });
   const container = document.createElement("div");
   Object.assign(container.style, {
