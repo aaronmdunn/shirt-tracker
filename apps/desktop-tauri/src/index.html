@@ -70,14 +70,6 @@
       }
 
       @font-face {
-        font-family: "Mickey";
-        src: url("fonts/mickey.ttf") format("truetype");
-        font-weight: 400;
-        font-style: normal;
-        font-display: swap;
-      }
-
-      @font-face {
         font-family: "JMH Typewriter";
         src: url("fonts/JMH%20Typewriter.ttf") format("truetype");
         font-weight: 400;
@@ -234,15 +226,6 @@
         font-size: 0.55em;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-      }
-
-      .logo-letter {
-        font-family: "Mickey", "Comic Sans MS", cursive;
-        font-size: 36px;
-        line-height: 1;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
       }
 
       .title-row p {
@@ -584,10 +567,6 @@
         background: transparent;
       }
 
-
-      body[data-auth="signed-out"] .logo-letter {
-        margin-bottom: 10px;
-      }
 
       body[data-auth="signed-out"] .sheet-footer {
         border-top: none;
@@ -1518,11 +1497,14 @@
 
       .footer-note .legal-title {
         display: block;
-        font-weight: 700;
+        font-family: "Impact", "Bebas Neue", "Trebuchet MS", sans-serif;
         font-size: 1rem;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+        text-transform: uppercase;
+        font-weight: 700;
+        text-align: center;
         margin-bottom: 6px;
-        color: var(--ink);
-        font-family: "Old Typewriter", "Work Sans", "Trebuchet MS", sans-serif;
       }
 
       .footer-note a {
@@ -2367,7 +2349,6 @@
     <main class="wrap">
       <section class="sheet">
         <div class="sheet-header">
-          <h2><span class="logo-letter">A</span></h2>
           <div class="signedout-login">
             <button class="btn secondary" id="auth-action-signedout">Sign In</button>
             <div class="signedout-help">Please login to continue. Need access? <a href="#request-access" id="request-access-link">Request access</a>.</div>
@@ -2550,6 +2531,7 @@
               <p><a href="#" id="legal-disclaimer-link">Legal Disclaimer &amp; Terms of Use</a></p>
               <p><a href="#" id="credits-link">Credits &amp; Acknowledgements</a></p>
               <p><a href="#" id="privacy-policy-link">Privacy Policy</a> | <a href="#" id="contact-link">Contact Us</a></p>
+              <p><a href="https://github.com/aaronmdunn/shirt-tracker" target="_blank">GitHub Repository</a></p>
               <div class="footer-version-line" id="footer-version-line"></div>
             </div>
             <div class="update-box">
@@ -2560,7 +2542,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/17/2026, 8:52:41 AM" readonly>
+                <input type="text" id="app-update-date" value="2/17/2026, 9:17:24 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3161,7 +3143,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T13:52:41.445Z";
+      const LAST_COMMIT_DATE = "2026-02-17T14:17:24.326Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
