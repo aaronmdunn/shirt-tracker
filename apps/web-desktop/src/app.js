@@ -343,9 +343,9 @@ const tabsState = {
 };
 
 const getDefaultColumns = () => ([
-  { id: createId(), name: "Condition", type: "select", options: [] },
+  { id: createId(), name: "Condition", type: "select", options: ["NWT", "NWOT", "EUC", "Other"] },
   { id: createId(), name: "Shirt Name", type: "text", options: [] },
-  { id: createId(), name: "Size", type: "select", options: [] },
+  { id: createId(), name: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"] },
   { id: createId(), name: "Type", type: "select", options: [] },
   { id: createId(), name: "Fandom", type: "select", options: [] },
   { id: createId(), name: "Price", type: "number", options: [] },
@@ -2241,6 +2241,28 @@ const buildCloudPayload = () => {
   };
 };
 
+const enforceFixedDropdownDefaults = () => {
+  const fixedDefaults = {
+    condition: ["NWT", "NWOT", "EUC", "Other"],
+    size: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"],
+  };
+  let changed = false;
+  Object.entries(fixedDefaults).forEach(([label, defaults]) => {
+    const col = state.columns.find((c) => getColumnLabel(c).trim().toLowerCase() === label);
+    if (!col) return;
+    const current = (col.options || []).map((o) => String(o));
+    const match = defaults.length === current.length && defaults.every((opt, i) => opt === current[i]);
+    if (!match) {
+      col.options = defaults.slice();
+      changed = true;
+    }
+  });
+  if (changed) {
+    setGlobalColumns(state.columns);
+    saveState();
+  }
+};
+
 const applyCloudPayload = (payload) => {
   if (!payload || typeof payload !== "object") return;
   if (Array.isArray(payload.tabs)) {
@@ -2299,6 +2321,7 @@ const applyCloudPayload = (payload) => {
     }
   }
   loadState();
+  enforceFixedDropdownDefaults();
   resetFilterDefault();
   ensureRowCells();
   renderTable();
@@ -3016,6 +3039,7 @@ const switchTab = (tabId) => {
   }
   applyTabFandomOptions();
   applyTabTypeOptions();
+  enforceFixedDropdownDefaults();
   pruneRowCells();
   ensureRowCells();
   migrateInlinePhotos();
@@ -3944,7 +3968,7 @@ const createCellInput = (row, column) => {
       opt.textContent = option;
       select.appendChild(opt);
     });
-    if (!state.readOnly) {
+    if (!state.readOnly && labelLower !== "condition" && labelLower !== "size") {
       const addNewOpt = document.createElement("option");
       addNewOpt.value = "__add_new__";
       addNewOpt.textContent = "Add new\u2026";
@@ -3999,20 +4023,17 @@ const createCellInput = (row, column) => {
   }
 
   if (column.type === "notes") {
-    const textarea = document.createElement("textarea");
-    textarea.className = "cell-notes";
-    textarea.value = value;
-    textarea.addEventListener("input", (event) => {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "cell-notes";
+    input.value = value;
+    input.addEventListener("input", (event) => {
       updateRow(row.id, column.id, event.target.value);
-      if (isNameColumn) scheduleNameSort();
     });
-    textarea.addEventListener("blur", () => {
-      if (isNameColumn) sortAndRenderPreserveFocus();
-    });
-    textarea.dataset.rowId = row.id;
-    textarea.dataset.columnId = column.id;
-    applyReadOnlyToInput(textarea);
-    return textarea;
+    input.dataset.rowId = row.id;
+    input.dataset.columnId = column.id;
+    applyReadOnlyToInput(input);
+    return input;
   }
 
   if (column.type === "photo") {
@@ -4058,15 +4079,28 @@ const createCellInput = (row, column) => {
   }
 
   if (column.type === "text") {
+    if (isNameColumn) {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "cell-text";
+      input.value = value;
+      input.addEventListener("input", (event) => {
+        updateRow(row.id, column.id, event.target.value);
+        scheduleNameSort();
+      });
+      input.addEventListener("blur", () => {
+        sortAndRenderPreserveFocus();
+      });
+      input.dataset.rowId = row.id;
+      input.dataset.columnId = column.id;
+      applyReadOnlyToInput(input);
+      return input;
+    }
     const textarea = document.createElement("textarea");
     textarea.className = "cell-text";
     textarea.value = value;
     textarea.addEventListener("input", (event) => {
       updateRow(row.id, column.id, event.target.value);
-      if (isNameColumn) scheduleNameSort();
-    });
-    textarea.addEventListener("blur", () => {
-      if (isNameColumn) sortAndRenderPreserveFocus();
     });
     textarea.dataset.rowId = row.id;
     textarea.dataset.columnId = column.id;
@@ -4255,15 +4289,8 @@ const getSizeOrderIndex = (value) => {
 };
 
 const sortFilterOptionsForLabel = (label, options) => {
-  if (label === "size") {
-    return options.slice().sort((a, b) => {
-      const aIndex = getSizeOrderIndex(a);
-      const bIndex = getSizeOrderIndex(b);
-      if (aIndex !== null && bIndex !== null) return aIndex - bIndex;
-      if (aIndex !== null) return -1;
-      if (bIndex !== null) return 1;
-      return String(a).localeCompare(String(b), undefined, { sensitivity: "base" });
-    });
+  if (label === "condition" || label === "size") {
+    return options.slice();
   }
   return options.slice().sort((a, b) =>
     String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
@@ -4552,8 +4579,10 @@ const renderFooter = () => {
   const priceColumn = state.columns.find(
     (column) => column.type === "number" && getColumnLabel(column).trim().toLowerCase() === "price"
   );
-  if (!priceColumn) {
-  totalCostEl.textContent = "Total cost: --";
+  const priceHidden = priceColumn && getHiddenColumnIds().has(priceColumn.id);
+  if (!priceColumn || priceHidden) {
+  totalCostEl.textContent = "";
+  totalCostEl.style.display = "none";
   positionTotalCount();
   return;
 }
@@ -4564,6 +4593,7 @@ const renderFooter = () => {
     return acc + parsed;
   }, 0);
   const formatted = formatCurrency(sum);
+  totalCostEl.style.display = "";
   totalCostEl.textContent = `Total cost: ${formatted}`;
   positionTotalCount();
 };
@@ -5975,6 +6005,7 @@ if (globalColumns) {
 }
 applyTabFandomOptions();
 applyTabTypeOptions();
+enforceFixedDropdownDefaults();
 pruneRowCells();
 ensureRowCells();
 migrateInlinePhotos();

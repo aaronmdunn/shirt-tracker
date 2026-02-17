@@ -88,7 +88,6 @@
           <div class="signedout-login">
             <button class="btn secondary" id="auth-action-signedout">Sign In</button>
             <div class="signedout-help">Please login to continue. Need access? <a href="#request-access" id="request-access-link">Request access</a>.</div>
-            <div class="signedout-help"><a href="#forgot" id="forgot-password-link">Forgot password?</a></div>
           </div>
           <div class="auth-loading" id="auth-loading" style="display:none; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.8rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); animation:loading-pulse 1.8s ease-in-out infinite;">Loading</div>
             <div class="header-actions">
@@ -467,6 +466,14 @@
         <div><strong>Reset Tab</strong> &mdash; Delete all rows on the current tab. This can be undone with the Undo button.</div>
         <div><strong>Wipe &amp; Reset</strong> &mdash; Erase everything and start fresh with default columns. This cannot be undone.</div>
 
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Column Definitions</strong></div>
+        <div><strong>Condition Abbreviations:</strong></div>
+        <div><strong>NWT</strong> &mdash; New With Tags</div>
+        <div><strong>NWOT</strong> &mdash; New Without Tags</div>
+        <div><strong>EUC</strong> &mdash; Excellent Used Condition</div>
+        <div><strong>Other</strong> &mdash; Other</div>
+        <div style="margin-top:6px;"><strong>Size Options:</strong> XS, S, M, L, XL, 2X, 3X, 4X, 5X</div>
+
         <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Other</strong></div>
         <div><strong>Icon cells</strong> &mdash; Tap the icon to the left of each row to pick or change the icon for that shirt type.</div>
         <div><strong>Dropdowns</strong> &mdash; All dropdown columns have an &ldquo;Add new...&rdquo; option at the bottom to create new values on the fly.</div>
@@ -682,6 +689,7 @@
             <label for="auth-password">Password</label>
             <input id="auth-password" type="password" placeholder="Enter password" required>
           </div>
+          <div class="dialog-row" style="text-align:right; font-size:0.8rem;"><a href="#forgot" id="forgot-password-link" style="color:var(--muted); text-decoration:underline;">Forgot password?</a></div>
           <div class="dialog-row" id="auth-message" style="color: var(--muted); font-size: 0.8rem;"></div>
         </div>
         <div class="dialog-actions">
