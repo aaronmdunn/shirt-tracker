@@ -1077,8 +1077,6 @@ td[data-label="Preview"] {
 
 .cell-text,
 .cell-notes {
-  min-height: 52px;
-  white-space: pre-wrap;
 }
 
 .row-actions {
