@@ -2347,6 +2347,7 @@ const applyCloudPayload = (payload) => {
   if (payload.columnOverrides) {
     columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
     columnOverrides.typeOptionsByTab = payload.columnOverrides.typeOptionsByTab || {};
+    columnOverrides.hiddenColumnsByTab = payload.columnOverrides.hiddenColumnsByTab || {};
   }
   if (payload.globalColumns) {
     globalColumns = payload.globalColumns;

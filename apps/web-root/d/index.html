@@ -3161,7 +3161,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.1";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-16T14:27:31-05:00";
+      const LAST_COMMIT_DATE = "2026-02-17T03:27:47-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -5406,6 +5406,7 @@
         if (payload.columnOverrides) {
           columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
           columnOverrides.typeOptionsByTab = payload.columnOverrides.typeOptionsByTab || {};
+          columnOverrides.hiddenColumnsByTab = payload.columnOverrides.hiddenColumnsByTab || {};
         }
         if (payload.globalColumns) {
           globalColumns = payload.globalColumns;
