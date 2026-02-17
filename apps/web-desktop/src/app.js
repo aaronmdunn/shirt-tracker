@@ -36,6 +36,10 @@ const APP_UPDATE_KEY = "shirts-app-update-date";
 const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
 const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
 const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
+const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
+const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
+const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
+const APP_MODE_KEY = "shirts-app-mode";
 
 const clearLegacyStorage = () => {
   try {
@@ -353,6 +357,16 @@ const getDefaultColumns = () => ([
   { id: createId(), name: "Notes", type: "notes", options: [] },
 ]);
 
+const getWishlistDefaultColumns = () => ([
+  { id: createId(), name: "Brand", type: "select", options: [] },
+  { id: createId(), name: "Shirt Name", type: "text", options: [] },
+  { id: createId(), name: "Type", type: "select", options: [] },
+  { id: createId(), name: "Fandom", type: "select", options: [] },
+  { id: createId(), name: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"] },
+  { id: createId(), name: "Preview", type: "photo", options: [] },
+  { id: createId(), name: "Notes", type: "notes", options: [] },
+]);
+
 const applyFreshUserDefaults = () => {
   setDefaultTabsState();
   const defaults = getDefaultColumns();
@@ -371,6 +385,9 @@ const columnOverrides = {
   hiddenColumnsByTab: {},
 };
 let globalColumns = null;
+let appMode = "inventory";
+const savedModeState = { inventory: null, wishlist: null };
+const modeSwitcher = document.getElementById("mode-switcher");
 const sheetBody = document.getElementById("sheet-body");
 const sheetColgroup = document.getElementById("sheet-colgroup");
 const sheetHeadRow = document.getElementById("sheet-head-row");
@@ -609,7 +626,13 @@ const isShirtNameColumn = (column) => {
   return label === "shirt name";
 };
 
-const getStorageKey = (tabId) => `${STORAGE_KEY}:${tabId || "default"}`;
+const getStorageKey = (tabId) => {
+  const prefix = appMode === "wishlist" ? WISHLIST_STORAGE_KEY : STORAGE_KEY;
+  return `${prefix}:${tabId || "default"}`;
+};
+
+const getActiveTabKey = () => appMode === "wishlist" ? WISHLIST_TAB_STORAGE_KEY : TAB_STORAGE_KEY;
+const getActiveColumnsKey = () => appMode === "wishlist" ? WISHLIST_COLUMNS_KEY : COLUMNS_KEY;
 
 const getActiveTabName = () => {
   const active = tabsState.tabs.find((tab) => tab.id === tabsState.activeTabId);
@@ -820,7 +843,7 @@ const consumeEditStart = (rowId, columnId) => {
 const saveTabsState = () => {
   try {
     sortTabs();
-    localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify(tabsState));
+    localStorage.setItem(getActiveTabKey(), JSON.stringify(tabsState));
   } catch (error) {
     console.warn("Local storage unavailable", error);
   }
@@ -828,7 +851,7 @@ const saveTabsState = () => {
 
 const loadColumnOverrides = () => {
   try {
-    const stored = localStorage.getItem(COLUMNS_KEY);
+    const stored = localStorage.getItem(getActiveColumnsKey());
     if (stored) {
       const parsed = JSON.parse(stored);
       if (parsed && typeof parsed === "object") {
@@ -853,7 +876,7 @@ const loadColumnOverrides = () => {
 
 const saveColumnOverrides = () => {
   try {
-    localStorage.setItem(COLUMNS_KEY, JSON.stringify({
+    localStorage.setItem(getActiveColumnsKey(), JSON.stringify({
       fandomOptionsByTab: columnOverrides.fandomOptionsByTab,
       typeOptionsByTab: columnOverrides.typeOptionsByTab,
       hiddenColumnsByTab: columnOverrides.hiddenColumnsByTab,
@@ -880,11 +903,8 @@ const getVisibleColumns = () => {
 const setGlobalColumns = (columns) => {
   globalColumns = columns.map((column) => {
     const next = { ...column };
-    if (getColumnLabel(column).trim().toLowerCase() === "fandom") {
-      next.options = [];
-      next.type = "select";
-    }
-    if (getColumnLabel(column).trim().toLowerCase() === "type") {
+    const label = getColumnLabel(column).trim().toLowerCase();
+    if (label === "fandom" || label === "type" || label === "brand") {
       next.options = [];
       next.type = "select";
     }
@@ -2216,29 +2236,70 @@ const updateSignedOutGreeting = () => {
 };
 
 const buildCloudPayload = () => {
-  const tabStates = {};
-  tabsState.tabs.forEach((tab) => {
+  const inventoryTabs = appMode === "inventory" ? tabsState.tabs : (() => {
+    try { const s = localStorage.getItem(TAB_STORAGE_KEY); return s ? JSON.parse(s).tabs || [] : []; } catch (e) { return []; }
+  })();
+  const inventoryActiveTabId = appMode === "inventory" ? tabsState.activeTabId : (() => {
+    try { const s = localStorage.getItem(TAB_STORAGE_KEY); return s ? JSON.parse(s).activeTabId : null; } catch (e) { return null; }
+  })();
+  const inventoryTabStates = {};
+  inventoryTabs.forEach((tab) => {
     try {
-      const stored = localStorage.getItem(getStorageKey(tab.id));
-      if (stored) tabStates[tab.id] = JSON.parse(stored);
-    } catch (error) {
-      // ignore
-    }
+      const stored = localStorage.getItem(`${STORAGE_KEY}:${tab.id}`);
+      if (stored) inventoryTabStates[tab.id] = JSON.parse(stored);
+    } catch (error) { /* ignore */ }
   });
-  return {
-    tabs: tabsState.tabs,
-    activeTabId: tabsState.activeTabId,
+  const inventoryColumnOverrides = appMode === "inventory" ? columnOverrides : (() => {
+    try { const s = localStorage.getItem(COLUMNS_KEY); return s ? JSON.parse(s) : {}; } catch (e) { return {}; }
+  })();
+  const inventoryGlobalColumns = appMode === "inventory" ? globalColumns : (() => {
+    try { const s = localStorage.getItem(COLUMNS_KEY); return s ? JSON.parse(s).globalColumns || null : null; } catch (e) { return null; }
+  })();
+
+  const wishlistTabs = appMode === "wishlist" ? tabsState.tabs : (() => {
+    try { const s = localStorage.getItem(WISHLIST_TAB_STORAGE_KEY); return s ? JSON.parse(s).tabs || [] : []; } catch (e) { return []; }
+  })();
+  const wishlistActiveTabId = appMode === "wishlist" ? tabsState.activeTabId : (() => {
+    try { const s = localStorage.getItem(WISHLIST_TAB_STORAGE_KEY); return s ? JSON.parse(s).activeTabId : null; } catch (e) { return null; }
+  })();
+  const wishlistTabStates = {};
+  wishlistTabs.forEach((tab) => {
+    try {
+      const stored = localStorage.getItem(`${WISHLIST_STORAGE_KEY}:${tab.id}`);
+      if (stored) wishlistTabStates[tab.id] = JSON.parse(stored);
+    } catch (error) { /* ignore */ }
+  });
+  const wishlistColOverrides = appMode === "wishlist" ? columnOverrides : (() => {
+    try { const s = localStorage.getItem(WISHLIST_COLUMNS_KEY); return s ? JSON.parse(s) : {}; } catch (e) { return {}; }
+  })();
+  const wishlistGlobCols = appMode === "wishlist" ? globalColumns : (() => {
+    try { const s = localStorage.getItem(WISHLIST_COLUMNS_KEY); return s ? JSON.parse(s).globalColumns || null : null; } catch (e) { return null; }
+  })();
+
+  const result = {
+    tabs: inventoryTabs,
+    activeTabId: inventoryActiveTabId,
     tabLogos: loadLogoMap(),
     eventLog: loadEventLog(),
     typeIconMap: loadTypeIconMap(),
-    tabStates,
-    columnOverrides,
-    globalColumns,
+    tabStates: inventoryTabStates,
+    columnOverrides: inventoryColumnOverrides,
+    globalColumns: inventoryGlobalColumns,
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
     version: "2.0.2",
   };
+  if (wishlistTabs.length > 0) {
+    result.wishlist = {
+      tabs: wishlistTabs,
+      activeTabId: wishlistActiveTabId,
+      tabStates: wishlistTabStates,
+      columnOverrides: wishlistColOverrides,
+      globalColumns: wishlistGlobCols,
+    };
+  }
+  return result;
 };
 
 const enforceFixedDropdownDefaults = () => {
@@ -2266,15 +2327,21 @@ const enforceFixedDropdownDefaults = () => {
 const applyCloudPayload = (payload) => {
   if (!payload || typeof payload !== "object") return;
   if (Array.isArray(payload.tabs)) {
-    const localActiveId = tabsState.activeTabId;
-    tabsState.tabs = payload.tabs;
-    const payloadActiveId = payload.activeTabId || (payload.tabs[0] && payload.tabs[0].id);
-    if (localActiveId && payload.tabs.some((tab) => tab.id === localActiveId)) {
-      tabsState.activeTabId = localActiveId;
+    if (appMode === "inventory") {
+      const localActiveId = tabsState.activeTabId;
+      tabsState.tabs = payload.tabs;
+      const payloadActiveId = payload.activeTabId || (payload.tabs[0] && payload.tabs[0].id);
+      if (localActiveId && payload.tabs.some((tab) => tab.id === localActiveId)) {
+        tabsState.activeTabId = localActiveId;
+      } else {
+        tabsState.activeTabId = payloadActiveId;
+      }
+      saveTabsState();
     } else {
-      tabsState.activeTabId = payloadActiveId;
+      try {
+        localStorage.setItem(TAB_STORAGE_KEY, JSON.stringify({ tabs: payload.tabs, activeTabId: payload.activeTabId }));
+      } catch (error) { /* ignore */ }
     }
-    saveTabsState();
   }
   if (payload.tabLogos && typeof payload.tabLogos === "object") {
     saveLogoMap(payload.tabLogos);
@@ -2294,23 +2361,84 @@ const applyCloudPayload = (payload) => {
     savePublicShareVisibility(publicShareVisibility);
     updatePublicShareSummary();
   }
-  if (payload.columnOverrides) {
-    columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
-    columnOverrides.typeOptionsByTab = payload.columnOverrides.typeOptionsByTab || {};
-    columnOverrides.hiddenColumnsByTab = payload.columnOverrides.hiddenColumnsByTab || {};
+  if (appMode === "inventory") {
+    if (payload.columnOverrides) {
+      columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
+      columnOverrides.typeOptionsByTab = payload.columnOverrides.typeOptionsByTab || {};
+      columnOverrides.hiddenColumnsByTab = payload.columnOverrides.hiddenColumnsByTab || {};
+    }
+    if (payload.globalColumns) {
+      globalColumns = payload.globalColumns;
+    }
+    saveColumnOverrides();
+  } else {
+    if (payload.columnOverrides) {
+      try {
+        localStorage.setItem(COLUMNS_KEY, JSON.stringify({
+          fandomOptionsByTab: payload.columnOverrides.fandomOptionsByTab || {},
+          typeOptionsByTab: payload.columnOverrides.typeOptionsByTab || {},
+          hiddenColumnsByTab: payload.columnOverrides.hiddenColumnsByTab || {},
+          globalColumns: payload.globalColumns || null,
+        }));
+      } catch (error) { /* ignore */ }
+    }
   }
-  if (payload.globalColumns) {
-    globalColumns = payload.globalColumns;
-  }
-  saveColumnOverrides();
   if (payload.tabStates && typeof payload.tabStates === "object") {
     Object.entries(payload.tabStates).forEach(([tabId, stateData]) => {
       try {
-        localStorage.setItem(getStorageKey(tabId), JSON.stringify(stateData));
+        localStorage.setItem(`${STORAGE_KEY}:${tabId}`, JSON.stringify(stateData));
       } catch (error) {
         // ignore
       }
     });
+  }
+  if (payload.wishlist) {
+    if (Array.isArray(payload.wishlist.tabs)) {
+      if (appMode === "wishlist") {
+        const localActiveId = tabsState.activeTabId;
+        tabsState.tabs = payload.wishlist.tabs;
+        const payloadActiveId = payload.wishlist.activeTabId || (payload.wishlist.tabs[0] && payload.wishlist.tabs[0].id);
+        if (localActiveId && payload.wishlist.tabs.some((tab) => tab.id === localActiveId)) {
+          tabsState.activeTabId = localActiveId;
+        } else {
+          tabsState.activeTabId = payloadActiveId;
+        }
+        saveTabsState();
+      } else {
+        try {
+          localStorage.setItem(WISHLIST_TAB_STORAGE_KEY, JSON.stringify({ tabs: payload.wishlist.tabs, activeTabId: payload.wishlist.activeTabId }));
+        } catch (error) { /* ignore */ }
+      }
+    }
+    if (appMode === "wishlist") {
+      if (payload.wishlist.columnOverrides) {
+        columnOverrides.fandomOptionsByTab = payload.wishlist.columnOverrides.fandomOptionsByTab || {};
+        columnOverrides.typeOptionsByTab = payload.wishlist.columnOverrides.typeOptionsByTab || {};
+        columnOverrides.hiddenColumnsByTab = payload.wishlist.columnOverrides.hiddenColumnsByTab || {};
+      }
+      if (payload.wishlist.globalColumns) {
+        globalColumns = payload.wishlist.globalColumns;
+      }
+      saveColumnOverrides();
+    } else {
+      if (payload.wishlist.columnOverrides) {
+        try {
+          localStorage.setItem(WISHLIST_COLUMNS_KEY, JSON.stringify({
+            fandomOptionsByTab: payload.wishlist.columnOverrides.fandomOptionsByTab || {},
+            typeOptionsByTab: payload.wishlist.columnOverrides.typeOptionsByTab || {},
+            hiddenColumnsByTab: payload.wishlist.columnOverrides.hiddenColumnsByTab || {},
+            globalColumns: payload.wishlist.globalColumns || null,
+          }));
+        } catch (error) { /* ignore */ }
+      }
+    }
+    if (payload.wishlist.tabStates && typeof payload.wishlist.tabStates === "object") {
+      Object.entries(payload.wishlist.tabStates).forEach(([tabId, stateData]) => {
+        try {
+          localStorage.setItem(`${WISHLIST_STORAGE_KEY}:${tabId}`, JSON.stringify(stateData));
+        } catch (error) { /* ignore */ }
+      });
+    }
   }
   if (payload.shirtUpdateDate) {
     setShirtUpdateTimestamp(payload.shirtUpdateDate);
@@ -2321,12 +2449,18 @@ const applyCloudPayload = (payload) => {
     }
   }
   loadState();
-  enforceFixedDropdownDefaults();
+  if (appMode === "wishlist") {
+    enforceWishlistColumns();
+    enforceWishlistDropdownDefaults();
+  } else {
+    enforceFixedDropdownDefaults();
+  }
   resetFilterDefault();
   ensureRowCells();
   renderTable();
   applyReadOnlyMode();
   renderTabs();
+  renderModeSwitcher();
   renderFooter();
   prefetchPhotoSources();
 };
@@ -2592,7 +2726,7 @@ const loadState = () => {
       return;
     }
     if (!state.columns.length) {
-      state.columns = getDefaultColumns();
+      state.columns = appMode === "wishlist" ? getWishlistDefaultColumns() : getDefaultColumns();
       state.rows = [defaultRow()];
       setGlobalColumns(state.columns);
       saveState();
@@ -2808,6 +2942,15 @@ const applyTabTypeOptions = () => {
   column.options = Array.isArray(options) ? options.slice() : [];
 };
 
+const applyTabBrandOptions = () => {
+  const tabId = tabsState.activeTabId;
+  if (!tabId || !columnOverrides.brandOptionsByTab) return;
+  const column = state.columns.find((c) => getColumnLabel(c).trim().toLowerCase() === "brand");
+  if (!column) return;
+  const options = columnOverrides.brandOptionsByTab[tabId];
+  column.options = Array.isArray(options) ? options.slice() : [];
+};
+
 const removeBrandColumn = () => {
   const brandColumn = state.columns.find(
     (column) => getColumnLabel(column).trim().toLowerCase() === "brand"
@@ -2900,6 +3043,7 @@ const applySignedOutState = () => {
   setGlobalColumns(state.columns);
   applyTabFandomOptions();
   applyTabTypeOptions();
+  applyTabBrandOptions();
   pruneRowCells();
   ensureRowCells();
   sortRows();
@@ -2907,6 +3051,7 @@ const applySignedOutState = () => {
   renderFooter();
   applyReadOnlyMode();
   renderTabs();
+  renderModeSwitcher();
   updateHeaderSubtitle();
 };
 
@@ -2927,6 +3072,305 @@ const ensureFandomInState = (targetState) => {
     row.cells[column.id] = "";
   });
   return true;
+};
+
+const snapshotCurrentMode = () => ({
+  tabs: JSON.parse(JSON.stringify(tabsState.tabs)),
+  activeTabId: tabsState.activeTabId,
+  columnOverrides: JSON.parse(JSON.stringify(columnOverrides)),
+  globalColumns: globalColumns ? JSON.parse(JSON.stringify(globalColumns)) : null,
+});
+
+const restoreModeSnapshot = (snapshot) => {
+  tabsState.tabs = snapshot.tabs;
+  tabsState.activeTabId = snapshot.activeTabId;
+  columnOverrides.fandomOptionsByTab = snapshot.columnOverrides.fandomOptionsByTab;
+  columnOverrides.typeOptionsByTab = snapshot.columnOverrides.typeOptionsByTab;
+  columnOverrides.hiddenColumnsByTab = snapshot.columnOverrides.hiddenColumnsByTab;
+  globalColumns = snapshot.globalColumns;
+};
+
+const initWishlistMode = () => {
+  let stored = null;
+  try {
+    stored = localStorage.getItem(WISHLIST_TAB_STORAGE_KEY);
+  } catch (error) { /* ignore */ }
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === "object") {
+        tabsState.tabs = Array.isArray(parsed.tabs) ? parsed.tabs : [];
+        tabsState.activeTabId = parsed.activeTabId || (tabsState.tabs[0] && tabsState.tabs[0].id);
+        sortTabs();
+      }
+    } catch (error) {
+      console.warn("Failed to load wishlist tabs", error);
+    }
+  }
+  if (!tabsState.tabs.length) {
+    const tab = { id: createId(), name: "Wishlist" };
+    tabsState.tabs = [tab];
+    tabsState.activeTabId = tab.id;
+    saveTabsState();
+  }
+  let colStored = null;
+  try {
+    colStored = localStorage.getItem(WISHLIST_COLUMNS_KEY);
+  } catch (error) { /* ignore */ }
+  if (colStored) {
+    try {
+      const parsed = JSON.parse(colStored);
+      if (parsed && typeof parsed === "object") {
+        if (parsed.fandomOptionsByTab) columnOverrides.fandomOptionsByTab = parsed.fandomOptionsByTab;
+        if (parsed.typeOptionsByTab) columnOverrides.typeOptionsByTab = parsed.typeOptionsByTab;
+        if (parsed.hiddenColumnsByTab) columnOverrides.hiddenColumnsByTab = parsed.hiddenColumnsByTab;
+        if (parsed.globalColumns) globalColumns = parsed.globalColumns;
+      }
+    } catch (error) { /* ignore */ }
+  } else {
+    columnOverrides.fandomOptionsByTab = {};
+    columnOverrides.typeOptionsByTab = {};
+    columnOverrides.hiddenColumnsByTab = {};
+    globalColumns = null;
+  }
+};
+
+const switchAppMode = (nextMode) => {
+  if (nextMode === appMode) return;
+  saveState();
+  savedModeState[appMode] = snapshotCurrentMode();
+  appMode = nextMode;
+  try {
+    localStorage.setItem(APP_MODE_KEY, appMode);
+  } catch (error) { /* ignore */ }
+  activeTypeFilter = new Set();
+  const snapshot = savedModeState[nextMode];
+  if (snapshot) {
+    restoreModeSnapshot(snapshot);
+  } else {
+    if (nextMode === "wishlist") {
+      initWishlistMode();
+    } else {
+      loadTabsState();
+      loadColumnOverrides();
+    }
+  }
+  if (!tabsState.activeTabId && tabsState.tabs[0]) {
+    tabsState.activeTabId = tabsState.tabs[0].id;
+    saveTabsState();
+  }
+  if (!snapshot) {
+    state.columns = [];
+    state.rows = [defaultRow()];
+    state.columnWidths = {};
+    state.sort = { columnId: null, direction: "asc" };
+    state.filter = { columnId: "all", query: "" };
+    state.readOnly = false;
+  }
+  loadState();
+  resetFilterDefault();
+  if (appMode === "inventory" && removeBrandColumn()) {
+    ensureRowCells();
+    saveState();
+  }
+  if (globalColumns) {
+    const previousColumns = state.columns.slice();
+    ensureFandomInGlobalColumns();
+    remapRowsToGlobalColumns(previousColumns);
+    applyGlobalColumns();
+  } else {
+    ensureFandomInState(state);
+    if (appMode === "wishlist" && !state.columns.length) {
+      state.columns = getWishlistDefaultColumns();
+      state.rows = [defaultRow()];
+      setGlobalColumns(state.columns);
+      saveState();
+    } else {
+      setGlobalColumns(state.columns);
+    }
+  }
+  applyTabFandomOptions();
+  applyTabTypeOptions();
+  applyTabBrandOptions();
+  if (appMode === "inventory") {
+    enforceFixedDropdownDefaults();
+  } else {
+    enforceWishlistColumns();
+    enforceWishlistDropdownDefaults();
+  }
+  pruneRowCells();
+  ensureRowCells();
+  sortRows();
+  renderTable();
+  applyReadOnlyMode();
+  renderTabs();
+  renderModeSwitcher();
+  renderFooter();
+  prefetchPhotoSources();
+};
+
+const renderModeSwitcher = () => {
+  if (!modeSwitcher) return;
+  modeSwitcher.innerHTML = "";
+  if (!currentUser) {
+    modeSwitcher.style.display = "none";
+    return;
+  }
+  Object.assign(modeSwitcher.style, {
+    display: "flex",
+    justifyContent: "center",
+    margin: "12px 0 4px",
+  });
+  const container = document.createElement("div");
+  Object.assign(container.style, {
+    display: "inline-flex",
+    borderRadius: "8px",
+    overflow: "hidden",
+    border: "2px solid #c62828",
+  });
+  const modes = [
+    { id: "inventory", label: "Inventory" },
+    { id: "wishlist", label: "Wishlist" },
+  ];
+  modes.forEach((mode) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = mode.label;
+    const isActive = appMode === mode.id;
+    Object.assign(btn.style, {
+      padding: "7px 24px",
+      fontSize: "0.92rem",
+      fontWeight: isActive ? "700" : "500",
+      border: "none",
+      cursor: "pointer",
+      background: isActive ? "#c62828" : "#fff",
+      color: isActive ? "#fff" : "#c62828",
+      transition: "background 0.15s, color 0.15s",
+      outline: "none",
+      letterSpacing: "0.03em",
+    });
+    btn.addEventListener("click", () => switchAppMode(mode.id));
+    container.appendChild(btn);
+  });
+  modeSwitcher.appendChild(container);
+};
+
+const enforceWishlistColumns = () => {
+  if (appMode !== "wishlist") return;
+  const disallowed = ["condition", "price"];
+  let changed = false;
+  disallowed.forEach((label) => {
+    const col = state.columns.find((c) => getColumnLabel(c).trim().toLowerCase() === label);
+    if (col) {
+      state.columns = state.columns.filter((c) => c.id !== col.id);
+      state.rows.forEach((row) => { if (row.cells) delete row.cells[col.id]; });
+      if (state.sort.columnId === col.id) state.sort = { columnId: null, direction: "asc" };
+      if (state.filter.columnId === col.id) state.filter.columnId = "all";
+      if (state.columnWidths && state.columnWidths[col.id]) delete state.columnWidths[col.id];
+      changed = true;
+    }
+  });
+  if (globalColumns && Array.isArray(globalColumns)) {
+    disallowed.forEach((label) => {
+      const col = globalColumns.find((c) => getColumnLabel(c).trim().toLowerCase() === label);
+      if (col) {
+        globalColumns = globalColumns.filter((c) => c.id !== col.id);
+        changed = true;
+      }
+    });
+  }
+  const brandIdx = state.columns.findIndex((c) => getColumnLabel(c).trim().toLowerCase() === "brand");
+  if (brandIdx < 0) {
+    const brandCol = { id: createId(), name: "Brand", type: "select", options: [] };
+    state.columns.unshift(brandCol);
+    state.rows.forEach((row) => { if (row.cells) row.cells[brandCol.id] = ""; });
+    changed = true;
+  } else if (brandIdx > 0) {
+    const [brandCol] = state.columns.splice(brandIdx, 1);
+    state.columns.unshift(brandCol);
+    changed = true;
+  }
+  if (globalColumns && Array.isArray(globalColumns)) {
+    const gBrandIdx = globalColumns.findIndex((c) => getColumnLabel(c).trim().toLowerCase() === "brand");
+    if (gBrandIdx > 0) {
+      const [gBrandCol] = globalColumns.splice(gBrandIdx, 1);
+      globalColumns.unshift(gBrandCol);
+      changed = true;
+    }
+  }
+  if (changed) {
+    setGlobalColumns(state.columns);
+    saveState();
+  }
+};
+
+const enforceWishlistDropdownDefaults = () => {
+  const fixedDefaults = {
+    size: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"],
+  };
+  let changed = false;
+  Object.entries(fixedDefaults).forEach(([label, defaults]) => {
+    const col = state.columns.find((c) => getColumnLabel(c).trim().toLowerCase() === label);
+    if (!col) return;
+    const current = (col.options || []).map((o) => String(o));
+    const match = defaults.length === current.length && defaults.every((opt, i) => opt === current[i]);
+    if (!match) {
+      col.options = defaults.slice();
+      changed = true;
+    }
+  });
+  if (changed) {
+    setGlobalColumns(state.columns);
+    saveState();
+  }
+};
+
+const moveRowToInventory = (rowId) => {
+  if (appMode !== "wishlist") return;
+  const row = state.rows.find((r) => r.id === rowId);
+  if (!row) return;
+  const wishlistColumns = state.columns;
+  const cellValuesByName = {};
+  wishlistColumns.forEach((col) => {
+    const label = getColumnLabel(col).trim().toLowerCase();
+    const val = row.cells[col.id];
+    if (val) cellValuesByName[label] = val;
+  });
+  let invTabs = [];
+  let invActiveTabId = null;
+  try {
+    const stored = localStorage.getItem(TAB_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      invTabs = parsed.tabs || [];
+      invActiveTabId = parsed.activeTabId || (invTabs[0] && invTabs[0].id);
+    }
+  } catch (error) { /* ignore */ }
+  if (!invTabs.length || !invActiveTabId) return;
+  let invState = null;
+  try {
+    const stored = localStorage.getItem(`${STORAGE_KEY}:${invActiveTabId}`);
+    if (stored) invState = JSON.parse(stored);
+  } catch (error) { /* ignore */ }
+  if (!invState || !Array.isArray(invState.columns)) return;
+  const newRow = { id: createId(), cells: {}, tags: row.tags ? row.tags.slice() : [] };
+  invState.columns.forEach((col) => {
+    const label = getColumnLabel(col).trim().toLowerCase();
+    if (cellValuesByName[label]) {
+      newRow.cells[col.id] = cellValuesByName[label];
+    } else {
+      newRow.cells[col.id] = "";
+    }
+  });
+  invState.rows.push(newRow);
+  try {
+    localStorage.setItem(`${STORAGE_KEY}:${invActiveTabId}`, JSON.stringify(invState));
+  } catch (error) { /* ignore */ }
+  state.rows = state.rows.filter((r) => r.id !== rowId);
+  if (state.rows.length === 0) state.rows = [defaultRow()];
+  saveState();
+  renderTable();
+  renderFooter();
 };
 
 const renderTabs = () => {
@@ -3024,7 +3468,7 @@ const switchTab = (tabId) => {
   }
   loadState();
   resetFilterDefault();
-  if (removeBrandColumn()) {
+  if (appMode === "inventory" && removeBrandColumn()) {
     ensureRowCells();
     saveState();
   }
@@ -3039,7 +3483,13 @@ const switchTab = (tabId) => {
   }
   applyTabFandomOptions();
   applyTabTypeOptions();
-  enforceFixedDropdownDefaults();
+  applyTabBrandOptions();
+  if (appMode === "wishlist") {
+    enforceWishlistColumns();
+    enforceWishlistDropdownDefaults();
+  } else {
+    enforceFixedDropdownDefaults();
+  }
   pruneRowCells();
   ensureRowCells();
   migrateInlinePhotos();
@@ -3997,6 +4447,11 @@ const createCellInput = (row, column) => {
               columnOverrides.typeOptionsByTab[tabsState.activeTabId] = column.options.slice();
               saveColumnOverrides();
             }
+            if (colLabel === "brand" && tabsState.activeTabId) {
+              columnOverrides.brandOptionsByTab = columnOverrides.brandOptionsByTab || {};
+              columnOverrides.brandOptionsByTab[tabsState.activeTabId] = column.options.slice();
+              saveColumnOverrides();
+            }
             setGlobalColumns(state.columns);
             saveState();
           }
@@ -4558,6 +5013,22 @@ const renderRows = () => {
     checkbox.dataset.rowId = row.id;
     checkbox.addEventListener("change", updateDeleteSelectedState);
     actionsWrap.appendChild(tagsButton);
+    if (appMode === "wishlist") {
+      const moveBtn = document.createElement("button");
+      moveBtn.type = "button";
+      moveBtn.className = "btn-icon";
+      moveBtn.textContent = "Got It!";
+      Object.assign(moveBtn.style, {
+        marginRight: "0",
+        background: "#e8f5e9",
+        borderColor: "#66bb6a",
+        color: "#2e7d32",
+        fontWeight: "600",
+        fontSize: "0.78rem",
+      });
+      moveBtn.addEventListener("click", () => moveRowToInventory(row.id));
+      actionsWrap.appendChild(moveBtn);
+    }
     actionsWrap.appendChild(checkbox);
     actions.appendChild(actionsWrap);
     tr.appendChild(actions);
@@ -5971,8 +6442,16 @@ sheetBody.addEventListener("focusout", (event) => {
 
 
 
-loadTabsState();
-loadColumnOverrides();
+try {
+  const savedMode = localStorage.getItem(APP_MODE_KEY);
+  if (savedMode === "wishlist") appMode = "wishlist";
+} catch (error) { /* ignore */ }
+if (appMode === "wishlist") {
+  initWishlistMode();
+} else {
+  loadTabsState();
+  loadColumnOverrides();
+}
 if (!tabsState.activeTabId && tabsState.tabs[0]) {
   tabsState.activeTabId = tabsState.tabs[0].id;
   saveTabsState();
@@ -5990,7 +6469,7 @@ loadShirtUpdateDate();
 updateHeaderTitle();
 updateHeaderSubtitle();
 applyDesktopHeaderInlineLayout();
-if (removeBrandColumn()) {
+if (appMode === "inventory" && removeBrandColumn()) {
   ensureRowCells();
   saveState();
 }
@@ -6001,11 +6480,24 @@ if (globalColumns) {
   applyGlobalColumns();
 } else {
   ensureFandomInState(state);
-  setGlobalColumns(state.columns);
+  if (appMode === "wishlist" && !state.columns.length) {
+    state.columns = getWishlistDefaultColumns();
+    state.rows = [defaultRow()];
+    setGlobalColumns(state.columns);
+    saveState();
+  } else {
+    setGlobalColumns(state.columns);
+  }
 }
 applyTabFandomOptions();
 applyTabTypeOptions();
-enforceFixedDropdownDefaults();
+applyTabBrandOptions();
+if (appMode === "wishlist") {
+  enforceWishlistColumns();
+  enforceWishlistDropdownDefaults();
+} else {
+  enforceFixedDropdownDefaults();
+}
 pruneRowCells();
 ensureRowCells();
 migrateInlinePhotos();
@@ -6015,6 +6507,7 @@ sortRows();
 renderTable();
 applyReadOnlyMode();
 renderTabs();
+renderModeSwitcher();
 if (tabsState.activeTabId) {
   const existing = (() => {
     try {
