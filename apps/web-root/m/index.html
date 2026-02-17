@@ -3338,7 +3338,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T14:58:26-05:00";
+      const LAST_COMMIT_DATE = "2026-02-17T15:03:15-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -4167,6 +4167,9 @@
               if (parsed.hiddenColumnsByTab) {
                 columnOverrides.hiddenColumnsByTab = parsed.hiddenColumnsByTab;
               }
+              if (parsed.brandOptionsByTab) {
+                columnOverrides.brandOptionsByTab = parsed.brandOptionsByTab;
+              }
               if (parsed.globalColumns) {
                 globalColumns = parsed.globalColumns;
               }
@@ -4183,6 +4186,7 @@
             fandomOptionsByTab: columnOverrides.fandomOptionsByTab,
             typeOptionsByTab: columnOverrides.typeOptionsByTab,
             hiddenColumnsByTab: columnOverrides.hiddenColumnsByTab,
+            brandOptionsByTab: columnOverrides.brandOptionsByTab || {},
             globalColumns,
           }));
         } catch (error) {
@@ -5752,6 +5756,7 @@
             columnOverrides.fandomOptionsByTab = payload.columnOverrides.fandomOptionsByTab || {};
             columnOverrides.typeOptionsByTab = payload.columnOverrides.typeOptionsByTab || {};
             columnOverrides.hiddenColumnsByTab = payload.columnOverrides.hiddenColumnsByTab || {};
+            columnOverrides.brandOptionsByTab = payload.columnOverrides.brandOptionsByTab || {};
           }
           if (payload.globalColumns) {
             globalColumns = payload.globalColumns;
@@ -5764,6 +5769,7 @@
                 fandomOptionsByTab: payload.columnOverrides.fandomOptionsByTab || {},
                 typeOptionsByTab: payload.columnOverrides.typeOptionsByTab || {},
                 hiddenColumnsByTab: payload.columnOverrides.hiddenColumnsByTab || {},
+                brandOptionsByTab: payload.columnOverrides.brandOptionsByTab || {},
                 globalColumns: payload.globalColumns || null,
               }));
             } catch (error) { /* ignore */ }
@@ -5801,6 +5807,7 @@
               columnOverrides.fandomOptionsByTab = payload.wishlist.columnOverrides.fandomOptionsByTab || {};
               columnOverrides.typeOptionsByTab = payload.wishlist.columnOverrides.typeOptionsByTab || {};
               columnOverrides.hiddenColumnsByTab = payload.wishlist.columnOverrides.hiddenColumnsByTab || {};
+              columnOverrides.brandOptionsByTab = payload.wishlist.columnOverrides.brandOptionsByTab || {};
             }
             if (payload.wishlist.globalColumns) {
               globalColumns = payload.wishlist.globalColumns;
@@ -5813,6 +5820,7 @@
                   fandomOptionsByTab: payload.wishlist.columnOverrides.fandomOptionsByTab || {},
                   typeOptionsByTab: payload.wishlist.columnOverrides.typeOptionsByTab || {},
                   hiddenColumnsByTab: payload.wishlist.columnOverrides.hiddenColumnsByTab || {},
+                  brandOptionsByTab: payload.wishlist.columnOverrides.brandOptionsByTab || {},
                   globalColumns: payload.wishlist.globalColumns || null,
                 }));
               } catch (error) { /* ignore */ }
@@ -6473,6 +6481,7 @@
         columnOverrides.fandomOptionsByTab = snapshot.columnOverrides.fandomOptionsByTab;
         columnOverrides.typeOptionsByTab = snapshot.columnOverrides.typeOptionsByTab;
         columnOverrides.hiddenColumnsByTab = snapshot.columnOverrides.hiddenColumnsByTab;
+        columnOverrides.brandOptionsByTab = snapshot.columnOverrides.brandOptionsByTab || {};
         globalColumns = snapshot.globalColumns;
       };
 
