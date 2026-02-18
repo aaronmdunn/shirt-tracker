@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T15:33:24-05:00";
+      const LAST_COMMIT_DATE = "2026-02-18T00:37:06-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6261,6 +6261,7 @@
               if (parsed.fandomOptionsByTab) columnOverrides.fandomOptionsByTab = parsed.fandomOptionsByTab;
               if (parsed.typeOptionsByTab) columnOverrides.typeOptionsByTab = parsed.typeOptionsByTab;
               if (parsed.hiddenColumnsByTab) columnOverrides.hiddenColumnsByTab = parsed.hiddenColumnsByTab;
+              if (parsed.brandOptionsByTab) columnOverrides.brandOptionsByTab = parsed.brandOptionsByTab;
               if (parsed.globalColumns) globalColumns = parsed.globalColumns;
             }
           } catch (error) { /* ignore */ }
@@ -6268,6 +6269,7 @@
           columnOverrides.fandomOptionsByTab = {};
           columnOverrides.typeOptionsByTab = {};
           columnOverrides.hiddenColumnsByTab = {};
+          columnOverrides.brandOptionsByTab = {};
           globalColumns = null;
         }
       };
@@ -7353,7 +7355,7 @@
             .map((id) => state.columns.find((col) => col.id === id))
             .filter(Boolean);
         })();
-        const allowTagsFilter = !publicShareToken;
+        const allowTagsFilter = !publicShareToken && appMode !== "wishlist";
         filterColumnSelect.innerHTML = "";
         const allOption = document.createElement("option");
         allOption.value = "all";

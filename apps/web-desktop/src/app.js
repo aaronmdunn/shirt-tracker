@@ -3141,6 +3141,7 @@ const initWishlistMode = () => {
         if (parsed.fandomOptionsByTab) columnOverrides.fandomOptionsByTab = parsed.fandomOptionsByTab;
         if (parsed.typeOptionsByTab) columnOverrides.typeOptionsByTab = parsed.typeOptionsByTab;
         if (parsed.hiddenColumnsByTab) columnOverrides.hiddenColumnsByTab = parsed.hiddenColumnsByTab;
+        if (parsed.brandOptionsByTab) columnOverrides.brandOptionsByTab = parsed.brandOptionsByTab;
         if (parsed.globalColumns) globalColumns = parsed.globalColumns;
       }
     } catch (error) { /* ignore */ }
@@ -3148,6 +3149,7 @@ const initWishlistMode = () => {
     columnOverrides.fandomOptionsByTab = {};
     columnOverrides.typeOptionsByTab = {};
     columnOverrides.hiddenColumnsByTab = {};
+    columnOverrides.brandOptionsByTab = {};
     globalColumns = null;
   }
 };
@@ -4233,7 +4235,7 @@ const renderFilterOptions = () => {
       .map((id) => state.columns.find((col) => col.id === id))
       .filter(Boolean);
   })();
-  const allowTagsFilter = !publicShareToken;
+  const allowTagsFilter = !publicShareToken && appMode !== "wishlist";
   filterColumnSelect.innerHTML = "";
   const allOption = document.createElement("option");
   allOption.value = "all";
