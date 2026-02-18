@@ -3106,6 +3106,8 @@ const restoreModeSnapshot = (snapshot) => {
 };
 
 const initWishlistMode = () => {
+  tabsState.tabs = [];
+  tabsState.activeTabId = null;
   let stored = null;
   try {
     stored = localStorage.getItem(WISHLIST_TAB_STORAGE_KEY);
@@ -3123,7 +3125,7 @@ const initWishlistMode = () => {
     }
   }
   if (!tabsState.tabs.length) {
-    const tab = { id: createId(), name: "Wishlist" };
+    const tab = { id: createId(), name: "Shirts" };
     tabsState.tabs = [tab];
     tabsState.activeTabId = tab.id;
     saveTabsState();
@@ -3270,6 +3272,22 @@ const renderModeSwitcher = () => {
     container.appendChild(btn);
   });
   modeSwitcher.appendChild(container);
+  const filterRow = document.querySelector(".filter-row");
+  if (filterRow) {
+    Object.assign(filterRow.style, {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: "12px",
+    });
+    const topActions = filterRow.querySelector(".top-table-actions");
+    if (topActions) {
+      Object.assign(topActions.style, {
+        order: "2",
+        alignSelf: "flex-start",
+      });
+    }
+  }
 };
 
 const enforceWishlistColumns = () => {
@@ -3484,7 +3502,7 @@ const renderTabs = () => {
     btn.addEventListener("click", () => switchTab(tab.id));
     tabBar.appendChild(btn);
   });
-  if (appMode !== "wishlist") {
+  {
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.className = "tab-btn add";

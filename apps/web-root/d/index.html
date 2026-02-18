@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-17T15:09:40-05:00";
+      const LAST_COMMIT_DATE = "2026-02-17T15:33:24-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -6226,6 +6226,8 @@
       };
 
       const initWishlistMode = () => {
+        tabsState.tabs = [];
+        tabsState.activeTabId = null;
         let stored = null;
         try {
           stored = localStorage.getItem(WISHLIST_TAB_STORAGE_KEY);
@@ -6243,7 +6245,7 @@
           }
         }
         if (!tabsState.tabs.length) {
-          const tab = { id: createId(), name: "Wishlist" };
+          const tab = { id: createId(), name: "Shirts" };
           tabsState.tabs = [tab];
           tabsState.activeTabId = tab.id;
           saveTabsState();
@@ -6390,6 +6392,22 @@
           container.appendChild(btn);
         });
         modeSwitcher.appendChild(container);
+        const filterRow = document.querySelector(".filter-row");
+        if (filterRow) {
+          Object.assign(filterRow.style, {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "12px",
+          });
+          const topActions = filterRow.querySelector(".top-table-actions");
+          if (topActions) {
+            Object.assign(topActions.style, {
+              order: "2",
+              alignSelf: "flex-start",
+            });
+          }
+        }
       };
 
       const enforceWishlistColumns = () => {
@@ -6604,7 +6622,7 @@
           btn.addEventListener("click", () => switchTab(tab.id));
           tabBar.appendChild(btn);
         });
-        if (appMode !== "wishlist") {
+        {
           const addBtn = document.createElement("button");
           addBtn.type = "button";
           addBtn.className = "tab-btn add";
