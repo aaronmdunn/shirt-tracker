@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/18/2026, 12:56:17 AM" readonly>
+                <input type="text" id="app-update-date" value="2/18/2026, 1:00:58 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3150,7 +3150,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.2";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-18T05:56:17.338Z";
+      const LAST_COMMIT_DATE = "2026-02-18T06:00:58.971Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3160,6 +3160,7 @@
       const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
       const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
       const APP_MODE_KEY = "shirts-app-mode";
+      const CURRENT_USER_KEY = "shirts-current-user";
 
       const clearLegacyStorage = () => {
         try {
@@ -4527,6 +4528,45 @@
         if (authActionSignedOutButton) {
           authActionSignedOutButton.style.display = isLoading ? "none" : "";
         }
+      };
+
+      const clearAppLocalStorage = () => {
+        const keysToKeep = [CURRENT_USER_KEY, APP_VERSION_KEY, APP_UPDATE_KEY];
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && !keysToKeep.includes(key) && !key.startsWith("sb-")) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((key) => { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } });
+      };
+
+      const handleUserSwitch = (userId) => {
+        if (!userId) return;
+        try {
+          const previousUserId = localStorage.getItem(CURRENT_USER_KEY);
+          if (previousUserId && previousUserId !== userId) {
+            clearAppLocalStorage();
+            appMode = "inventory";
+            tabsState.tabs = [];
+            tabsState.activeTabId = null;
+            globalColumns = null;
+            columnOverrides.fandomOptionsByTab = {};
+            columnOverrides.typeOptionsByTab = {};
+            columnOverrides.hiddenColumnsByTab = {};
+            columnOverrides.brandOptionsByTab = {};
+            state.columns = [];
+            state.rows = [defaultRow()];
+            state.columnWidths = {};
+            state.sort = { columnId: null, direction: "asc" };
+            state.filter = { columnId: "all", query: "" };
+            state.readOnly = false;
+            savedModeState.inventory = null;
+            savedModeState.wishlist = null;
+          }
+          localStorage.setItem(CURRENT_USER_KEY, userId);
+        } catch (error) { /* ignore */ }
       };
 
       const setAuthStatus = () => {
@@ -8613,6 +8653,7 @@
             updateLastActivity();
             handleInactivityCheck();
             if (currentUser) {
+              handleUserSwitch(currentUser.id);
               enforcePasswordSet(currentUser);
               loadRemoteState();
             }
@@ -8645,6 +8686,7 @@
           updateLastActivity();
           handleInactivityCheck();
           if (currentUser) {
+            handleUserSwitch(currentUser.id);
             enforcePasswordSet(currentUser);
             loadRemoteState();
           }
