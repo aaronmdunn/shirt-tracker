@@ -4286,10 +4286,17 @@ const renderFilterOptions = () => {
     tagsOption.value = "tags";
     tagsOption.textContent = "Tags";
     filterColumnSelect.appendChild(tagsOption);
+    const forSaleOption = document.createElement("option");
+    forSaleOption.value = "forSale";
+    forSaleOption.textContent = "For Sale";
+    filterColumnSelect.appendChild(forSaleOption);
   }
   const allowedIds = new Set(orderedColumns.map((column) => column.id));
   allowedIds.add("all");
-  if (allowTagsFilter) allowedIds.add("tags");
+  if (allowTagsFilter) {
+    allowedIds.add("tags");
+    allowedIds.add("forSale");
+  }
   if (!allowedIds.has(state.filter.columnId)) {
     state.filter.columnId = "all";
     state.filter.query = "";
@@ -4302,6 +4309,25 @@ const renderFilterOptions = () => {
 const updateFilterInputMode = () => {
   if (!filterTagsSelect || !filterQueryInput) return;
   const columnId = filterColumnSelect.value;
+  if (columnId === "forSale") {
+    filterTagsSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select";
+    filterTagsSelect.appendChild(placeholder);
+    const yesOpt = document.createElement("option");
+    yesOpt.value = "yes";
+    yesOpt.textContent = "Yes";
+    filterTagsSelect.appendChild(yesOpt);
+    const noOpt = document.createElement("option");
+    noOpt.value = "no";
+    noOpt.textContent = "No";
+    filterTagsSelect.appendChild(noOpt);
+    filterTagsSelect.value = state.filter.query || "";
+    filterTagsSelect.style.display = "";
+    filterQueryInput.style.display = "none";
+    return;
+  }
   if (columnId === "tags") {
     if (publicShareToken) {
       filterTagsSelect.style.display = "none";
@@ -4502,6 +4528,30 @@ const renderHeader = () => {
     thLabel.className = "th-label";
     thLabel.textContent = getColumnLabel(column);
     thContent.appendChild(thLabel);
+    if (state.sort.columnId === column.id) {
+      const arrow = document.createElement("span");
+      arrow.textContent = state.sort.direction === "desc" ? " \u25BC" : " \u25B2";
+      Object.assign(arrow.style, {
+        fontSize: "0.6rem",
+        marginLeft: "4px",
+        color: "#c62828",
+      });
+      thContent.appendChild(arrow);
+    }
+    th.style.cursor = "pointer";
+    th.addEventListener("click", () => {
+      if (state.sort.columnId === column.id) {
+        state.sort.direction = state.sort.direction === "asc" ? "desc" : "asc";
+      } else {
+        state.sort.columnId = column.id;
+        state.sort.direction = "asc";
+      }
+      saveState();
+      sortRows();
+      renderRows();
+      renderHeader();
+      renderFooter();
+    });
     th.appendChild(thContent);
     attachResizer(th, col, column.id, column.type === "photo" ? 90 : 80);
     sheetHeadRow.appendChild(th);
@@ -4526,17 +4576,30 @@ const renderHeader = () => {
 };
 
 const sortRows = () => {
-  const nameColumn = state.columns.find((col) => isShirtNameColumn(col));
-  if (!nameColumn) return;
+  const sortCol = state.sort.columnId
+    ? state.columns.find((col) => col.id === state.sort.columnId)
+    : null;
+  const targetCol = sortCol || state.columns.find((col) => isShirtNameColumn(col));
+  if (!targetCol) return;
+  const dir = sortCol ? (state.sort.direction === "desc" ? -1 : 1) : 1;
+  const isNumeric = targetCol.type === "number";
   state.rows.sort((a, b) => {
-    const aVal = a.cells ? a.cells[nameColumn.id] : "";
-    const bVal = b.cells ? b.cells[nameColumn.id] : "";
+    const aVal = a.cells ? a.cells[targetCol.id] : "";
+    const bVal = b.cells ? b.cells[targetCol.id] : "";
     const aEmpty = aVal === "" || aVal === null || aVal === undefined;
     const bEmpty = bVal === "" || bVal === null || bVal === undefined;
     if (aEmpty && bEmpty) return 0;
     if (aEmpty) return 1;
     if (bEmpty) return -1;
-    return String(aVal).localeCompare(String(bVal));
+    if (isNumeric) {
+      const aNum = parseFloat(aVal);
+      const bNum = parseFloat(bVal);
+      if (Number.isNaN(aNum) && Number.isNaN(bNum)) return 0;
+      if (Number.isNaN(aNum)) return 1;
+      if (Number.isNaN(bNum)) return -1;
+      return (aNum - bNum) * dir;
+    }
+    return String(aVal).localeCompare(String(bVal)) * dir;
   });
 };
 
@@ -5102,6 +5165,11 @@ const getFilteredRows = () => {
   if (state.filter.columnId === "tags") {
     return state.rows.filter((row) => matchesTagFilter(row, query));
   }
+  if (state.filter.columnId === "forSale") {
+    if (query === "yes") return state.rows.filter((row) => isForSale(row));
+    if (query === "no") return state.rows.filter((row) => !isForSale(row));
+    return state.rows;
+  }
   const column = state.columns.find((col) => col.id === state.filter.columnId);
   if (!column) return state.rows;
   return state.rows.filter((row) => matchesFilter(row, column, query));
@@ -5263,15 +5331,31 @@ const renderFooter = () => {
   positionTotalCount();
   return;
 }
-  const sum = rowsToRender.reduce((acc, row) => {
+  const prices = [];
+  rowsToRender.forEach((row) => {
     const raw = row.cells ? row.cells[priceColumn.id] : "";
     const parsed = parseCurrency(raw);
-    if (parsed === null) return acc;
-    return acc + parsed;
-  }, 0);
-  const formatted = formatCurrency(sum);
+    if (parsed !== null) prices.push(parsed);
+  });
+  const sum = prices.reduce((acc, p) => acc + p, 0);
+  const avg = prices.length ? sum / prices.length : 0;
   totalCostEl.style.display = "";
-  totalCostEl.textContent = `Total cost: ${formatted}`;
+  totalCostEl.innerHTML = "";
+  const lines = [
+    `Total: ${formatCurrency(sum)}`,
+    `Avg: ${formatCurrency(avg)}`,
+  ];
+  lines.forEach((text, i) => {
+    const span = document.createElement("span");
+    span.textContent = text;
+    totalCostEl.appendChild(span);
+    if (i < lines.length - 1) {
+      const sep = document.createElement("span");
+      sep.textContent = " | ";
+      Object.assign(sep.style, { color: "#ccc", margin: "0 2px" });
+      totalCostEl.appendChild(sep);
+    }
+  });
   positionTotalCount();
 };
 
@@ -5592,7 +5676,8 @@ if (supabase) {
       updateAppUpdateDate();
       updateFooterVersionLine();
     });
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "TOKEN_REFRESHED") return;
     setAuthLoading(true);
     if (publicShareToken) {
       updateAppUpdateDate();
@@ -6546,7 +6631,7 @@ filterColumnSelect.addEventListener("change", (event) => {
   state.filter.columnId = event.target.value;
   const optionColumn = state.columns.find((column) => column.id === state.filter.columnId);
   const optionLabel = optionColumn ? getColumnLabel(optionColumn).trim().toLowerCase() : "";
-  if (state.filter.columnId === "tags" || ["condition", "type", "size", "fandom"].includes(optionLabel)) {
+  if (state.filter.columnId === "tags" || state.filter.columnId === "forSale" || ["condition", "type", "size", "fandom"].includes(optionLabel)) {
     state.filter.query = "";
   }
   updateFilterInputMode();
