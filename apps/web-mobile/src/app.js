@@ -41,6 +41,7 @@ const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
 const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
 const APP_MODE_KEY = "shirts-app-mode";
 const CURRENT_USER_KEY = "shirts-current-user";
+const FOR_SALE_TAG = "For Sale";
 
 const clearLegacyStorage = () => {
   try {
@@ -4826,6 +4827,19 @@ const getRowTags = (row) => {
   return row.tags.filter((tag) => String(tag || "").trim() !== "");
 };
 
+const isForSale = (row) => getRowTags(row).some((tag) => tag.toLowerCase() === FOR_SALE_TAG.toLowerCase());
+
+const toggleForSale = (rowId) => {
+  const row = state.rows.find((r) => r.id === rowId);
+  if (!row) return;
+  const tags = getRowTags(row);
+  if (isForSale(row)) {
+    setRowTags(rowId, tags.filter((t) => t.toLowerCase() !== FOR_SALE_TAG.toLowerCase()), "for-sale");
+  } else {
+    setRowTags(rowId, [...tags, FOR_SALE_TAG], "for-sale");
+  }
+};
+
 const matchesTagFilter = (row, queryLower) => {
   const tags = getRowTags(row);
   if (!tags.length) return false;
@@ -5165,7 +5179,32 @@ const renderRows = () => {
       if (column.type === "photo" || labelLower === "price") {
         td.classList.add("print-hide");
       }
-      td.appendChild(createCellInput(row, column));
+      const cellEl = createCellInput(row, column);
+      if (isShirtNameColumn(column) && isForSale(row)) {
+        const wrapper = document.createElement("div");
+        cellEl.style.borderBottom = "none";
+        cellEl.style.borderBottomLeftRadius = "0";
+        cellEl.style.borderBottomRightRadius = "0";
+        wrapper.appendChild(cellEl);
+        const badge = document.createElement("span");
+        badge.textContent = "FOR SALE";
+        Object.assign(badge.style, {
+          display: "block",
+          padding: "2px 8px",
+          fontSize: "0.65rem",
+          fontWeight: "700",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          background: "#2e7d32",
+          color: "#fff",
+          borderRadius: "0 0 4px 4px",
+          fontFamily: "'Work Sans', 'Trebuchet MS', sans-serif",
+        });
+        wrapper.appendChild(badge);
+        td.appendChild(wrapper);
+      } else {
+        td.appendChild(cellEl);
+      }
       tr.appendChild(td);
     });
 
@@ -5197,7 +5236,25 @@ const renderRows = () => {
     checkbox.setAttribute("aria-label", "Select row");
     checkbox.dataset.rowId = row.id;
     checkbox.addEventListener("change", updateDeleteSelectedState);
-    if (appMode !== "wishlist") actionsWrap.appendChild(tagsButton);
+    if (appMode !== "wishlist") {
+      actionsWrap.appendChild(tagsButton);
+      const saleBtn = document.createElement("button");
+      saleBtn.type = "button";
+      saleBtn.className = "btn-icon";
+      saleBtn.textContent = "For Sale";
+      saleBtn.style.marginRight = "0";
+      saleBtn.style.fontSize = "0.72rem";
+      if (isForSale(row)) {
+        Object.assign(saleBtn.style, {
+          background: "#e8f5e9",
+          borderColor: "#66bb6a",
+          color: "#2e7d32",
+          fontWeight: "600",
+        });
+      }
+      saleBtn.addEventListener("click", () => toggleForSale(row.id));
+      actionsWrap.appendChild(saleBtn);
+    }
     if (appMode === "wishlist") {
       const moveBtn = document.createElement("button");
       moveBtn.type = "button";
