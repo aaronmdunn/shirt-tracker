@@ -13,8 +13,7 @@ const sourceFonts = path.join(sourceDir, "fonts");
 const targetFonts = path.join(root, "apps", "desktop-tauri", "src", "fonts");
 const sourceManifest = path.join(sourceDir, "manifest.webmanifest");
 const targetManifest = path.join(root, "apps", "desktop-tauri", "src", "manifest.webmanifest");
-const sourceSteve = path.join(sourceDir, "steve.png");
-const targetSteve = path.join(root, "apps", "desktop-tauri", "src", "steve.png");
+
 
 if (!fs.existsSync(sourcePath)) {
   throw new Error(`Source file not found: ${sourcePath}`);
@@ -75,13 +74,8 @@ if (fs.existsSync(sourceManifest)) {
   fs.copyFileSync(sourceManifest, targetManifest);
 }
 
-if (fs.existsSync(sourceSteve)) {
-  fs.copyFileSync(sourceSteve, targetSteve);
-}
-
 console.log(`Synced ${sourcePath} -> ${targetPath}`);
 console.log(`Updated desktop app Last Deployment to ${buildLocal}`);
 console.log(`Synced assets -> ${targetAssets}`);
 console.log(`Synced fonts -> ${targetFonts}`);
 if (fs.existsSync(sourceManifest)) console.log(`Synced ${sourceManifest} -> ${targetManifest}`);
-if (fs.existsSync(sourceSteve)) console.log(`Synced ${sourceSteve} -> ${targetSteve}`);

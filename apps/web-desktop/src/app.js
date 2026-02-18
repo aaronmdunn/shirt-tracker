@@ -28,7 +28,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
@@ -2338,7 +2338,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.2",
+    version: "2.0.3",
   };
   if (wishlistTabs.length > 0) {
     result.wishlist = {
@@ -3274,23 +3274,22 @@ const switchAppMode = (nextMode) => {
 const renderModeSwitcher = () => {
   if (!modeSwitcher) return;
   modeSwitcher.innerHTML = "";
-  if (!currentUser) {
-    modeSwitcher.style.display = "none";
-    return;
+  modeSwitcher.style.display = "none";
+  const sheetHeader = document.querySelector(".sheet-header");
+  if (sheetHeader) {
+    const prev = sheetHeader.querySelector("#mode-switcher-inline");
+    if (prev) prev.remove();
   }
-  Object.assign(modeSwitcher.style, {
-    display: "flex",
-    justifyContent: "center",
-    padding: "12px 0 4px",
-    margin: "0",
-    background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
-  });
+  if (!currentUser) return;
   const container = document.createElement("div");
+  container.id = "mode-switcher-inline";
   Object.assign(container.style, {
     display: "inline-flex",
-    borderRadius: "8px",
+    borderRadius: "6px",
     overflow: "hidden",
     border: "2px solid #c62828",
+    flexShrink: "0",
+    alignSelf: "center",
   });
   const modes = [
     { id: "inventory", label: "Inventory" },
@@ -3302,8 +3301,9 @@ const renderModeSwitcher = () => {
     btn.textContent = mode.label;
     const isActive = appMode === mode.id;
     Object.assign(btn.style, {
-      padding: "7px 24px",
-      fontSize: "0.92rem",
+      padding: "5px 14px",
+      fontSize: "0.78rem",
+      whiteSpace: "nowrap",
       fontWeight: isActive ? "700" : "500",
       border: "none",
       cursor: "pointer",
@@ -3316,22 +3316,8 @@ const renderModeSwitcher = () => {
     btn.addEventListener("click", () => switchAppMode(mode.id));
     container.appendChild(btn);
   });
-  modeSwitcher.appendChild(container);
-  const filterRow = document.querySelector(".filter-row");
-  if (filterRow) {
-    Object.assign(filterRow.style, {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: "12px",
-    });
-    const topActions = filterRow.querySelector(".top-table-actions");
-    if (topActions) {
-      Object.assign(topActions.style, {
-        order: "2",
-        alignSelf: "flex-start",
-      });
-    }
+  if (sheetHeader) {
+    sheetHeader.prepend(container);
   }
 };
 
