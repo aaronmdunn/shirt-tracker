@@ -2535,6 +2535,12 @@ const applyCloudPayload = (payload) => {
     }
   }
   loadState();
+  if (globalColumns) {
+    applyGlobalColumns();
+  }
+  applyTabFandomOptions();
+  applyTabTypeOptions();
+  applyTabBrandOptions();
   if (appMode === "wishlist") {
     enforceWishlistColumns();
     enforceWishlistDropdownDefaults();
