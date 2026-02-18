@@ -40,6 +40,7 @@ const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
 const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
 const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
 const APP_MODE_KEY = "shirts-app-mode";
+const CURRENT_USER_KEY = "shirts-current-user";
 
 const clearLegacyStorage = () => {
   try {
@@ -1407,6 +1408,45 @@ const setAuthLoading = (isLoading) => {
   if (authActionSignedOutButton) {
     authActionSignedOutButton.style.display = isLoading ? "none" : "";
   }
+};
+
+const clearAppLocalStorage = () => {
+  const keysToKeep = [CURRENT_USER_KEY, APP_VERSION_KEY, APP_UPDATE_KEY];
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && !keysToKeep.includes(key) && !key.startsWith("sb-")) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => { try { localStorage.removeItem(key); } catch (e) { /* ignore */ } });
+};
+
+const handleUserSwitch = (userId) => {
+  if (!userId) return;
+  try {
+    const previousUserId = localStorage.getItem(CURRENT_USER_KEY);
+    if (previousUserId && previousUserId !== userId) {
+      clearAppLocalStorage();
+      appMode = "inventory";
+      tabsState.tabs = [];
+      tabsState.activeTabId = null;
+      globalColumns = null;
+      columnOverrides.fandomOptionsByTab = {};
+      columnOverrides.typeOptionsByTab = {};
+      columnOverrides.hiddenColumnsByTab = {};
+      columnOverrides.brandOptionsByTab = {};
+      state.columns = [];
+      state.rows = [defaultRow()];
+      state.columnWidths = {};
+      state.sort = { columnId: null, direction: "asc" };
+      state.filter = { columnId: "all", query: "" };
+      state.readOnly = false;
+      savedModeState.inventory = null;
+      savedModeState.wishlist = null;
+    }
+    localStorage.setItem(CURRENT_USER_KEY, userId);
+  } catch (error) { /* ignore */ }
 };
 
 const setAuthStatus = () => {
@@ -5493,6 +5533,7 @@ if (supabase) {
       updateLastActivity();
       handleInactivityCheck();
       if (currentUser) {
+        handleUserSwitch(currentUser.id);
         enforcePasswordSet(currentUser);
         loadRemoteState();
       }
@@ -5525,6 +5566,7 @@ if (supabase) {
     updateLastActivity();
     handleInactivityCheck();
     if (currentUser) {
+      handleUserSwitch(currentUser.id);
       enforcePasswordSet(currentUser);
       loadRemoteState();
     }
