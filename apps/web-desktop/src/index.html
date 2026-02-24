@@ -811,6 +811,43 @@
       </div>
     </dialog>
 
+    <dialog id="csv-import-dialog">
+      <div class="dialog-body">
+        <h3>Import CSV</h3>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.8rem;">Choose which columns to import and how to apply them.</div>
+        <div class="dialog-row">
+          <div class="share-columns-controls" id="csv-import-mode">
+            <label>
+              <input type="radio" name="csv-import-mode" value="append" checked>
+              Import as new rows
+            </label>
+            <label>
+              <input type="radio" name="csv-import-mode" value="overwrite">
+              Overwrite existing rows
+            </label>
+            <label>
+              <input type="radio" name="csv-import-mode" value="fill-empty">
+              Only fill empty cells
+            </label>
+          </div>
+        </div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by order (CSV row 1 goes to table row 1).</div>
+        <div class="dialog-row">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn secondary" id="csv-import-select-all">Select All</button>
+            <button type="button" class="btn secondary" id="csv-import-select-none">Select None</button>
+          </div>
+        </div>
+        <div class="dialog-row">
+          <div id="csv-import-columns" style="max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:8px;"></div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="csv-import-cancel">Cancel</button>
+        <button type="button" class="btn" id="csv-import-confirm">Import</button>
+      </div>
+    </dialog>
+
     <dialog id="event-log-dialog">
       <div class="dialog-body">
         <h3>Event Log</h3>
