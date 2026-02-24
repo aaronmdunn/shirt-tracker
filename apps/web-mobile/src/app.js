@@ -5757,6 +5757,13 @@ const parseCsvLine = (line) => {
   return cells;
 };
 
+const isPreviewColumn = (column) => {
+  if (!column) return false;
+  if (column.type === "photo") return true;
+  const labelLower = getColumnLabel(column).trim().toLowerCase();
+  return labelLower === "preview";
+};
+
 const importCsv = () => {
   const input = document.createElement("input");
   input.type = "file";
@@ -5787,6 +5794,10 @@ const importCsv = () => {
         const match = state.columns.find(
           (col) => getColumnLabel(col).trim().toLowerCase() === headerLower
         );
+        if (match && isPreviewColumn(match)) {
+          columnMap.push(null);
+          return;
+        }
         columnMap.push(match || null);
         if (match) {
           selectableColumns.push({ index, label: getColumnLabel(match) });
@@ -5802,12 +5813,55 @@ const importCsv = () => {
       const importMode = selection.mode;
       const includeTags = tagsIndex !== -1 && selectedIndices.has(tagsIndex);
       const shouldUseIndex = (index) => selectedIndices.has(index);
+      let nameColumn = null;
+      let nameCsvIndex = -1;
+      let allNamesEmpty = false;
+      if (importMode !== "append") {
+        nameColumn = state.columns.find((column) => isShirtNameColumn(column));
+        if (!nameColumn) {
+          alert("No Name column exists to match rows for overwrite or fill-empty.");
+          return;
+        }
+        nameCsvIndex = columnMap.findIndex((column) => column && column.id === nameColumn.id);
+        if (nameCsvIndex === -1) {
+          alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
+          return;
+        }
+        allNamesEmpty = state.rows.length > 0 && state.rows.every((existingRow) => {
+          const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+          const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+          return nameValue === "";
+        });
+      }
       let importedCount = 0;
       for (let i = 1; i < lines.length; i++) {
         const cells = parseCsvLine(lines[i]);
-        const rowIndex = i - 1;
-        const useExisting = importMode !== "append" && state.rows[rowIndex];
-        const row = useExisting ? state.rows[rowIndex] : defaultRow();
+        let useExisting = false;
+        let row = null;
+        if (importMode === "append") {
+          row = defaultRow();
+        } else if (allNamesEmpty) {
+          const rowIndex = i - 1;
+          if (!state.rows[rowIndex]) {
+            continue;
+          }
+          useExisting = true;
+          row = state.rows[rowIndex];
+        } else {
+          const csvName = (cells[nameCsvIndex] || "").trim();
+          const csvNameLower = csvName.toLowerCase();
+          const matchIndex = state.rows.findIndex((existingRow) => {
+            const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+            const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+            if (csvNameLower === "") return nameValue === "";
+            return nameValue.toLowerCase() === csvNameLower;
+          });
+          if (matchIndex === -1) {
+            continue;
+          }
+          useExisting = true;
+          row = state.rows[matchIndex];
+        }
         if (!row.cells) row.cells = {};
         let hasData = false;
         if (includeTags && cells[tagsIndex]) {
@@ -5824,6 +5878,7 @@ const importCsv = () => {
           if (index === tagsIndex) return;
           const column = columnMap[index];
           if (!column) return;
+          if (isPreviewColumn(column)) return;
           const trimmed = cellValue.trim();
           if (!trimmed) return;
           if (importMode === "overwrite") {
