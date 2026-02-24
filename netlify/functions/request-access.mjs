@@ -77,7 +77,7 @@ export const handler = async (event) => {
 
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users`,
+      `${SUPABASE_URL}/auth/v1/invite`,
       {
         method: "POST",
         headers: {
@@ -88,7 +88,6 @@ export const handler = async (event) => {
         body: JSON.stringify({
           email,
           data: { full_name: name },
-          invite: true,
         }),
       }
     );
