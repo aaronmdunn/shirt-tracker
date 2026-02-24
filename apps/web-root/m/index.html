@@ -3281,7 +3281,7 @@
             </label>
           </div>
         </div>
-        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by Name (first match). If every Name cell is empty, it falls back to row order.</div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by Name (first match). If a Name cell is blank, it falls back to row order for that row.</div>
         <div class="dialog-row">
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn secondary" id="csv-import-select-all">Select All</button>
@@ -3375,7 +3375,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.3";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-24T01:27:03-05:00";
+      const LAST_COMMIT_DATE = "2026-02-24T01:33:32-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -9160,7 +9160,6 @@
             const shouldUseIndex = (index) => selectedIndices.has(index);
             let nameColumn = null;
             let nameCsvIndex = -1;
-            let allNamesEmpty = false;
             if (importMode !== "append") {
               nameColumn = state.columns.find((column) => isShirtNameColumn(column));
               if (!nameColumn) {
@@ -9172,11 +9171,6 @@
                 alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
                 return;
               }
-              allNamesEmpty = state.rows.length > 0 && state.rows.every((existingRow) => {
-                const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-                const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-                return nameValue === "";
-              });
             }
             let importedCount = 0;
             for (let i = 1; i < lines.length; i++) {
@@ -9185,22 +9179,28 @@
               let row = null;
               if (importMode === "append") {
                 row = defaultRow();
-              } else if (allNamesEmpty) {
-                const rowIndex = i - 1;
-                if (!state.rows[rowIndex]) {
-                  continue;
-                }
-                useExisting = true;
-                row = state.rows[rowIndex];
               } else {
                 const csvName = (cells[nameCsvIndex] || "").trim();
                 const csvNameLower = csvName.toLowerCase();
-                const matchIndex = state.rows.findIndex((existingRow) => {
-                  const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-                  const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-                  if (csvNameLower === "") return nameValue === "";
-                  return nameValue.toLowerCase() === csvNameLower;
-                });
+                let matchIndex = -1;
+                if (csvNameLower !== "") {
+                  matchIndex = state.rows.findIndex((existingRow) => {
+                    const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+                    const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                    return nameValue.toLowerCase() === csvNameLower;
+                  });
+                }
+                if (matchIndex === -1) {
+                  const rowIndex = i - 1;
+                  const candidate = state.rows[rowIndex];
+                  if (candidate) {
+                    const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
+                    const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                    if (nameValue === "") {
+                      matchIndex = rowIndex;
+                    }
+                  }
+                }
                 if (matchIndex === -1) {
                   continue;
                 }
