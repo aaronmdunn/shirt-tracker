@@ -348,10 +348,12 @@ const tabsState = {
   isEmbeddedBackup: false,
 };
 
+const SIZE_OPTIONS_DEFAULT = ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X", "NA"];
+
 const getDefaultColumns = () => ([
   { id: createId(), name: "Condition", type: "select", options: ["NWT", "NWOT", "EUC", "Other"] },
-  { id: createId(), name: "Shirt Name", type: "text", options: [] },
-  { id: createId(), name: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"] },
+  { id: createId(), name: "Name", type: "text", options: [] },
+  { id: createId(), name: "Size", type: "select", options: SIZE_OPTIONS_DEFAULT.slice() },
   { id: createId(), name: "Type", type: "select", options: [] },
   { id: createId(), name: "Fandom", type: "select", options: [] },
   { id: createId(), name: "Price", type: "number", options: [] },
@@ -361,10 +363,10 @@ const getDefaultColumns = () => ([
 
 const getWishlistDefaultColumns = () => ([
   { id: createId(), name: "Brand", type: "select", options: [] },
-  { id: createId(), name: "Shirt Name", type: "text", options: [] },
+  { id: createId(), name: "Name", type: "text", options: [] },
   { id: createId(), name: "Type", type: "select", options: [] },
   { id: createId(), name: "Fandom", type: "select", options: [] },
-  { id: createId(), name: "Size", type: "select", options: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"] },
+  { id: createId(), name: "Size", type: "select", options: SIZE_OPTIONS_DEFAULT.slice() },
   { id: createId(), name: "Preview", type: "photo", options: [] },
   { id: createId(), name: "Notes", type: "notes", options: [] },
 ]);
@@ -620,7 +622,157 @@ const canUseLocalStorage = () => {
 
 const isShirtNameColumn = (column) => {
   const label = getColumnLabel(column).trim().toLowerCase();
-  return label === "shirt name";
+  return label === "shirt name" || label === "name";
+};
+
+const normalizeNameColumnLabel = (column) => {
+  if (!column) return false;
+  const label = getColumnLabel(column).trim().toLowerCase();
+  if (label !== "shirt name") return false;
+  column.name = "Name";
+  return true;
+};
+
+const normalizeNameColumns = (columns) => {
+  if (!Array.isArray(columns)) return false;
+  let changed = false;
+  columns.forEach((column) => {
+    if (normalizeNameColumnLabel(column)) changed = true;
+  });
+  return changed;
+};
+
+const normalizeNameColumnsInStorage = () => {
+  if (!canUseLocalStorage() || !Array.isArray(tabsState.tabs) || !tabsState.tabs.length) return false;
+  let changed = false;
+  tabsState.tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let parsed = null;
+    try {
+      const stored = localStorage.getItem(getStorageKey(tab.id));
+      parsed = stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.columns)) return;
+    const tabChanged = normalizeNameColumns(parsed.columns);
+    if (!tabChanged) return;
+    changed = true;
+    try {
+      localStorage.setItem(getStorageKey(tab.id), JSON.stringify(parsed));
+    } catch (error) {
+      // ignore
+    }
+  });
+  return changed;
+};
+
+const normalizeNameColumnsEverywhere = () => {
+  let changed = normalizeNameColumns(state.columns);
+  if (globalColumns) changed = normalizeNameColumns(globalColumns) || changed;
+  if (changed && !state.readOnly) {
+    saveState();
+    if (globalColumns) saveColumnOverrides();
+  }
+  if (!state.readOnly && !isViewerSession) {
+    normalizeNameColumnsInStorage();
+  }
+  return changed;
+};
+
+const normalizeSizeColumnOptions = (column) => {
+  if (!column) return false;
+  const label = getColumnLabel(column).trim().toLowerCase();
+  if (label !== "size") return false;
+  const current = (column.options || []).map((o) => String(o));
+  const defaults = SIZE_OPTIONS_DEFAULT;
+  const match = defaults.length === current.length && defaults.every((opt, i) => opt === current[i]);
+  if (match) return false;
+  column.options = defaults.slice();
+  return true;
+};
+
+const normalizeSizeOptionsInColumns = (columns) => {
+  if (!Array.isArray(columns)) return false;
+  let changed = false;
+  columns.forEach((column) => {
+    if (normalizeSizeColumnOptions(column)) changed = true;
+  });
+  return changed;
+};
+
+const normalizeSizeOptionsInStorageForMode = (mode) => {
+  if (!canUseLocalStorage()) return false;
+  const tabsKey = mode === "wishlist" ? WISHLIST_TAB_STORAGE_KEY : TAB_STORAGE_KEY;
+  const prefix = mode === "wishlist" ? WISHLIST_STORAGE_KEY : STORAGE_KEY;
+  let tabs = [];
+  try {
+    const storedTabs = localStorage.getItem(tabsKey);
+    const parsedTabs = storedTabs ? JSON.parse(storedTabs) : null;
+    if (parsedTabs && Array.isArray(parsedTabs.tabs)) {
+      tabs = parsedTabs.tabs;
+    }
+  } catch (error) {
+    tabs = [];
+  }
+  let changed = false;
+  tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let parsed = null;
+    try {
+      const stored = localStorage.getItem(`${prefix}:${tab.id}`);
+      parsed = stored ? JSON.parse(stored) : null;
+    } catch (error) {
+      parsed = null;
+    }
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.columns)) return;
+    const tabChanged = normalizeSizeOptionsInColumns(parsed.columns);
+    if (!tabChanged) return;
+    changed = true;
+    try {
+      localStorage.setItem(`${prefix}:${tab.id}`, JSON.stringify(parsed));
+    } catch (error) {
+      // ignore
+    }
+  });
+  return changed;
+};
+
+const normalizeSizeOptionsInStoredGlobals = (mode) => {
+  if (!canUseLocalStorage()) return false;
+  const columnsKey = mode === "wishlist" ? WISHLIST_COLUMNS_KEY : COLUMNS_KEY;
+  let parsed = null;
+  try {
+    const stored = localStorage.getItem(columnsKey);
+    parsed = stored ? JSON.parse(stored) : null;
+  } catch (error) {
+    parsed = null;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.globalColumns)) return false;
+  const changed = normalizeSizeOptionsInColumns(parsed.globalColumns);
+  if (!changed) return false;
+  try {
+    localStorage.setItem(columnsKey, JSON.stringify(parsed));
+  } catch (error) {
+    // ignore
+  }
+  return true;
+};
+
+const normalizeSizeOptionsEverywhere = () => {
+  let changed = normalizeSizeOptionsInColumns(state.columns);
+  if (globalColumns) changed = normalizeSizeOptionsInColumns(globalColumns) || changed;
+  if (changed && !state.readOnly) {
+    saveState();
+    if (globalColumns) saveColumnOverrides();
+  }
+  if (!state.readOnly && !isViewerSession) {
+    normalizeSizeOptionsInStorageForMode("inventory");
+    normalizeSizeOptionsInStorageForMode("wishlist");
+    normalizeSizeOptionsInStoredGlobals("inventory");
+    normalizeSizeOptionsInStoredGlobals("wishlist");
+  }
+  return changed;
 };
 
 const getStorageKey = (tabId) => {
@@ -2428,7 +2580,7 @@ const buildCloudPayload = () => {
 const enforceFixedDropdownDefaults = () => {
   const fixedDefaults = {
     condition: ["NWT", "NWOT", "EUC", "Other"],
-    size: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"],
+    size: SIZE_OPTIONS_DEFAULT.slice(),
   };
   let changed = false;
   Object.entries(fixedDefaults).forEach(([label, defaults]) => {
@@ -2576,6 +2728,8 @@ const applyCloudPayload = (payload) => {
     }
   }
   loadState();
+  normalizeNameColumnsEverywhere();
+  normalizeSizeOptionsEverywhere();
   applyTabFandomOptions();
   applyTabTypeOptions();
   applyTabBrandOptions();
@@ -3303,6 +3457,8 @@ const switchAppMode = (nextMode) => {
     state.readOnly = false;
   }
   loadState();
+  normalizeNameColumnsEverywhere();
+  normalizeSizeOptionsEverywhere();
   resetFilterDefault();
   if (appMode === "inventory" && removeBrandColumn()) {
     ensureRowCells();
@@ -3459,7 +3615,7 @@ const enforceWishlistColumns = () => {
 
 const enforceWishlistDropdownDefaults = () => {
   const fixedDefaults = {
-    size: ["XS", "S", "M", "L", "XL", "2X", "3X", "4X", "5X"],
+    size: SIZE_OPTIONS_DEFAULT.slice(),
   };
   let changed = false;
   Object.entries(fixedDefaults).forEach(([label, defaults]) => {
@@ -3708,6 +3864,8 @@ const switchTab = (tabId) => {
     seedTabState(tabId, createBlankStateFromCurrent());
   }
   loadState();
+  normalizeNameColumnsEverywhere();
+  normalizeSizeOptionsEverywhere();
   resetFilterDefault();
   if (appMode === "inventory" && removeBrandColumn()) {
     ensureRowCells();
@@ -5850,6 +6008,8 @@ tabDeleteConfirm.addEventListener("click", () => {
       seedTabState(tabsState.activeTabId, createBlankStateFromCurrent());
     }
     loadState();
+    normalizeNameColumnsEverywhere();
+    normalizeSizeOptionsEverywhere();
     resetFilterDefault();
     ensureRowCells();
     renderTable();
@@ -6455,6 +6615,8 @@ tabForm.addEventListener("submit", (event) => {
   addEventLog("Added tab", name);
   seedTabState(tab.id, createBlankStateFromCurrent());
   loadState();
+  normalizeNameColumnsEverywhere();
+  normalizeSizeOptionsEverywhere();
   resetFilterDefault();
   ensureRowCells();
   renderTable();
@@ -6713,6 +6875,8 @@ if (!tabsState.activeTabId && tabsState.tabs[0]) {
   saveTabsState();
 }
 loadState();
+normalizeNameColumnsEverywhere();
+normalizeSizeOptionsEverywhere();
 resetFilterDefault();
 loadShirtUpdateDate();
 updateHeaderTitle();
