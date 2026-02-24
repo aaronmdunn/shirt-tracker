@@ -22,11 +22,11 @@ export const handler = async (event) => {
   }
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("Missing Supabase environment variables");
+    console.error(`Missing env vars — SUPABASE_URL: ${!!SUPABASE_URL}, SUPABASE_SERVICE_ROLE_KEY: ${!!SUPABASE_SERVICE_ROLE_KEY}`);
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: "Server configuration error" }),
+      body: JSON.stringify({ error: "Server configuration error: missing environment variables" }),
     };
   }
 
@@ -105,10 +105,12 @@ export const handler = async (event) => {
 
     const errorBody = await response.text();
     console.error(`Supabase invite error ${response.status}: ${errorBody}`);
+    let supabaseMessage = "";
+    try { supabaseMessage = JSON.parse(errorBody)?.message || JSON.parse(errorBody)?.msg || ""; } catch { supabaseMessage = errorBody; }
     return {
       statusCode: 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: "Failed to send invite" }),
+      body: JSON.stringify({ error: `Failed to send invite (${response.status}): ${supabaseMessage}` }),
     };
   } catch (err) {
     console.error("Invite fetch failed:", err);
