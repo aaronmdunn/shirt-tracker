@@ -5727,7 +5727,20 @@ const exportCsv = () => {
   addEventLog("Exported CSV");
 };
 
-const parseCsvLine = (line) => {
+const detectCsvDelimiter = (line) => {
+  const sample = line || "";
+  const counts = {
+    ",": (sample.match(/,/g) || []).length,
+    "\t": (sample.match(/\t/g) || []).length,
+    ";": (sample.match(/;/g) || []).length,
+  };
+  const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const best = sorted[0];
+  if (!best || counts[best] === 0) return ",";
+  return best;
+};
+
+const parseCsvLine = (line, delimiter = ",") => {
   const cells = [];
   let current = "";
   let inQuotes = false;
@@ -5745,7 +5758,7 @@ const parseCsvLine = (line) => {
     } else {
       if (ch === '"') {
         inQuotes = true;
-      } else if (ch === ",") {
+      } else if (ch === delimiter) {
         cells.push(current);
         current = "";
       } else {
@@ -5779,7 +5792,8 @@ const importCsv = () => {
         alert("CSV file is empty or has no data rows.");
         return;
       }
-      const headerCells = parseCsvLine(lines[0]);
+      const delimiter = detectCsvDelimiter(lines[0]);
+      const headerCells = parseCsvLine(lines[0], delimiter);
       const columnMap = [];
       let tagsIndex = -1;
       const selectableColumns = [];
@@ -5829,7 +5843,7 @@ const importCsv = () => {
       }
       let importedCount = 0;
       for (let i = 1; i < lines.length; i++) {
-        const cells = parseCsvLine(lines[i]);
+        const cells = parseCsvLine(lines[i], delimiter);
         let useExisting = false;
         let row = null;
         if (importMode === "append") {
