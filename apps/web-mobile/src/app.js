@@ -2490,7 +2490,7 @@ const updateTabLogo = async () => {
 const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
-  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="3292" height="952" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
 };
 
 const formatDateOnly = (value) => {
