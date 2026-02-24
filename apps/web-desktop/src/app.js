@@ -5813,8 +5813,8 @@ const importCsv = () => {
           alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
           return;
         }
-        const dataColumnCount = columnMap.filter((column) => column !== null).length;
-        const onlyNameSelected = dataColumnCount === 1 && selectedIndices.has(nameCsvIndex);
+        const selectedDataCount = [...selectedIndices].filter((idx) => idx !== tagsIndex && columnMap[idx] !== null).length;
+        const onlyNameSelected = selectedDataCount === 1 && selectedIndices.has(nameCsvIndex);
         forceRowOrderMatch = onlyNameSelected;
       }
       let importedCount = 0;
@@ -5915,6 +5915,7 @@ const importCsv = () => {
         return;
       }
       setGlobalColumns(state.columns);
+      sheetBody.innerHTML = "";
       saveState();
       renderTable();
       const actionLabel = importMode === "append" ? "Imported" : "Updated";
