@@ -100,6 +100,20 @@ fs.mkdirSync(outDir, { recursive: true });
 copyDir(desktopSrc, outDesktop);
 copyDir(mobileSrc, outMobile);
 
+// Inject CHANGELOG.json into app.js before inlining
+const changelogPath = path.join(root, "CHANGELOG.json");
+if (fs.existsSync(changelogPath)) {
+  const changelogJson = fs.readFileSync(changelogPath, "utf8").trim();
+  const marker = "/* __CHANGELOG_INJECT__ */ []";
+  for (const dir of [outDesktop, outMobile]) {
+    const jsPath = path.join(dir, "app.js");
+    if (fs.existsSync(jsPath)) {
+      const source = fs.readFileSync(jsPath, "utf8");
+      fs.writeFileSync(jsPath, source.replace(marker, changelogJson), "utf8");
+    }
+  }
+}
+
 // Inline CSS/JS back into single-file HTML for deployment
 inlineSources(outDesktop);
 inlineSources(outMobile);
