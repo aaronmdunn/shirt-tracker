@@ -569,6 +569,9 @@ const requestAccessName = document.getElementById("request-access-name");
 const requestAccessClose = document.getElementById("request-access-close");
 const requestAccessThanks = document.getElementById("request-access-thanks");
 const requestAccessThanksClose = document.getElementById("request-access-thanks-close");
+const requestAccessMessage = document.getElementById("request-access-message");
+const requestAccessSubmit = document.getElementById("request-access-submit");
+const requestAccessBot = document.getElementById("request-access-bot");
 const forgotPasswordLink = document.getElementById("forgot-password-link");
 const resetPasswordDialog = document.getElementById("reset-password-dialog");
 const resetPasswordEmailInput = document.getElementById("reset-password-email");
@@ -6651,12 +6654,35 @@ if (requestAccessClose) {
   });
 }
 if (requestAccessForm) {
-  requestAccessForm.addEventListener("submit", () => {
-    setTimeout(() => {
+  requestAccessForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const name = requestAccessName ? requestAccessName.value.trim() : "";
+    const emailEl = document.getElementById("request-access-email");
+    const email = emailEl ? emailEl.value.trim() : "";
+    if (!name || !email) return;
+    if (requestAccessMessage) requestAccessMessage.textContent = "";
+    if (requestAccessSubmit) requestAccessSubmit.disabled = true;
+    try {
+      const payload = { name, email };
+      if (requestAccessBot && requestAccessBot.value) payload["bot-field"] = requestAccessBot.value;
+      const res = await fetch("/.netlify/functions/request-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (requestAccessMessage) requestAccessMessage.textContent = data.error || "Something went wrong. Please try again.";
+        return;
+      }
       requestAccessForm.reset();
-    }, 300);
-    if (requestAccessDialog) closeDialog(requestAccessDialog);
-    if (requestAccessThanks) openDialog(requestAccessThanks);
+      if (requestAccessDialog) closeDialog(requestAccessDialog);
+      if (requestAccessThanks) openDialog(requestAccessThanks);
+    } catch {
+      if (requestAccessMessage) requestAccessMessage.textContent = "Something went wrong. Please try again.";
+    } finally {
+      if (requestAccessSubmit) requestAccessSubmit.disabled = false;
+    }
   });
 }
 if (requestAccessThanksClose) {
