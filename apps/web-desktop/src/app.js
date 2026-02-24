@@ -5801,6 +5801,7 @@ const importCsv = () => {
       const shouldUseIndex = (index) => selectedIndices.has(index);
       let nameColumn = null;
       let nameCsvIndex = -1;
+      let forceRowOrderMatch = false;
       if (importMode !== "append") {
         nameColumn = state.columns.find((column) => isShirtNameColumn(column));
         if (!nameColumn) {
@@ -5812,6 +5813,9 @@ const importCsv = () => {
           alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
           return;
         }
+        const dataColumnCount = columnMap.filter((column) => column !== null).length;
+        const onlyNameSelected = dataColumnCount === 1 && selectedIndices.has(nameCsvIndex);
+        forceRowOrderMatch = onlyNameSelected;
       }
       let importedCount = 0;
       for (let i = 1; i < lines.length; i++) {
@@ -5821,24 +5825,29 @@ const importCsv = () => {
         if (importMode === "append") {
           row = defaultRow();
         } else {
-          const csvName = (cells[nameCsvIndex] || "").trim();
-          const csvNameLower = csvName.toLowerCase();
           let matchIndex = -1;
-          if (csvNameLower !== "") {
-            matchIndex = state.rows.findIndex((existingRow) => {
-              const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-              const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-              return nameValue.toLowerCase() === csvNameLower;
-            });
-          }
-          if (matchIndex === -1) {
+          if (forceRowOrderMatch) {
             const rowIndex = i - 1;
-            const candidate = state.rows[rowIndex];
-            if (candidate) {
-              const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
-              const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-              if (nameValue === "") {
-                matchIndex = rowIndex;
+            matchIndex = rowIndex < state.rows.length ? rowIndex : -1;
+          } else {
+            const csvName = (cells[nameCsvIndex] || "").trim();
+            const csvNameLower = csvName.toLowerCase();
+            if (csvNameLower !== "") {
+              matchIndex = state.rows.findIndex((existingRow) => {
+                const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+                const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                return nameValue.toLowerCase() === csvNameLower;
+              });
+            }
+            if (matchIndex === -1) {
+              const rowIndex = i - 1;
+              const candidate = state.rows[rowIndex];
+              if (candidate) {
+                const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
+                const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                if (nameValue === "") {
+                  matchIndex = rowIndex;
+                }
               }
             }
           }

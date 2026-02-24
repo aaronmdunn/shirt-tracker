@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/24/2026, 1:41:53 AM" readonly>
+                <input type="text" id="app-update-date" value="2/24/2026, 1:49:29 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3093,7 +3093,7 @@
             </label>
           </div>
         </div>
-        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by Name (first match). If a Name cell is blank, it falls back to row order for that row.</div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by Name (first match). If only Name is selected, it matches by row order to restore blanks.</div>
         <div class="dialog-row">
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn secondary" id="csv-import-select-all">Select All</button>
@@ -3187,7 +3187,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.3";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-24T06:41:53.542Z";
+      const LAST_COMMIT_DATE = "2026-02-24T06:49:29.387Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -8958,6 +8958,7 @@
             const shouldUseIndex = (index) => selectedIndices.has(index);
             let nameColumn = null;
             let nameCsvIndex = -1;
+            let forceRowOrderMatch = false;
             if (importMode !== "append") {
               nameColumn = state.columns.find((column) => isShirtNameColumn(column));
               if (!nameColumn) {
@@ -8969,6 +8970,9 @@
                 alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
                 return;
               }
+              const dataColumnCount = columnMap.filter((column) => column !== null).length;
+              const onlyNameSelected = dataColumnCount === 1 && selectedIndices.has(nameCsvIndex);
+              forceRowOrderMatch = onlyNameSelected;
             }
             let importedCount = 0;
             for (let i = 1; i < lines.length; i++) {
@@ -8978,24 +8982,29 @@
               if (importMode === "append") {
                 row = defaultRow();
               } else {
-                const csvName = (cells[nameCsvIndex] || "").trim();
-                const csvNameLower = csvName.toLowerCase();
                 let matchIndex = -1;
-                if (csvNameLower !== "") {
-                  matchIndex = state.rows.findIndex((existingRow) => {
-                    const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-                    const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-                    return nameValue.toLowerCase() === csvNameLower;
-                  });
-                }
-                if (matchIndex === -1) {
+                if (forceRowOrderMatch) {
                   const rowIndex = i - 1;
-                  const candidate = state.rows[rowIndex];
-                  if (candidate) {
-                    const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
-                    const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-                    if (nameValue === "") {
-                      matchIndex = rowIndex;
+                  matchIndex = rowIndex < state.rows.length ? rowIndex : -1;
+                } else {
+                  const csvName = (cells[nameCsvIndex] || "").trim();
+                  const csvNameLower = csvName.toLowerCase();
+                  if (csvNameLower !== "") {
+                    matchIndex = state.rows.findIndex((existingRow) => {
+                      const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+                      const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                      return nameValue.toLowerCase() === csvNameLower;
+                    });
+                  }
+                  if (matchIndex === -1) {
+                    const rowIndex = i - 1;
+                    const candidate = state.rows[rowIndex];
+                    if (candidate) {
+                      const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
+                      const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+                      if (nameValue === "") {
+                        matchIndex = rowIndex;
+                      }
                     }
                   }
                 }
