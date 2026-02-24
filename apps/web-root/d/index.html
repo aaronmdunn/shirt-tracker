@@ -2535,7 +2535,7 @@
             <div class="update-box">
               <div class="update-title">Update Log</div>
               <div class="update-row">
-                <label for="shirt-update-date">Last Shirt Update</label>
+                <label for="shirt-update-date">Last Inventory Update</label>
                 <input type="text" id="shirt-update-date" readonly>
               </div>
               <div class="update-row">
@@ -2543,6 +2543,7 @@
                 <input type="text" id="app-update-date" value="2/3/2026, 12:43:59 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
+              <div class="event-log-link"><a href="#" id="changelog-link">Change Log</a></div>
             </div>
             <div class="backup-box">
               <div class="backup-title">Cloud Backup</div>
@@ -3123,6 +3124,16 @@
       </div>
     </dialog>
 
+    <dialog id="changelog-dialog">
+      <div class="dialog-body">
+        <h3>Change Log</h3>
+        <div id="changelog-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="changelog-close">Close</button>
+      </div>
+    </dialog>
+
     <script id="embedded-state" type="application/json">{}</script>
 
     <dialog id="photo-dialog" class="photo-dialog">
@@ -3185,9 +3196,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.3";
+      const APP_VERSION = "2.0.4";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-24T01:49:47-05:00";
+      const LAST_COMMIT_DATE = "2026-02-24T02:19:26-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3199,6 +3210,74 @@
       const APP_MODE_KEY = "shirts-app-mode";
       const CURRENT_USER_KEY = "shirts-current-user";
       const FOR_SALE_TAG = "For Sale";
+
+      const CHANGELOG = [
+        {
+          "version": "2.0.4",
+          "date": "2026-02-24",
+          "changes": [
+            "Renamed default column from Shirt Name to Name",
+            "Added NA option to Size dropdown",
+            "Added CSV import dialog with column selection and import mode picker",
+            "Added CSV overwrite and fill-empty modes that match rows by name",
+            "Added automatic CSV delimiter detection (comma, tab, semicolon)",
+            "Fixed CSV import not populating cells on overwrite and fill-empty",
+            "Renamed Last Shirt Update to Last Inventory Update",
+            "Added in-app Change Log dialog",
+            "Change Log auto-updates from CHANGELOG.json during builds"
+          ]
+        },
+        {
+          "version": "2.0.3",
+          "date": "2026-02-18",
+          "changes": [
+            "Added Wishlist mode with separate storage and segmented switcher",
+            "Added For Sale toggle with badge and filter option",
+            "Added column sorting (click any header to sort)",
+            "Added price stats row in footer",
+            "Added drag-and-drop column reordering",
+            "Added visual icon picker grid for shirt types",
+            "Moved mode switcher to sheet header",
+            "Fixed cloud sync losing Brand dropdown options",
+            "Fixed account data bleeding across users",
+            "Fixed token refresh flicker on shared views"
+          ]
+        },
+        {
+          "version": "2.0.2",
+          "date": "2026-02-17",
+          "changes": [
+            "Added hidden column preferences restored from cloud sync",
+            "Added logo image in header",
+            "Added GPL-3.0 license",
+            "Added GitHub repo link in footer",
+            "Polished inputs and UI across desktop and mobile"
+          ]
+        },
+        {
+          "version": "2.0.1",
+          "date": "2026-02-14",
+          "changes": [
+            "Split source HTML into separate CSS and JS files",
+            "Added CSV export and import",
+            "Added tag management system",
+            "Added column hide/show and sharing options",
+            "Added event log for tracking actions"
+          ]
+        },
+        {
+          "version": "2.0.0",
+          "date": "2026-02-03",
+          "changes": [
+            "Initial public release",
+            "Supabase auth with cloud sync and photo storage",
+            "Multi-tab inventory with custom columns",
+            "Desktop and mobile web apps",
+            "Tauri v2 desktop app",
+            "Share collections via public links"
+          ]
+        }
+      ];
 
       const clearLegacyStorage = () => {
         try {
@@ -3757,6 +3836,10 @@
       const eventLogSearch = document.getElementById("event-log-search");
       const eventLogClearButton = document.getElementById("event-log-clear");
       const eventLogCloseButton = document.getElementById("event-log-close");
+      const changelogDialog = document.getElementById("changelog-dialog");
+      const changelogList = document.getElementById("changelog-list");
+      const changelogCloseButton = document.getElementById("changelog-close");
+      const changelogLink = document.getElementById("changelog-link");
       const photoDialog = document.getElementById("photo-dialog");
       const photoDialogImage = document.getElementById("photo-dialog-image");
       const clearPhotoDialogButton = document.getElementById("clear-photo-dialog");
@@ -10146,8 +10229,46 @@
         });
       }
 
+      const renderChangelog = () => {
+        if (!changelogList) return;
+        changelogList.textContent = "";
+        CHANGELOG.forEach((release) => {
+          const section = document.createElement("div");
+          section.style.marginBottom = "18px";
+          const heading = document.createElement("div");
+          heading.style.fontWeight = "700";
+          heading.style.fontSize = "0.95rem";
+          heading.style.marginBottom = "4px";
+          heading.textContent = "v" + release.version + "  \u2014  " + release.date;
+          section.appendChild(heading);
+          const list = document.createElement("ul");
+          list.style.margin = "4px 0 0 0";
+          list.style.paddingLeft = "20px";
+          list.style.fontSize = "0.85rem";
+          list.style.lineHeight = "1.6";
+          release.changes.forEach((change) => {
+            const li = document.createElement("li");
+            li.textContent = change;
+            list.appendChild(li);
+          });
+          section.appendChild(list);
+          changelogList.appendChild(section);
+        });
+      };
 
+      if (changelogCloseButton) {
+        changelogCloseButton.addEventListener("click", () => {
+          closeDialog(changelogDialog);
+        });
+      }
 
+      if (changelogLink) {
+        changelogLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          renderChangelog();
+          openDialog(changelogDialog);
+        });
+      }
 
       filterColumnSelect.addEventListener("change", (event) => {
         state.filter.columnId = event.target.value;

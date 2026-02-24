@@ -273,7 +273,7 @@
             <div class="update-box">
               <div class="update-title">Update Log</div>
               <div class="update-row">
-                <label for="shirt-update-date">Last Shirt Update</label>
+                <label for="shirt-update-date">Last Inventory Update</label>
                 <input type="text" id="shirt-update-date" readonly>
               </div>
               <div class="update-row">
@@ -281,6 +281,7 @@
                 <input type="text" id="app-update-date" value="2/3/2026, 12:43:59 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
+              <div class="event-log-link"><a href="#" id="changelog-link">Change Log</a></div>
             </div>
             <div class="backup-box">
               <div class="backup-title">Cloud Backup</div>
@@ -858,6 +859,16 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="event-log-clear">Clear Log</button>
         <button type="button" class="btn" id="event-log-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="changelog-dialog">
+      <div class="dialog-body">
+        <h3>Change Log</h3>
+        <div id="changelog-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="changelog-close">Close</button>
       </div>
     </dialog>
 

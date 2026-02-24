@@ -1,0 +1,67 @@
+[
+  {
+    "version": "2.0.4",
+    "date": "2026-02-24",
+    "changes": [
+      "Renamed default column from Shirt Name to Name",
+      "Added NA option to Size dropdown",
+      "Added CSV import dialog with column selection and import mode picker",
+      "Added CSV overwrite and fill-empty modes that match rows by name",
+      "Added automatic CSV delimiter detection (comma, tab, semicolon)",
+      "Fixed CSV import not populating cells on overwrite and fill-empty",
+      "Renamed Last Shirt Update to Last Inventory Update",
+      "Added in-app Change Log dialog",
+      "Change Log auto-updates from CHANGELOG.json during builds"
+    ]
+  },
+  {
+    "version": "2.0.3",
+    "date": "2026-02-18",
+    "changes": [
+      "Added Wishlist mode with separate storage and segmented switcher",
+      "Added For Sale toggle with badge and filter option",
+      "Added column sorting (click any header to sort)",
+      "Added price stats row in footer",
+      "Added drag-and-drop column reordering",
+      "Added visual icon picker grid for shirt types",
+      "Moved mode switcher to sheet header",
+      "Fixed cloud sync losing Brand dropdown options",
+      "Fixed account data bleeding across users",
+      "Fixed token refresh flicker on shared views"
+    ]
+  },
+  {
+    "version": "2.0.2",
+    "date": "2026-02-17",
+    "changes": [
+      "Added hidden column preferences restored from cloud sync",
+      "Added logo image in header",
+      "Added GPL-3.0 license",
+      "Added GitHub repo link in footer",
+      "Polished inputs and UI across desktop and mobile"
+    ]
+  },
+  {
+    "version": "2.0.1",
+    "date": "2026-02-14",
+    "changes": [
+      "Split source HTML into separate CSS and JS files",
+      "Added CSV export and import",
+      "Added tag management system",
+      "Added column hide/show and sharing options",
+      "Added event log for tracking actions"
+    ]
+  },
+  {
+    "version": "2.0.0",
+    "date": "2026-02-03",
+    "changes": [
+      "Initial public release",
+      "Supabase auth with cloud sync and photo storage",
+      "Multi-tab inventory with custom columns",
+      "Desktop and mobile web apps",
+      "Tauri v2 desktop app",
+      "Share collections via public links"
+    ]
+  }
+]

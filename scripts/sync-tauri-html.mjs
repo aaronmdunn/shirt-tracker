@@ -38,7 +38,12 @@ if (fs.existsSync(sourceCss)) {
 }
 
 if (fs.existsSync(sourceJs)) {
-  const js = fs.readFileSync(sourceJs, "utf8");
+  let js = fs.readFileSync(sourceJs, "utf8");
+  const changelogPath = path.join(root, "CHANGELOG.json");
+  if (fs.existsSync(changelogPath)) {
+    const changelogJson = fs.readFileSync(changelogPath, "utf8").trim();
+    js = js.replace("/* __CHANGELOG_INJECT__ */ []", changelogJson);
+  }
   const indentedJs = js.split("\n").map(l => l ? "      " + l : l).join("\n");
   html = html.replace(
     /^[ \t]*<script src="app\.js"><\/script>\s*$/m,

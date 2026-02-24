@@ -28,7 +28,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.3";
+const APP_VERSION = "2.0.4";
 const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
@@ -42,6 +42,8 @@ const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
 const APP_MODE_KEY = "shirts-app-mode";
 const CURRENT_USER_KEY = "shirts-current-user";
 const FOR_SALE_TAG = "For Sale";
+
+const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
 const clearLegacyStorage = () => {
   try {
@@ -600,6 +602,10 @@ const eventLogEmpty = document.getElementById("event-log-empty");
 const eventLogSearch = document.getElementById("event-log-search");
 const eventLogClearButton = document.getElementById("event-log-clear");
 const eventLogCloseButton = document.getElementById("event-log-close");
+const changelogDialog = document.getElementById("changelog-dialog");
+const changelogList = document.getElementById("changelog-list");
+const changelogCloseButton = document.getElementById("changelog-close");
+const changelogLink = document.getElementById("changelog-link");
 const photoDialog = document.getElementById("photo-dialog");
 const photoDialogImage = document.getElementById("photo-dialog-image");
 const clearPhotoDialogButton = document.getElementById("clear-photo-dialog");
@@ -6989,8 +6995,46 @@ if (eventLogLink) {
   });
 }
 
+const renderChangelog = () => {
+  if (!changelogList) return;
+  changelogList.textContent = "";
+  CHANGELOG.forEach((release) => {
+    const section = document.createElement("div");
+    section.style.marginBottom = "18px";
+    const heading = document.createElement("div");
+    heading.style.fontWeight = "700";
+    heading.style.fontSize = "0.95rem";
+    heading.style.marginBottom = "4px";
+    heading.textContent = "v" + release.version + "  \u2014  " + release.date;
+    section.appendChild(heading);
+    const list = document.createElement("ul");
+    list.style.margin = "4px 0 0 0";
+    list.style.paddingLeft = "20px";
+    list.style.fontSize = "0.85rem";
+    list.style.lineHeight = "1.6";
+    release.changes.forEach((change) => {
+      const li = document.createElement("li");
+      li.textContent = change;
+      list.appendChild(li);
+    });
+    section.appendChild(list);
+    changelogList.appendChild(section);
+  });
+};
 
+if (changelogCloseButton) {
+  changelogCloseButton.addEventListener("click", () => {
+    closeDialog(changelogDialog);
+  });
+}
 
+if (changelogLink) {
+  changelogLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    renderChangelog();
+    openDialog(changelogDialog);
+  });
+}
 
 filterColumnSelect.addEventListener("change", (event) => {
   state.filter.columnId = event.target.value;
