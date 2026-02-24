@@ -10,8 +10,8 @@
       "Added automatic CSV delimiter detection (comma, tab, semicolon)",
       "Fixed CSV import not populating cells on overwrite and fill-empty",
       "Renamed Last Shirt Update to Last Inventory Update",
-      "Added in-app Change Log dialog",
-      "Change Log auto-updates from CHANGELOG.json during builds"
+      "Added in-app Changelog dialog",
+      "Changelog auto-updates from CHANGELOG.json during builds"
     ]
   },
   {
