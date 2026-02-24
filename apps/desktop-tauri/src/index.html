@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/24/2026, 1:49:29 AM" readonly>
+                <input type="text" id="app-update-date" value="2/24/2026, 2:19:22 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
             </div>
@@ -3187,7 +3187,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.3";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-24T06:49:29.387Z";
+      const LAST_COMMIT_DATE = "2026-02-24T07:19:22.293Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -8970,8 +8970,8 @@
                 alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
                 return;
               }
-              const dataColumnCount = columnMap.filter((column) => column !== null).length;
-              const onlyNameSelected = dataColumnCount === 1 && selectedIndices.has(nameCsvIndex);
+              const selectedDataCount = [...selectedIndices].filter((idx) => idx !== tagsIndex && columnMap[idx] !== null).length;
+              const onlyNameSelected = selectedDataCount === 1 && selectedIndices.has(nameCsvIndex);
               forceRowOrderMatch = onlyNameSelected;
             }
             let importedCount = 0;
@@ -9072,6 +9072,7 @@
               return;
             }
             setGlobalColumns(state.columns);
+            sheetBody.innerHTML = "";
             saveState();
             renderTable();
             const actionLabel = importMode === "append" ? "Imported" : "Updated";
