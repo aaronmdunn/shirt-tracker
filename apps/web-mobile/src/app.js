@@ -5815,7 +5815,6 @@ const importCsv = () => {
       const shouldUseIndex = (index) => selectedIndices.has(index);
       let nameColumn = null;
       let nameCsvIndex = -1;
-      let allNamesEmpty = false;
       if (importMode !== "append") {
         nameColumn = state.columns.find((column) => isShirtNameColumn(column));
         if (!nameColumn) {
@@ -5827,11 +5826,6 @@ const importCsv = () => {
           alert("CSV must include a Name column to match rows for overwrite or fill-empty.");
           return;
         }
-        allNamesEmpty = state.rows.length > 0 && state.rows.every((existingRow) => {
-          const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-          const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-          return nameValue === "";
-        });
       }
       let importedCount = 0;
       for (let i = 1; i < lines.length; i++) {
@@ -5840,22 +5834,28 @@ const importCsv = () => {
         let row = null;
         if (importMode === "append") {
           row = defaultRow();
-        } else if (allNamesEmpty) {
-          const rowIndex = i - 1;
-          if (!state.rows[rowIndex]) {
-            continue;
-          }
-          useExisting = true;
-          row = state.rows[rowIndex];
         } else {
           const csvName = (cells[nameCsvIndex] || "").trim();
           const csvNameLower = csvName.toLowerCase();
-          const matchIndex = state.rows.findIndex((existingRow) => {
-            const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
-            const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
-            if (csvNameLower === "") return nameValue === "";
-            return nameValue.toLowerCase() === csvNameLower;
-          });
+          let matchIndex = -1;
+          if (csvNameLower !== "") {
+            matchIndex = state.rows.findIndex((existingRow) => {
+              const rawValue = existingRow.cells ? existingRow.cells[nameColumn.id] : "";
+              const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+              return nameValue.toLowerCase() === csvNameLower;
+            });
+          }
+          if (matchIndex === -1) {
+            const rowIndex = i - 1;
+            const candidate = state.rows[rowIndex];
+            if (candidate) {
+              const rawValue = candidate.cells ? candidate.cells[nameColumn.id] : "";
+              const nameValue = rawValue === null || rawValue === undefined ? "" : String(rawValue).trim();
+              if (nameValue === "") {
+                matchIndex = rowIndex;
+              }
+            }
+          }
           if (matchIndex === -1) {
             continue;
           }
