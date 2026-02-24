@@ -583,6 +583,12 @@ const textPromptLabel = document.getElementById("text-prompt-label");
 const textPromptInput = document.getElementById("text-prompt-input");
 const textPromptCancelButton = document.getElementById("text-prompt-cancel");
 const textPromptSaveButton = document.getElementById("text-prompt-save");
+const csvImportDialog = document.getElementById("csv-import-dialog");
+const csvImportColumns = document.getElementById("csv-import-columns");
+const csvImportCancelButton = document.getElementById("csv-import-cancel");
+const csvImportConfirmButton = document.getElementById("csv-import-confirm");
+const csvImportSelectAllButton = document.getElementById("csv-import-select-all");
+const csvImportSelectNoneButton = document.getElementById("csv-import-select-none");
 const eventLogDialog = document.getElementById("event-log-dialog");
 const eventLogList = document.getElementById("event-log-list");
 const eventLogEmpty = document.getElementById("event-log-empty");
@@ -1796,6 +1802,95 @@ const showTextPrompt = (title, label, defaultValue) => {
     openDialog(textPromptDialog);
     textPromptInput.focus();
     textPromptInput.select();
+  });
+};
+
+const clearNode = (node) => {
+  if (!node) return;
+  while (node.firstChild) node.removeChild(node.firstChild);
+};
+
+const showCsvImportDialog = (columns, tagsIndex) => {
+  return new Promise((resolve) => {
+    if (!csvImportDialog || !csvImportColumns || !csvImportConfirmButton || !csvImportCancelButton) {
+      resolve(null);
+      return;
+    }
+    let resolved = false;
+    const cleanup = () => {
+      if (resolved) return;
+      resolved = true;
+      csvImportConfirmButton.removeEventListener("click", onConfirm);
+      csvImportCancelButton.removeEventListener("click", onCancel);
+      csvImportDialog.removeEventListener("cancel", onDialogCancel);
+      if (csvImportSelectAllButton) csvImportSelectAllButton.removeEventListener("click", onSelectAll);
+      if (csvImportSelectNoneButton) csvImportSelectNoneButton.removeEventListener("click", onSelectNone);
+    };
+    const getSelectedIndices = () => {
+      const selected = new Set();
+      const inputs = csvImportColumns.querySelectorAll("input[type='checkbox']");
+      inputs.forEach((input) => {
+        if (!input.checked) return;
+        const idx = Number.parseInt(input.value, 10);
+        if (!Number.isNaN(idx)) selected.add(idx);
+      });
+      return selected;
+    };
+    const getMode = () => {
+      const selected = document.querySelector("input[name='csv-import-mode']:checked");
+      return selected ? selected.value : "append";
+    };
+    const onConfirm = () => {
+      const selected = getSelectedIndices();
+      if (selected.size === 0) {
+        alert("Select at least one column to import.");
+        return;
+      }
+      const mode = getMode();
+      cleanup();
+      closeDialog(csvImportDialog);
+      resolve({ selected, mode, tagsIndex });
+    };
+    const onCancel = () => {
+      cleanup();
+      closeDialog(csvImportDialog);
+      resolve(null);
+    };
+    const onDialogCancel = () => {
+      onCancel();
+    };
+    const onSelectAll = () => {
+      const inputs = csvImportColumns.querySelectorAll("input[type='checkbox']");
+      inputs.forEach((input) => { input.checked = true; });
+    };
+    const onSelectNone = () => {
+      const inputs = csvImportColumns.querySelectorAll("input[type='checkbox']");
+      inputs.forEach((input) => { input.checked = false; });
+    };
+    clearNode(csvImportColumns);
+    columns.forEach((entry) => {
+      const label = document.createElement("label");
+      label.style.display = "flex";
+      label.style.alignItems = "center";
+      label.style.gap = "8px";
+      label.style.margin = "6px 0";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = String(entry.index);
+      checkbox.checked = true;
+      const text = document.createElement("span");
+      text.textContent = entry.label;
+      label.appendChild(checkbox);
+      label.appendChild(text);
+      csvImportColumns.appendChild(label);
+    });
+    csvImportConfirmButton.addEventListener("click", onConfirm);
+    csvImportCancelButton.addEventListener("click", onCancel);
+    csvImportDialog.addEventListener("cancel", onDialogCancel);
+    if (csvImportSelectAllButton) csvImportSelectAllButton.addEventListener("click", onSelectAll);
+    if (csvImportSelectNoneButton) csvImportSelectNoneButton.addEventListener("click", onSelectNone);
+    openDialog(csvImportDialog);
+    resetDialogScroll(csvImportDialog);
   });
 };
 
@@ -5670,7 +5765,7 @@ const importCsv = () => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target.result;
       const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
       if (lines.length < 2) {
@@ -5680,42 +5775,70 @@ const importCsv = () => {
       const headerCells = parseCsvLine(lines[0]);
       const columnMap = [];
       let tagsIndex = -1;
+      const selectableColumns = [];
       headerCells.forEach((header, index) => {
         const headerLower = header.trim().toLowerCase();
         if (headerLower === "tags") {
           tagsIndex = index;
           columnMap.push(null);
+          selectableColumns.push({ index, label: "Tags" });
           return;
         }
         const match = state.columns.find(
           (col) => getColumnLabel(col).trim().toLowerCase() === headerLower
         );
         columnMap.push(match || null);
+        if (match) {
+          selectableColumns.push({ index, label: getColumnLabel(match) });
+        }
       });
       if (columnMap.every((col) => col === null) && tagsIndex === -1) {
         alert("No CSV columns matched your current columns. Check that the CSV header names match.");
         return;
       }
+      const selection = await showCsvImportDialog(selectableColumns, tagsIndex);
+      if (!selection) return;
+      const selectedIndices = selection.selected;
+      const importMode = selection.mode;
+      const includeTags = tagsIndex !== -1 && selectedIndices.has(tagsIndex);
+      const shouldUseIndex = (index) => selectedIndices.has(index);
       let importedCount = 0;
       for (let i = 1; i < lines.length; i++) {
         const cells = parseCsvLine(lines[i]);
-        const row = defaultRow();
+        const rowIndex = i - 1;
+        const useExisting = importMode !== "append" && state.rows[rowIndex];
+        const row = useExisting ? state.rows[rowIndex] : defaultRow();
+        if (!row.cells) row.cells = {};
         let hasData = false;
-        if (tagsIndex !== -1 && cells[tagsIndex]) {
+        if (includeTags && cells[tagsIndex]) {
           const tagValues = cells[tagsIndex].split(",").map((t) => t.trim()).filter(Boolean);
           if (tagValues.length) {
-            row.tags = tagValues;
-            hasData = true;
+            if (importMode === "overwrite" || !row.tags || row.tags.length === 0) {
+              row.tags = tagValues;
+              hasData = true;
+            }
           }
         }
         cells.forEach((cellValue, index) => {
+          if (!shouldUseIndex(index)) return;
           if (index === tagsIndex) return;
           const column = columnMap[index];
           if (!column) return;
           const trimmed = cellValue.trim();
           if (!trimmed) return;
-          hasData = true;
-          row.cells[column.id] = trimmed;
+          if (importMode === "overwrite") {
+            row.cells[column.id] = trimmed;
+            hasData = true;
+          } else if (importMode === "fill-empty") {
+            const existingValue = row.cells[column.id];
+            if (!existingValue || String(existingValue).trim() === "") {
+              row.cells[column.id] = trimmed;
+              hasData = true;
+            }
+          } else {
+            row.cells[column.id] = trimmed;
+            hasData = true;
+          }
           if (column.type === "select" && trimmed) {
             const existing = (column.options || []).map((o) => String(o).toLowerCase());
             if (!existing.includes(trimmed.toLowerCase())) {
@@ -5733,7 +5856,7 @@ const importCsv = () => {
           }
         });
         if (hasData) {
-          state.rows.push(row);
+          if (!useExisting) state.rows.push(row);
           importedCount++;
         }
       }
@@ -5744,8 +5867,9 @@ const importCsv = () => {
       setGlobalColumns(state.columns);
       saveState();
       renderTable();
-      addEventLog("Imported CSV", importedCount + " rows");
-      alert("Imported " + importedCount + " row" + (importedCount !== 1 ? "s" : "") + " from CSV.");
+      const actionLabel = importMode === "append" ? "Imported" : "Updated";
+      addEventLog("Imported CSV", actionLabel + " " + importedCount + " rows");
+      alert(actionLabel + " " + importedCount + " row" + (importedCount !== 1 ? "s" : "") + " from CSV.");
     };
     reader.readAsText(file);
   });
