@@ -31,3 +31,6 @@ deno.lock
 
 # macOS app bundles
 *.app
+
+# Continuation prompt (local only)
+CONTINUATION-PROMPT.md
