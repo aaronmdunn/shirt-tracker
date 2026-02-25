@@ -27,7 +27,13 @@ const injectLastCommitDate = (filePath, lastCommitDate) => {
   fs.writeFileSync(filePath, updated, "utf8");
 };
 
-const redirects = `# Device routing
+const redirects = `# Auth callbacks — route to JS redirect page that preserves hash + query params
+/?type=invite /auth-redirect.html 200
+/?type=recovery /auth-redirect.html 200
+/?type=email_change /auth-redirect.html 200
+/?type=signup /auth-redirect.html 200
+
+# Device routing
 / /m/ 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
 / /d/ 302
 
