@@ -130,4 +130,27 @@ injectLastCommitDate(path.join(outDesktop, "index.html"), lastCommitDate);
 injectLastCommitDate(path.join(outMobile, "index.html"), lastCommitDate);
 
 fs.writeFileSync(path.join(outDir, "_redirects"), redirects, "utf8");
+
+const authRedirectHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirecting \u2014 Shirt Tracker</title>
+  <style>
+    body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; background: #f5f5f5; color: #666; }
+  </style>
+</head>
+<body>
+  <p>Redirecting&hellip;</p>
+  <script>
+    const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    const base = isMobile ? "/m/" : "/d/";
+    const destination = base + window.location.search + window.location.hash;
+    window.location.replace(destination);
+  </script>
+</body>
+</html>`;
+
+fs.writeFileSync(path.join(outDir, "auth-redirect.html"), authRedirectHtml, "utf8");
 console.log(`Wrote Netlify publish folder to ${outDir}`);
