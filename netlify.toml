@@ -1,2 +1,27 @@
 [functions]
   directory = "netlify/functions"
+
+# Security headers applied to all routes
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Prevent browsers from MIME-sniffing away from the declared content type
+    X-Content-Type-Options = "nosniff"
+
+    # Prevent this app from being embedded in iframes on other origins
+    X-Frame-Options = "SAMEORIGIN"
+
+    # Stop legacy browsers sending the full Referer URL to third parties
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+    # Restrict browser features not used by this app
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+    # Content Security Policy
+    # - script-src: only self, jsDelivr (Supabase SDK), and Google Tag Manager
+    # - connect-src: self + Supabase project + Google Analytics
+    # - img-src: self, data URIs, blob URLs (photo previews), and Supabase storage
+    # - style-src: self + unsafe-inline (required by existing inline styles)
+    # - font-src: self (fonts are self-hosted)
+    # - frame-ancestors: prevents clickjacking from any origin
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://jbmzsxbzqvgsasjhwuko.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; img-src 'self' data: blob: https://jbmzsxbzqvgsasjhwuko.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
