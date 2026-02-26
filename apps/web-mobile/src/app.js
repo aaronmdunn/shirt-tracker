@@ -14,6 +14,8 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event?.reason?.message || String(event?.reason || "Unknown rejection");
+  // Don't show error banners for non-critical network failures (e.g. analytics, background sync)
+  if (/NetworkError|Failed to fetch|Load failed/i.test(reason)) return;
   showFatalError(reason);
 });
 
