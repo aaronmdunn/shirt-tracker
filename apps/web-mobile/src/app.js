@@ -7278,6 +7278,7 @@ if (changelogLink) {
     event.preventDefault();
     renderChangelog();
     openDialog(changelogDialog);
+    if (changelogDialog) changelogDialog.scrollTop = 0;
   });
 }
 
