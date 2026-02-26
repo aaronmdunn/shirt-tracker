@@ -464,6 +464,10 @@ const tagsAddButton = document.getElementById("tags-add");
 const tagsSuggestions = document.getElementById("tags-suggestions");
 const tagsList = document.getElementById("tags-list");
 const tagsCloseButton = document.getElementById("tags-close");
+const tagsMainView = document.getElementById("tags-main-view");
+const tagsManageView = document.getElementById("tags-manage-view");
+const tagsManageList = document.getElementById("tags-manage-list");
+const tagsManageButton = document.getElementById("tags-manage-btn");
 const bulkTagsDialog = document.getElementById("bulk-tags-dialog");
 const bulkTagsCount = document.getElementById("bulk-tags-count");
 const bulkTagsInput = document.getElementById("bulk-tags-input");
@@ -5473,6 +5477,115 @@ const addTagsFromInput = () => {
   renderTagsDialog();
 };
 
+const showTagsMainView = () => {
+  if (tagsMainView) tagsMainView.style.display = "";
+  if (tagsManageView) tagsManageView.style.display = "none";
+  if (tagsManageButton) tagsManageButton.textContent = "Manage Tags";
+  renderTagsDialog();
+};
+
+const deleteGlobalTag = (tag) => {
+  const tagLower = String(tag).toLowerCase();
+  const custom = loadCustomTags().filter((t) => t.toLowerCase() !== tagLower);
+  saveCustomTags(custom);
+  state.rows.forEach((row) => {
+    const current = getRowTags(row);
+    if (current.some((t) => t.toLowerCase() === tagLower)) {
+      const next = current.filter((t) => t.toLowerCase() !== tagLower);
+      setRowTags(row.id, next, "manage-delete");
+    }
+  });
+  addEventLog("Deleted tag", tag);
+};
+
+const renameGlobalTag = (oldTag, newTag) => {
+  const oldLower = String(oldTag).toLowerCase();
+  const newTrimmed = String(newTag || "").trim();
+  if (!newTrimmed || newTrimmed.toLowerCase() === oldLower) return;
+  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((t) => t.toLowerCase()));
+  const custom = loadCustomTags();
+  if (baseLower.has(oldLower)) {
+    const alreadyExists = custom.some((t) => t.toLowerCase() === newTrimmed.toLowerCase());
+    if (!alreadyExists) custom.push(newTrimmed);
+  } else {
+    const idx = custom.findIndex((t) => t.toLowerCase() === oldLower);
+    if (idx !== -1) {
+      custom[idx] = newTrimmed;
+    } else {
+      custom.push(newTrimmed);
+    }
+  }
+  const dupeCheck = new Map();
+  custom.forEach((t) => { const k = t.toLowerCase(); if (!dupeCheck.has(k)) dupeCheck.set(k, t); });
+  saveCustomTags(Array.from(dupeCheck.values()));
+  state.rows.forEach((row) => {
+    const current = getRowTags(row);
+    if (current.some((t) => t.toLowerCase() === oldLower)) {
+      const next = current.map((t) => t.toLowerCase() === oldLower ? newTrimmed : t);
+      setRowTags(row.id, next, "manage-rename");
+    }
+  });
+  addEventLog("Renamed tag", `${oldTag} → ${newTrimmed}`);
+  scheduleSync();
+};
+
+const renderManageTagsView = () => {
+  if (!tagsManageList) return;
+  tagsManageList.innerHTML = "";
+  const allTags = getAllTags();
+  if (!allTags.length) {
+    const empty = document.createElement("div");
+    empty.textContent = "No tags to manage.";
+    empty.style.color = "var(--muted)";
+    empty.style.fontSize = "0.85rem";
+    tagsManageList.appendChild(empty);
+    return;
+  }
+  allTags.forEach((tag) => {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "8px";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.value = tag;
+    input.style.flex = "1";
+    input.style.padding = "4px 8px";
+    input.style.fontSize = "0.85rem";
+    input.style.border = "1px solid var(--line)";
+    input.style.borderRadius = "4px";
+    const originalTag = tag;
+    const commitRename = () => {
+      const newVal = input.value.trim();
+      if (newVal && newVal !== originalTag) {
+        renameGlobalTag(originalTag, newVal);
+        renderManageTagsView();
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+    });
+    input.addEventListener("blur", commitRename);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.className = "btn secondary";
+    Object.assign(deleteBtn.style, {
+      padding: "4px 10px",
+      fontSize: "0.8rem",
+      color: "#c62828",
+      borderColor: "#c62828",
+    });
+    deleteBtn.addEventListener("click", () => {
+      deleteGlobalTag(originalTag);
+      renderManageTagsView();
+    });
+    row.appendChild(input);
+    row.appendChild(deleteBtn);
+    tagsManageList.appendChild(row);
+  });
+};
+
 const applyBulkTags = (incoming, mode = "add") => {
   const ids = getSelectedRowIds();
   if (!ids.length) return;
@@ -6480,8 +6593,22 @@ if (tagsInput) {
 
 if (tagsCloseButton) {
   tagsCloseButton.addEventListener("click", () => {
+    showTagsMainView();
     closeDialog(tagsDialog);
     activeTagsRowId = null;
+  });
+}
+
+if (tagsManageButton) {
+  tagsManageButton.addEventListener("click", () => {
+    if (tagsManageView && tagsManageView.style.display === "none") {
+      if (tagsMainView) tagsMainView.style.display = "none";
+      tagsManageView.style.display = "";
+      tagsManageButton.textContent = "Back";
+      renderManageTagsView();
+    } else {
+      showTagsMainView();
+    }
   });
 }
 
