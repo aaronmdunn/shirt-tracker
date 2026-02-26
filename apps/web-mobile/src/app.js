@@ -1638,7 +1638,6 @@ const setAuthStatus = () => {
     updateUnsavedStatus();
     updateHeaderSubtitle();
 
-    positionViewerBadge();
     positionTotalCount();
     updateFooterVersionLine();
     return;
@@ -1661,7 +1660,6 @@ const setAuthStatus = () => {
     updateUnsavedStatus();
     updateHeaderSubtitle();
 
-    positionViewerBadge();
     positionTotalCount();
     updatePublicShareLink();
     updatePublicShareSummary();
@@ -1685,7 +1683,6 @@ const setAuthStatus = () => {
     updateUnsavedStatus();
     updateHeaderSubtitle();
 
-    positionViewerBadge();
     positionTotalCount();
     updatePublicShareLink();
     updatePublicShareSummary();
@@ -2047,7 +2044,6 @@ const applyPublicShareMode = () => {
   if (verifyBackupButton) verifyBackupButton.disabled = true;
   updateUnsavedStatus();
   updateHeaderSubtitle();
-  positionViewerBadge();
   positionTotalCount();
   applyReadOnlyMode();
   applyViewerRedactions();
@@ -2312,8 +2308,7 @@ const applyMobileHeaderInlineLayout = () => {
 
 requestAnimationFrame(applyMobileHeaderInlineLayout);
 
-const positionViewerBadge = () => {
-};
+
 
 const positionTotalCount = () => {
   if (!totalCountEl || !totalCostEl || !totalsPanel) return;
@@ -2435,7 +2430,6 @@ const setCustomLogo = (tabId, value) => {
   saveLogoMap(map);
 };
 
-let pendingLogoTabId = null;
 let tabLogoRenderId = 0;
 
 const updateTabLogo = async () => {
@@ -2915,7 +2909,6 @@ const loadRemoteState = async () => {
     if (isViewerSession) {
       document.body.setAttribute("data-auth", "signed-in");
     }
-    positionViewerBadge();
     positionAuthAction();
     positionTotalCount();
     if (data.updated_at) {
@@ -3532,7 +3525,6 @@ const switchAppMode = (nextMode) => {
   try {
     localStorage.setItem(APP_MODE_KEY, appMode);
   } catch (error) { /* ignore */ }
-  activeTypeFilter = new Set();
   const snapshot = savedModeState[nextMode];
   if (snapshot) {
     restoreModeSnapshot(snapshot);
@@ -3932,7 +3924,6 @@ const renderTabs = () => {
 const switchTab = (tabId) => {
   if (!tabId || tabId === tabsState.activeTabId) return;
   const nextTab = tabsState.tabs.find((tab) => tab.id === tabId);
-  activeTypeFilter = new Set();
   saveState();
   tabsState.activeTabId = tabId;
   saveTabsState();
@@ -3940,7 +3931,9 @@ const switchTab = (tabId) => {
     const payload = tabsState.embeddedData[tabId];
     if (payload) {
       applyStatePayload(payload);
-      enforceFandomRules();
+      applyTabFandomOptions();
+      applyTabTypeOptions();
+      applyTabBrandOptions();
       ensureRowCells();
       if (isViewerSession) {
         state.readOnly = true;
@@ -7283,7 +7276,6 @@ if (filterTagsSelect) {
 
 clearFilterButton.addEventListener("click", () => {
   state.filter = { columnId: "all", query: "" };
-  activeTypeFilter = new Set();
   saveState();
   renderTable();
 });

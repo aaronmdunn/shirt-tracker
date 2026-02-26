@@ -3376,6 +3376,8 @@
 
       window.addEventListener("unhandledrejection", (event) => {
         const reason = event?.reason?.message || String(event?.reason || "Unknown rejection");
+        // Don't show error banners for non-critical network failures (e.g. analytics, background sync)
+        if (/NetworkError|Failed to fetch|Load failed/i.test(reason)) return;
         showFatalError(reason);
       });
 
@@ -3392,7 +3394,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T16:14:08-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T17:44:46-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -5076,7 +5078,6 @@
           updateUnsavedStatus();
           updateHeaderSubtitle();
 
-          positionViewerBadge();
           positionTotalCount();
           updateFooterVersionLine();
           return;
@@ -5099,7 +5100,6 @@
           updateUnsavedStatus();
           updateHeaderSubtitle();
 
-          positionViewerBadge();
           positionTotalCount();
           updatePublicShareLink();
           updatePublicShareSummary();
@@ -5123,7 +5123,6 @@
           updateUnsavedStatus();
           updateHeaderSubtitle();
 
-          positionViewerBadge();
           positionTotalCount();
           updatePublicShareLink();
           updatePublicShareSummary();
@@ -5485,7 +5484,6 @@
         if (verifyBackupButton) verifyBackupButton.disabled = true;
         updateUnsavedStatus();
         updateHeaderSubtitle();
-        positionViewerBadge();
         positionTotalCount();
         applyReadOnlyMode();
         applyViewerRedactions();
@@ -5750,8 +5748,7 @@
 
       requestAnimationFrame(applyMobileHeaderInlineLayout);
 
-      const positionViewerBadge = () => {
-      };
+
 
       const positionTotalCount = () => {
         if (!totalCountEl || !totalCostEl || !totalsPanel) return;
@@ -5873,7 +5870,6 @@
         saveLogoMap(map);
       };
 
-      let pendingLogoTabId = null;
       let tabLogoRenderId = 0;
 
       const updateTabLogo = async () => {
@@ -6353,7 +6349,6 @@
           if (isViewerSession) {
             document.body.setAttribute("data-auth", "signed-in");
           }
-          positionViewerBadge();
           positionAuthAction();
           positionTotalCount();
           if (data.updated_at) {
@@ -6970,7 +6965,6 @@
         try {
           localStorage.setItem(APP_MODE_KEY, appMode);
         } catch (error) { /* ignore */ }
-        activeTypeFilter = new Set();
         const snapshot = savedModeState[nextMode];
         if (snapshot) {
           restoreModeSnapshot(snapshot);
@@ -7370,7 +7364,6 @@
       const switchTab = (tabId) => {
         if (!tabId || tabId === tabsState.activeTabId) return;
         const nextTab = tabsState.tabs.find((tab) => tab.id === tabId);
-        activeTypeFilter = new Set();
         saveState();
         tabsState.activeTabId = tabId;
         saveTabsState();
@@ -7378,7 +7371,9 @@
           const payload = tabsState.embeddedData[tabId];
           if (payload) {
             applyStatePayload(payload);
-            enforceFandomRules();
+            applyTabFandomOptions();
+            applyTabTypeOptions();
+            applyTabBrandOptions();
             ensureRowCells();
             if (isViewerSession) {
               state.readOnly = true;
@@ -10721,7 +10716,6 @@
 
       clearFilterButton.addEventListener("click", () => {
         state.filter = { columnId: "all", query: "" };
-        activeTypeFilter = new Set();
         saveState();
         renderTable();
       });
