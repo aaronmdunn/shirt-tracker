@@ -41,6 +41,7 @@ const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
 const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
 const APP_MODE_KEY = "shirts-app-mode";
 const CURRENT_USER_KEY = "shirts-current-user";
+const CUSTOM_TAGS_KEY = "shirts-custom-tags-v1";
 const FOR_SALE_TAG = "For Sale";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
@@ -2661,6 +2662,7 @@ const buildCloudPayload = () => {
     tabLogos: loadLogoMap(),
     eventLog: loadEventLog(),
     typeIconMap: loadTypeIconMap(),
+    customTags: loadCustomTags(),
     tabStates: inventoryTabStates,
     columnOverrides: inventoryColumnOverrides,
     globalColumns: inventoryGlobalColumns,
@@ -2731,6 +2733,9 @@ const applyCloudPayload = (payload) => {
   }
   if (payload.typeIconMap && typeof payload.typeIconMap === "object") {
     saveTypeIconMap(payload.typeIconMap);
+  }
+  if (Array.isArray(payload.customTags)) {
+    saveCustomTags(payload.customTags);
   }
   if (payload.publicShareId) {
     savePublicShareId(payload.publicShareId);
@@ -5183,6 +5188,46 @@ const BASE_TAG_SUGGESTIONS = [
   "Dropzone",
 ];
 
+const loadCustomTags = () => {
+  if (!canUseLocalStorage()) return [];
+  try {
+    const stored = localStorage.getItem(CUSTOM_TAGS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const saveCustomTags = (tags) => {
+  if (!canUseLocalStorage()) return;
+  try {
+    localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const persistNewTags = (incoming) => {
+  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((t) => t.toLowerCase()));
+  const current = loadCustomTags();
+  const currentLower = new Set(current.map((t) => t.toLowerCase()));
+  let changed = false;
+  incoming.forEach((tag) => {
+    const key = String(tag || "").trim().toLowerCase();
+    if (!key) return;
+    if (baseLower.has(key)) return;
+    if (currentLower.has(key)) return;
+    current.push(String(tag).trim());
+    currentLower.add(key);
+    changed = true;
+  });
+  if (changed) {
+    saveCustomTags(current);
+    scheduleSync();
+  }
+};
+
 const normalizeTagsInput = (value) => String(value || "")
   .split(",")
   .map((tag) => String(tag || "").trim())
@@ -5206,6 +5251,10 @@ const getAllTags = () => {
   BASE_TAG_SUGGESTIONS.forEach((tag) => {
     const key = String(tag).toLowerCase();
     if (key) merged.set(key, tag);
+  });
+  loadCustomTags().forEach((tag) => {
+    const key = String(tag).toLowerCase();
+    if (key && !merged.has(key)) merged.set(key, String(tag));
   });
   state.rows.forEach((row) => {
     getRowTags(row).forEach((tag) => {
@@ -5292,7 +5341,7 @@ const renderTagSuggestions = (query, row) => {
     return key.includes(queryLower);
   });
   if (!candidates.length) return;
-  candidates.slice(0, 12).forEach((tag) => {
+  candidates.forEach((tag) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "btn secondary";
@@ -5301,6 +5350,7 @@ const renderTagSuggestions = (query, row) => {
     chip.style.fontSize = "0.8rem";
     chip.addEventListener("click", () => {
       const merged = mergeTags(getRowTags(row), [tag]);
+      persistNewTags([tag]);
       setRowTags(activeTagsRowId, merged, "tags-suggest");
       if (tagsInput) tagsInput.value = "";
       renderTagsDialog();
@@ -5319,7 +5369,7 @@ const renderBulkTagSuggestions = (query) => {
     return key.includes(queryLower);
   });
   if (!candidates.length) return;
-  candidates.slice(0, 12).forEach((tag) => {
+  candidates.forEach((tag) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "btn secondary";
@@ -5417,6 +5467,7 @@ const addTagsFromInput = () => {
   if (!row) return;
   const currentTags = getRowTags(row);
   const merged = mergeTags(currentTags, incoming);
+  persistNewTags(incoming);
   setRowTags(activeTagsRowId, merged, "tags-input");
   tagsInput.value = "";
   renderTagsDialog();
@@ -5425,6 +5476,7 @@ const addTagsFromInput = () => {
 const applyBulkTags = (incoming, mode = "add") => {
   const ids = getSelectedRowIds();
   if (!ids.length) return;
+  if (mode === "add") persistNewTags(incoming);
   const incomingLower = new Set(incoming.map((tag) => String(tag).toLowerCase()));
   ids.forEach((rowId) => {
     const row = state.rows.find((item) => item.id === rowId);

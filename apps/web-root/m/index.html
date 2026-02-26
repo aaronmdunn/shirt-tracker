@@ -3384,7 +3384,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.4";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-25T05:28:33-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T02:09:29-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3395,6 +3395,7 @@
       const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
       const APP_MODE_KEY = "shirts-app-mode";
       const CURRENT_USER_KEY = "shirts-current-user";
+      const CUSTOM_TAGS_KEY = "shirts-custom-tags-v1";
       const FOR_SALE_TAG = "For Sale";
 
       const CHANGELOG = [
@@ -6081,6 +6082,7 @@
           tabLogos: loadLogoMap(),
           eventLog: loadEventLog(),
           typeIconMap: loadTypeIconMap(),
+          customTags: loadCustomTags(),
           tabStates: inventoryTabStates,
           columnOverrides: inventoryColumnOverrides,
           globalColumns: inventoryGlobalColumns,
@@ -6151,6 +6153,9 @@
         }
         if (payload.typeIconMap && typeof payload.typeIconMap === "object") {
           saveTypeIconMap(payload.typeIconMap);
+        }
+        if (Array.isArray(payload.customTags)) {
+          saveCustomTags(payload.customTags);
         }
         if (payload.publicShareId) {
           savePublicShareId(payload.publicShareId);
@@ -8603,6 +8608,46 @@
         "Dropzone",
       ];
 
+      const loadCustomTags = () => {
+        if (!canUseLocalStorage()) return [];
+        try {
+          const stored = localStorage.getItem(CUSTOM_TAGS_KEY);
+          const parsed = stored ? JSON.parse(stored) : [];
+          return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+        } catch (error) {
+          return [];
+        }
+      };
+
+      const saveCustomTags = (tags) => {
+        if (!canUseLocalStorage()) return;
+        try {
+          localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      const persistNewTags = (incoming) => {
+        const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((t) => t.toLowerCase()));
+        const current = loadCustomTags();
+        const currentLower = new Set(current.map((t) => t.toLowerCase()));
+        let changed = false;
+        incoming.forEach((tag) => {
+          const key = String(tag || "").trim().toLowerCase();
+          if (!key) return;
+          if (baseLower.has(key)) return;
+          if (currentLower.has(key)) return;
+          current.push(String(tag).trim());
+          currentLower.add(key);
+          changed = true;
+        });
+        if (changed) {
+          saveCustomTags(current);
+          scheduleSync();
+        }
+      };
+
       const normalizeTagsInput = (value) => String(value || "")
         .split(",")
         .map((tag) => String(tag || "").trim())
@@ -8626,6 +8671,10 @@
         BASE_TAG_SUGGESTIONS.forEach((tag) => {
           const key = String(tag).toLowerCase();
           if (key) merged.set(key, tag);
+        });
+        loadCustomTags().forEach((tag) => {
+          const key = String(tag).toLowerCase();
+          if (key && !merged.has(key)) merged.set(key, String(tag));
         });
         state.rows.forEach((row) => {
           getRowTags(row).forEach((tag) => {
@@ -8712,7 +8761,7 @@
           return key.includes(queryLower);
         });
         if (!candidates.length) return;
-        candidates.slice(0, 12).forEach((tag) => {
+        candidates.forEach((tag) => {
           const chip = document.createElement("button");
           chip.type = "button";
           chip.className = "btn secondary";
@@ -8721,6 +8770,7 @@
           chip.style.fontSize = "0.8rem";
           chip.addEventListener("click", () => {
             const merged = mergeTags(getRowTags(row), [tag]);
+            persistNewTags([tag]);
             setRowTags(activeTagsRowId, merged, "tags-suggest");
             if (tagsInput) tagsInput.value = "";
             renderTagsDialog();
@@ -8739,7 +8789,7 @@
           return key.includes(queryLower);
         });
         if (!candidates.length) return;
-        candidates.slice(0, 12).forEach((tag) => {
+        candidates.forEach((tag) => {
           const chip = document.createElement("button");
           chip.type = "button";
           chip.className = "btn secondary";
@@ -8837,6 +8887,7 @@
         if (!row) return;
         const currentTags = getRowTags(row);
         const merged = mergeTags(currentTags, incoming);
+        persistNewTags(incoming);
         setRowTags(activeTagsRowId, merged, "tags-input");
         tagsInput.value = "";
         renderTagsDialog();
@@ -8845,6 +8896,7 @@
       const applyBulkTags = (incoming, mode = "add") => {
         const ids = getSelectedRowIds();
         if (!ids.length) return;
+        if (mode === "add") persistNewTags(incoming);
         const incomingLower = new Set(incoming.map((tag) => String(tag).toLowerCase()));
         ids.forEach((rowId) => {
           const row = state.rows.find((item) => item.id === rowId);
