@@ -35,7 +35,7 @@ const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
 const APP_UPDATE_KEY = "shirts-app-update-date";
-const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
+
 const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
 const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
 const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
@@ -485,7 +485,7 @@ const bulkTagsSuggestions = document.getElementById("bulk-tags-suggestions");
 const bulkTagsCloseButton = document.getElementById("bulk-tags-close");
 const appTitleEl = document.getElementById("app-title");
 const appSubtitleEl = document.getElementById("app-subtitle");
-const signedOutGreetingEl = document.querySelector(".signedout-greeting");
+
 const tabLogoPanel = document.getElementById("tab-logo-panel");
 const topControls = document.getElementById("top-controls");
 const dangerZone = document.querySelector(".danger-zone");
@@ -1645,7 +1645,7 @@ const setAuthStatus = () => {
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
     updateHeaderSubtitle();
-    updateSignedOutGreeting();
+
     positionViewerBadge();
     positionTotalCount();
     updateFooterVersionLine();
@@ -1655,11 +1655,6 @@ const setAuthStatus = () => {
     document.body.setAttribute("data-auth", "signed-in");
     state.readOnly = false;
     clearReadOnlyMode();
-    try {
-      localStorage.removeItem(SIGNED_OUT_GREETING_KEY);
-    } catch (error) {
-      // ignore
-    }
     authActionButton.textContent = "Sign Out";
     authActionButton.classList.remove("auth-signed-out");
     authActionButton.classList.add("auth-signed-in");
@@ -1672,7 +1667,7 @@ const setAuthStatus = () => {
     if (verifyBackupButton) verifyBackupButton.disabled = false;
     updateUnsavedStatus();
     updateHeaderSubtitle();
-    updateSignedOutGreeting();
+
     positionViewerBadge();
     positionTotalCount();
     updatePublicShareLink();
@@ -1695,7 +1690,7 @@ const setAuthStatus = () => {
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
     updateHeaderSubtitle();
-    updateSignedOutGreeting();
+
     positionViewerBadge();
     positionTotalCount();
     updatePublicShareLink();
@@ -2045,7 +2040,6 @@ const applyPublicShareMode = () => {
   if (verifyBackupButton) verifyBackupButton.disabled = true;
   updateUnsavedStatus();
   updateHeaderSubtitle();
-  updateSignedOutGreeting();
   positionViewerBadge();
   positionTotalCount();
   applyReadOnlyMode();
@@ -2538,25 +2532,7 @@ const updateHeaderSubtitle = () => {
     : `Inventory as of ${dateValue}`;
 };
 
-const updateSignedOutGreeting = () => {
-  if (!signedOutGreetingEl) return;
-  if (signedOutGreetingEl.dataset && signedOutGreetingEl.dataset.static === "true") {
-    return;
-  }
-  if (document.body.getAttribute("data-auth") === "signed-out") {
-    let message = "Hiya, Pal!";
-    try {
-      if (localStorage.getItem(SIGNED_OUT_GREETING_KEY) === "swell") {
-        message = "See ya real soon!";
-      }
-    } catch (error) {
-      // ignore
-    }
-    signedOutGreetingEl.textContent = message;
-    return;
-  }
-  signedOutGreetingEl.textContent = "Hiya, Pal!";
-};
+
 
 const buildCloudPayload = () => {
   const inventoryTabs = appMode === "inventory" ? tabsState.tabs : (() => {
@@ -6670,11 +6646,6 @@ if (resetFreshButton) {
 
 authActionButton.addEventListener("click", () => {
   if (currentUser) {
-    try {
-      localStorage.setItem(SIGNED_OUT_GREETING_KEY, "swell");
-    } catch (error) {
-      // ignore
-    }
     supabase.auth.signOut();
   } else {
     authMessage.textContent = supabase

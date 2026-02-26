@@ -33,4 +33,4 @@ deno.lock
 *.app
 
 # Continuation prompt (local only)
-CONTINUATION-PROMPT.md
+CLAUDE-PROMPT.md
