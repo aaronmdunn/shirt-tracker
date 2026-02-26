@@ -5341,7 +5341,7 @@ const renderTagSuggestions = (query, row) => {
     return key.includes(queryLower);
   });
   if (!candidates.length) return;
-  candidates.slice(0, 12).forEach((tag) => {
+  candidates.forEach((tag) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "btn secondary";
@@ -5369,7 +5369,7 @@ const renderBulkTagSuggestions = (query) => {
     return key.includes(queryLower);
   });
   if (!candidates.length) return;
-  candidates.slice(0, 12).forEach((tag) => {
+  candidates.forEach((tag) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "btn secondary";
