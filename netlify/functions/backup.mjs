@@ -1,6 +1,10 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_BACKUP_BUCKET = process.env.SUPABASE_BACKUP_BUCKET || "shirt-tracker-backups";
+// Set BACKUP_SECRET in Netlify env vars. Any direct HTTP call must supply:
+//   x-backup-secret: <value>
+// Scheduled invocations from Netlify's cron are always allowed (no headers sent).
+const BACKUP_SECRET = process.env.BACKUP_SECRET;
 
 const buildHeaders = () => ({
   apikey: SUPABASE_SERVICE_ROLE_KEY,
@@ -61,12 +65,25 @@ const uploadBackup = async (payload, objectPath) => {
   }
 };
 
-export const handler = async () => {
+export const handler = async (event) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return {
       statusCode: 500,
       body: "Missing Supabase environment variables",
     };
+  }
+
+  // Scheduled invocations from Netlify cron arrive without HTTP headers (event is minimal).
+  // Direct HTTP calls must present the correct secret header when BACKUP_SECRET is configured.
+  const isScheduled = !event || !event.httpMethod;
+  if (!isScheduled && BACKUP_SECRET) {
+    const provided = (event.headers || {})["x-backup-secret"];
+    if (provided !== BACKUP_SECRET) {
+      return {
+        statusCode: 401,
+        body: "Unauthorized",
+      };
+    }
   }
 
   try {

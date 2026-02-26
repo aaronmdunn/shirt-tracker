@@ -7,6 +7,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// Field length limits — prevents oversized payloads reaching Supabase
+const MAX_NAME_LENGTH = 200;
+const MAX_EMAIL_LENGTH = 254; // RFC 5321 max
+
 export const handler = async (event) => {
   // Handle preflight
   if (event.httpMethod === "OPTIONS") {
@@ -30,11 +34,10 @@ export const handler = async (event) => {
     };
   }
 
-  let name, email;
+  // Parse body once and reuse throughout
+  let body;
   try {
-    const body = JSON.parse(event.body || "{}");
-    name = (body.name || "").trim();
-    email = (body.email || "").trim();
+    body = JSON.parse(event.body || "{}");
   } catch {
     return {
       statusCode: 400,
@@ -43,11 +46,40 @@ export const handler = async (event) => {
     };
   }
 
+  // Honeypot check (bot-field must be absent or empty) — checked before any real work
+  if (body["bot-field"]) {
+    // Silently succeed to not reveal bot detection
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify({ ok: true }),
+    };
+  }
+
+  const name = (body.name || "").trim();
+  const email = (body.email || "").trim();
+
   if (!name || !email) {
     return {
       statusCode: 400,
       headers: corsHeaders,
       body: JSON.stringify({ error: "Name and email are required" }),
+    };
+  }
+
+  // Field length limits
+  if (name.length > MAX_NAME_LENGTH) {
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: "Name is too long" }),
+    };
+  }
+  if (email.length > MAX_EMAIL_LENGTH) {
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: "Email address is too long" }),
     };
   }
 
@@ -58,21 +90,6 @@ export const handler = async (event) => {
       headers: corsHeaders,
       body: JSON.stringify({ error: "Invalid email address" }),
     };
-  }
-
-  // Honeypot check (bot-field must be absent or empty)
-  try {
-    const body = JSON.parse(event.body || "{}");
-    if (body["bot-field"]) {
-      // Silently succeed to not reveal bot detection
-      return {
-        statusCode: 200,
-        headers: corsHeaders,
-        body: JSON.stringify({ ok: true }),
-      };
-    }
-  } catch {
-    // ignore
   }
 
   try {
