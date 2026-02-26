@@ -1,5 +1,16 @@
 [
   {
+    "version": "2.0.5",
+    "date": "2026-02-26",
+    "changes": [
+      "Custom tags now persist permanently and won't disappear when switching tabs",
+      "Tag suggestions are now sorted alphabetically",
+      "Removed the 12-tag limit on suggestion chips — all tags are always visible",
+      "Added Manage Tags button to rename or delete tags across all rows",
+      "Custom tags sync to the cloud across devices"
+    ]
+  },
+  {
     "version": "2.0.4",
     "date": "2026-02-24",
     "changes": [
