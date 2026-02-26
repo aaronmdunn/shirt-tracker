@@ -2855,7 +2855,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.3</div>
+        <div id="about-version">Shirt Tracker v2.0.5</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3390,9 +3390,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.4";
+      const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T02:37:46-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T02:39:37-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -3407,6 +3407,17 @@
       const FOR_SALE_TAG = "For Sale";
 
       const CHANGELOG = [
+        {
+          "version": "2.0.5",
+          "date": "2026-02-26",
+          "changes": [
+            "Custom tags now persist permanently and won't disappear when switching tabs",
+            "Tag suggestions are now sorted alphabetically",
+            "Removed the 12-tag limit on suggestion chips — all tags are always visible",
+            "Added Manage Tags button to rename or delete tags across all rows",
+            "Custom tags sync to the cloud across devices"
+          ]
+        },
         {
           "version": "2.0.4",
           "date": "2026-02-24",
@@ -6101,7 +6112,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.3",
+          version: "2.0.5",
         };
         if (wishlistTabs.length > 0) {
           result.wishlist = {
