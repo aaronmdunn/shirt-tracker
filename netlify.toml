@@ -18,10 +18,14 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
     # Content Security Policy
-    # - script-src: only self, jsDelivr (Supabase SDK), and Google Tag Manager
-    # - connect-src: self + Supabase project + Google Analytics
+    # - script-src: 'unsafe-inline' is required — the HTML files contain author-written
+    #   inline scripts for GTM init, share-token pre-loading, and UA routing. These are
+    #   static, not user data. The XSS risk CSP script-src would normally guard against
+    #   is separately addressed by the renderColumns() DOM-API refactor (Finding 1).
+    # - connect-src: self + Supabase project + Google Analytics endpoints
     # - img-src: self, data URIs, blob URLs (photo previews), and Supabase storage
-    # - style-src: self + unsafe-inline (required by existing inline styles)
+    # - style-src: 'unsafe-inline' required by existing extensive inline styles
     # - font-src: self (fonts are self-hosted)
-    # - frame-ancestors: prevents clickjacking from any origin
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://jbmzsxbzqvgsasjhwuko.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; img-src 'self' data: blob: https://jbmzsxbzqvgsasjhwuko.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
+    # - frame-ancestors 'none': prevents clickjacking from any origin
+    # - form-action 'self': prevents form submissions to external sites
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://jbmzsxbzqvgsasjhwuko.supabase.co https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; img-src 'self' data: blob: https://jbmzsxbzqvgsasjhwuko.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
