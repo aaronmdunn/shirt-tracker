@@ -617,17 +617,25 @@
 
     <dialog id="tags-dialog" class="about-dialog">
       <div class="dialog-body">
-        <h3>Tags</h3>
-        <div id="tags-row-name" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
-        <div style="display:flex; gap:8px; margin-top: 12px;">
-          <input id="tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
-          <button type="button" class="btn secondary" id="tags-add">Add</button>
+        <div id="tags-main-view">
+          <h3>Tags</h3>
+          <div id="tags-row-name" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
+          <div style="display:flex; gap:8px; margin-top: 12px;">
+            <input id="tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
+            <button type="button" class="btn secondary" id="tags-add">Add</button>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
+          <div id="tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
+          <div id="tags-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 10px;"></div>
         </div>
-        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
-        <div id="tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
-        <div id="tags-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 10px;"></div>
+        <div id="tags-manage-view" style="display:none;">
+          <h3>Manage Tags</h3>
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Rename or delete tags. Changes apply to all rows.</div>
+          <div id="tags-manage-list" style="margin-top: 12px; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
       </div>
       <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="tags-manage-btn" style="margin-right:auto;">Manage Tags</button>
         <button type="button" class="btn" id="tags-close">Close</button>
       </div>
     </dialog>
