@@ -5262,7 +5262,7 @@ const getAllTags = () => {
       if (key && !merged.has(key)) merged.set(key, String(tag));
     });
   });
-  return Array.from(merged.values());
+  return Array.from(merged.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 };
 
 const getUsedTags = () => {
