@@ -3384,7 +3384,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.4";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T02:22:48-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T02:23:50-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -8682,7 +8682,7 @@
             if (key && !merged.has(key)) merged.set(key, String(tag));
           });
         });
-        return Array.from(merged.values());
+        return Array.from(merged.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
       };
 
       const getUsedTags = () => {

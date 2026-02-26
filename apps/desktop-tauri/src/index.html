@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/26/2026, 2:23:19 AM" readonly>
+                <input type="text" id="app-update-date" value="2/26/2026, 2:28:30 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3196,7 +3196,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.4";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T07:23:19.442Z";
+      const LAST_COMMIT_DATE = "2026-02-26T07:28:30.697Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
       const SIGNED_OUT_GREETING_KEY = "shirts-signed-out-greeting";
@@ -8458,7 +8458,7 @@
             if (key && !merged.has(key)) merged.set(key, String(tag));
           });
         });
-        return Array.from(merged.values());
+        return Array.from(merged.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
       };
 
       const getUsedTags = () => {
