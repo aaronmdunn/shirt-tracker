@@ -2916,7 +2916,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.5</div>
+        <div id="about-version">Shirt Tracker v2.0.6</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3453,9 +3453,9 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.5";
+      const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T23:04:06-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T23:15:01-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3470,6 +3470,18 @@
       const FOR_SALE_TAG = "For Sale";
 
       const CHANGELOG = [
+        {
+          "version": "2.0.6",
+          "date": "2026-02-26",
+          "changes": [
+            "Fixed cloud sync silently discarding Supabase errors — now surfaces actionable warnings",
+            "Debounced filter input to prevent lag on every keystroke",
+            "Visual polish: hover states, transitions, focus rings, and improved table spacing",
+            "Fixed share page leaking owner-only buttons (Sign In, Tag Items, Delete, Sync)",
+            "Preview images now load instantly on repeat visits via warm cache and extended TTL",
+            "Added automatic retry for expired signed image URLs"
+          ]
+        },
         {
           "version": "2.0.5",
           "date": "2026-02-26",
@@ -6168,7 +6180,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.5",
+          version: "2.0.6",
         };
         if (wishlistTabs.length > 0) {
           result.wishlist = {
