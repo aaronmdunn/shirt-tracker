@@ -31,7 +31,6 @@ const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
 const APP_VERSION = "2.0.6";
-const ADMIN_USER_ID = "fddd4713-0fee-4367-a2a9-5dff4574894a";
 const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
@@ -7444,9 +7443,21 @@ const loadAdminStats = async () => {
   }
 };
 
-const initAdminLink = () => {
-  if (!currentUser || currentUser.id !== ADMIN_USER_ID) return;
+const initAdminLink = async () => {
+  if (!supabase || !currentUser) return;
   if (document.getElementById("admin-panel-link")) return;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return;
+    const res = await fetch("/.netlify/functions/admin-stats", {
+      method: "GET",
+      headers: { Authorization: "Bearer " + token },
+    });
+    if (res.status !== 200) return;
+  } catch (e) {
+    return;
+  }
   const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
   if (!changelogLinkContainer) return;
   const adminLinkDiv = document.createElement("div");
