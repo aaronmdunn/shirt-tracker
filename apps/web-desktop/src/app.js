@@ -634,6 +634,11 @@ const adminDialog = document.getElementById("admin-dialog");
 const adminStatsContent = document.getElementById("admin-stats-content");
 const adminRefreshButton = document.getElementById("admin-refresh");
 const adminCloseButton = document.getElementById("admin-close");
+if (adminDialog) {
+  adminDialog.style.cssText = "max-width:720px; width:90vw;";
+  const adminBody = adminDialog.querySelector(".dialog-body");
+  if (adminBody) adminBody.style.cssText = "max-height:70vh; overflow-y:auto;";
+}
 const photoDialog = document.getElementById("photo-dialog");
 const photoDialogImage = document.getElementById("photo-dialog-image");
 const clearPhotoDialogButton = document.getElementById("clear-photo-dialog");
