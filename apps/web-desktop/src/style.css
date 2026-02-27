@@ -1897,6 +1897,82 @@ dialog::backdrop {
   font-size: 0.85rem;
 }
 
+.recycle-bin-list {
+  display: grid;
+  gap: 10px;
+  max-height: 50vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.recycle-bin-item {
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.recycle-bin-item:hover {
+  background: #eef0f3;
+}
+
+.recycle-bin-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.recycle-bin-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.recycle-bin-details {
+  display: none;
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+.recycle-bin-details.open {
+  display: block;
+}
+
+.recycle-bin-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.recycle-bin-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.danger-btn {
+  background: #d10000;
+  color: #fff;
+  border: 1px solid #d10000;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.danger-btn:hover {
+  background: #b00000;
+  border-color: #b00000;
+}
+
 .dialog-body {
   padding: 20px;
   display: grid;
