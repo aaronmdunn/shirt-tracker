@@ -3370,7 +3370,7 @@
       const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-27T14:08:41-05:00";
+      const LAST_COMMIT_DATE = "2026-02-27T14:10:47-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11136,7 +11136,6 @@
       const initAdminLink = async () => {
         if (!supabase || !currentUser) return;
         if (adminCheckStarted) return;
-        adminCheckStarted = true;
         try {
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData?.session?.access_token;
@@ -11149,6 +11148,7 @@
         } catch (e) {
           return;
         }
+        adminCheckStarted = true;
         const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
         if (!changelogLinkContainer) return;
         const adminLinkDiv = document.createElement("div");

@@ -7704,7 +7704,6 @@ let adminCheckStarted = false;
 const initAdminLink = async () => {
   if (!supabase || !currentUser) return;
   if (adminCheckStarted) return;
-  adminCheckStarted = true;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
@@ -7717,6 +7716,7 @@ const initAdminLink = async () => {
   } catch (e) {
     return;
   }
+  adminCheckStarted = true;
   const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
   if (!changelogLinkContainer) return;
   const adminLinkDiv = document.createElement("div");
