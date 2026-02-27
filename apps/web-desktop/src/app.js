@@ -2128,6 +2128,7 @@ function applyDesktopAuthButtonSizing() {
 }
 
 function applyDesktopHeaderInlineLayout() {
+  if (publicShareToken) return;
   const dangerZone = document.querySelector(".danger-zone");
   const headerActions = document.querySelector(".header-actions");
   if (!dangerZone) return;

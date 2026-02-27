@@ -2601,7 +2601,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/26/2026, 10:58:29 PM" readonly>
+                <input type="text" id="app-update-date" value="2/26/2026, 11:02:17 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3267,7 +3267,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T03:58:29.652Z";
+      const LAST_COMMIT_DATE = "2026-02-27T04:02:17.732Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -5441,6 +5441,7 @@
       }
 
       function applyDesktopHeaderInlineLayout() {
+        if (publicShareToken) return;
         const dangerZone = document.querySelector(".danger-zone");
         const headerActions = document.querySelector(".header-actions");
         if (!dangerZone) return;
