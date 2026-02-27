@@ -14,21 +14,6 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "Starjhol";
-  src: url("fonts/Starjhol.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Old Typewriter";
-  src: url("fonts/Old%20Typewriter2.0.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
 
 @font-face {
   font-family: "WaltographUI";
@@ -227,6 +212,12 @@ header .wrap {
   font-size: 0.95rem;
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(176, 0, 32, 0.2);
+  transition: background 0.15s, box-shadow 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.btn:hover {
+  background: #96001b;
+  box-shadow: 0 6px 16px rgba(176, 0, 32, 0.32);
 }
 
 .btn:active {
@@ -241,10 +232,20 @@ header .wrap {
   box-shadow: none;
 }
 
+.btn:disabled:hover {
+  background: var(--accent);
+  box-shadow: none;
+}
+
 .btn.secondary {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
+  box-shadow: none;
+}
+
+.btn.secondary:hover {
+  background: rgba(176, 0, 32, 0.07);
   box-shadow: none;
 }
 
@@ -294,7 +295,7 @@ header .wrap {
   border-radius: 20px;
   border: 1px solid var(--line);
   background: var(--paper);
-  box-shadow: 0 18px 40px var(--shadow);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
   overflow: hidden;
   width: min(100%, 94vw);
   margin-left: auto;
@@ -532,6 +533,11 @@ body[data-auth="signed-in"] #auth-action:active {
   font-weight: 700;
 }
 
+.btn.danger:hover {
+  background: #fff0f0;
+  box-shadow: none;
+}
+
 .btn.danger:active {
   background: #ffd6d6;
 }
@@ -544,6 +550,11 @@ body[data-auth="signed-in"] #auth-action:active {
   font-weight: 700;
 }
 
+.btn.success:hover {
+  background: #f0fbf4;
+  box-shadow: none;
+}
+
 .btn.success:active {
   background: #d9f2e3;
 }
@@ -554,6 +565,11 @@ body[data-auth="signed-in"] #auth-action:active {
   border: 2px solid #d10000;
   box-shadow: none;
   font-weight: 700;
+}
+
+.btn.auth-signed-out:hover {
+  background: #fff0f0;
+  box-shadow: none;
 }
 
 .btn.auth-signed-out:active {
@@ -829,6 +845,11 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   width: 100%;
 }
 
+.btn.auth-signed-in:hover {
+  background: #f0fbf4;
+  box-shadow: none;
+}
+
 .btn.auth-signed-in:active {
   background: #d9f2e3;
 }
@@ -883,11 +904,25 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   text-align: center;
 }
 
+.tab-btn {
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  opacity: 1;
+  background: #f0f0f0;
+}
+
 .tab-btn.active {
   opacity: 1;
   background: var(--accent);
   color: #ffffff;
   border-color: var(--accent);
+}
+
+.tab-btn.active:hover {
+  background: #96001b;
+  border-color: #96001b;
 }
 
 .tab-btn.add {
@@ -996,7 +1031,7 @@ thead th.drag-over {
 
 tbody td {
   border-bottom: 1px solid var(--line);
-  padding: 8px 10px;
+  padding: 11px 10px;
   vertical-align: top;
   background: #efefef;
   overflow: hidden;
@@ -1029,6 +1064,17 @@ textarea {
   background: #f6f6f6;
   font-family: inherit;
   font-size: 0.9rem;
+  transition: border-color 0.15s, outline-color 0.15s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
 }
 
 textarea {
@@ -1108,6 +1154,12 @@ td[data-label="Preview"] {
   padding: 6px 10px;
   cursor: pointer;
   color: var(--muted);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-icon:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
 }
 
 .btn-icon.trash {
@@ -1402,6 +1454,12 @@ td[data-label="Preview"] {
   color: var(--muted);
   font-size: 0.78rem;
   white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.column-actions button:hover {
+  background: #f0f0f0;
+  border-color: #bbb;
 }
 
 .column-actions .edit-button {
