@@ -7349,13 +7349,20 @@ const renderAdminStats = (data) => {
 
   // User table
   const table = document.createElement("table");
-  table.style.cssText = "width:100%; border-collapse:collapse; font-size:0.8rem;";
+  table.style.cssText = "width:100%; border-collapse:collapse; font-size:0.8rem; table-layout:fixed;";
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  ["Email", "Items", "Last Sync", "Signed Up"].forEach((text) => {
+  const columns = [
+    { label: "Email", width: "auto" },
+    { label: "Items", width: "52px" },
+    { label: "Last Sync", width: "140px" },
+    { label: "Signed Up", width: "140px" },
+  ];
+  columns.forEach((col) => {
     const th = document.createElement("th");
     th.style.cssText = "text-align:left; padding:6px 8px; border-bottom:2px solid var(--border, #ddd); font-weight:600; white-space:nowrap;";
-    th.textContent = text;
+    if (col.width !== "auto") th.style.width = col.width;
+    th.textContent = col.label;
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -7366,7 +7373,7 @@ const renderAdminStats = (data) => {
     data.users.forEach((user) => {
       const tr = document.createElement("tr");
       const emailTd = document.createElement("td");
-      emailTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); word-break:break-all;";
+      emailTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       emailTd.textContent = user.email;
       tr.appendChild(emailTd);
 
