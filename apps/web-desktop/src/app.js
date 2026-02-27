@@ -7443,9 +7443,11 @@ const loadAdminStats = async () => {
   }
 };
 
+let adminCheckStarted = false;
 const initAdminLink = async () => {
   if (!supabase || !currentUser) return;
-  if (document.getElementById("admin-panel-link")) return;
+  if (adminCheckStarted) return;
+  adminCheckStarted = true;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
