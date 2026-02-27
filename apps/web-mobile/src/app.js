@@ -7715,7 +7715,8 @@ const initAdminLink = async () => {
       method: "GET",
       headers: { Authorization: "Bearer " + token },
     });
-    if (res.status !== 200) return;
+    if (res.status === 403) return;
+    if (res.status !== 200) { adminCheckStarted = false; return; }
   } catch (e) {
     adminCheckStarted = false;
     return;
