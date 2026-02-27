@@ -46,6 +46,8 @@ const APP_MODE_KEY = "shirts-app-mode";
 const CURRENT_USER_KEY = "shirts-current-user";
 const CUSTOM_TAGS_KEY = "shirts-custom-tags-v1";
 const FOR_SALE_TAG = "For Sale";
+const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
+const DELETED_ROWS_PURGE_DAYS = 30;
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -630,6 +632,12 @@ const changelogDialog = document.getElementById("changelog-dialog");
 const changelogList = document.getElementById("changelog-list");
 const changelogCloseButton = document.getElementById("changelog-close");
 const changelogLink = document.getElementById("changelog-link");
+const recycleBinDialog = document.getElementById("recycle-bin-dialog");
+const recycleBinList = document.getElementById("recycle-bin-list");
+const recycleBinEmpty = document.getElementById("recycle-bin-empty");
+const recycleBinCloseButton = document.getElementById("recycle-bin-close");
+const recycleBinEmptyAllButton = document.getElementById("recycle-bin-empty-all");
+const recycleBinLink = document.getElementById("recycle-bin-link");
 const adminDialog = document.getElementById("admin-dialog");
 const adminStatsContent = document.getElementById("admin-stats-content");
 const adminRefreshButton = document.getElementById("admin-refresh");
@@ -854,6 +862,50 @@ const saveEventLog = (entries) => {
   } catch (error) {
     // ignore
   }
+};
+
+const loadDeletedRows = () => {
+  try {
+    const stored = localStorage.getItem(DELETED_ROWS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const saveDeletedRows = (entries) => {
+  try {
+    localStorage.setItem(DELETED_ROWS_KEY, JSON.stringify(entries));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const purgeExpiredDeletedRows = () => {
+  const entries = loadDeletedRows();
+  const cutoff = Date.now() - DELETED_ROWS_PURGE_DAYS * 24 * 60 * 60 * 1000;
+  const kept = entries.filter((entry) => new Date(entry.deletedAt).getTime() > cutoff);
+  if (kept.length !== entries.length) {
+    saveDeletedRows(kept);
+  }
+  return kept;
+};
+
+const addToDeletedRows = (rows, fromTabId, fromTabName, mode) => {
+  const entries = loadDeletedRows();
+  const now = new Date().toISOString();
+  rows.forEach((row) => {
+    entries.unshift({
+      row: { id: row.id, cells: { ...(row.cells || {}) }, tags: Array.isArray(row.tags) ? [...row.tags] : [] },
+      deletedAt: now,
+      fromTabId,
+      fromTabName,
+      mode: mode || appMode,
+      columns: state.columns.map((col) => ({ id: col.id, name: col.name, type: col.type, options: col.options ? [...col.options] : [] })),
+    });
+  });
+  saveDeletedRows(entries);
 };
 
 const renderEventLog = (filterQuery) => {
@@ -1958,6 +2010,192 @@ const openEventLogDialog = () => {
   openDialog(eventLogDialog);
 };
 
+const renderRecycleBin = () => {
+  if (!recycleBinList || !recycleBinEmpty) return;
+  const entries = loadDeletedRows();
+  recycleBinList.innerHTML = "";
+  if (!entries.length) {
+    recycleBinEmpty.style.display = "block";
+    recycleBinEmpty.textContent = "Recycle bin is empty.";
+    if (recycleBinEmptyAllButton) recycleBinEmptyAllButton.style.display = "none";
+    return;
+  }
+  recycleBinEmpty.style.display = "none";
+  if (recycleBinEmptyAllButton) recycleBinEmptyAllButton.style.display = "";
+  entries.forEach((entry, idx) => {
+    const item = document.createElement("div");
+    item.className = "recycle-bin-item";
+    const row = entry.row || {};
+    const cols = Array.isArray(entry.columns) ? entry.columns : [];
+    const nameCol = cols.find((c) => c.name === "Name" || c.name === "Shirt Name");
+    const name = nameCol && row.cells ? String(row.cells[nameCol.id] || "").trim() : "";
+    const displayName = name || "Untitled row";
+    const deletedDate = new Date(entry.deletedAt);
+    const daysAgo = Math.floor((Date.now() - deletedDate.getTime()) / (24 * 60 * 60 * 1000));
+    const daysLeft = Math.max(0, DELETED_ROWS_PURGE_DAYS - daysAgo);
+    const modeLabel = entry.mode === "wishlist" ? "Wishlist" : "Inventory";
+    const meta = document.createElement("div");
+    meta.className = "recycle-bin-meta";
+    meta.textContent = `${deletedDate.toLocaleDateString()} - ${entry.fromTabName || "Unknown tab"} (${modeLabel}) - ${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`;
+    const nameEl = document.createElement("div");
+    nameEl.className = "recycle-bin-name";
+    nameEl.textContent = displayName;
+    const details = document.createElement("div");
+    details.className = "recycle-bin-details";
+    cols.forEach((col) => {
+      if (col.type === "photo") return;
+      const val = row.cells ? row.cells[col.id] : null;
+      if (val) {
+        const line = document.createElement("div");
+        line.textContent = `${col.name}: ${val}`;
+        details.appendChild(line);
+      }
+    });
+    const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+    if (tags.length) {
+      const tagLine = document.createElement("div");
+      tagLine.textContent = "Tags: " + tags.join(", ");
+      details.appendChild(tagLine);
+    }
+    const actions = document.createElement("div");
+    actions.className = "recycle-bin-actions";
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    restoreBtn.className = "btn secondary";
+    restoreBtn.textContent = "Restore";
+    restoreBtn.style.cssText = "padding:4px 10px; font-size:0.75rem;";
+    restoreBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      restoreDeletedRow(idx);
+    });
+    const permDeleteBtn = document.createElement("button");
+    permDeleteBtn.type = "button";
+    permDeleteBtn.className = "btn danger-btn";
+    permDeleteBtn.textContent = "Delete Forever";
+    permDeleteBtn.style.cssText = "padding:4px 10px; font-size:0.75rem;";
+    permDeleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      permanentlyDeleteRow(idx);
+    });
+    actions.appendChild(restoreBtn);
+    actions.appendChild(permDeleteBtn);
+    item.appendChild(meta);
+    item.appendChild(nameEl);
+    item.appendChild(details);
+    item.appendChild(actions);
+    item.addEventListener("click", () => {
+      details.classList.toggle("open");
+    });
+    recycleBinList.appendChild(item);
+  });
+};
+
+const restoreDeletedRow = (idx) => {
+  const entries = loadDeletedRows();
+  if (idx < 0 || idx >= entries.length) return;
+  const entry = entries[idx];
+  const row = entry.row;
+  const targetMode = entry.mode || "inventory";
+  const targetTabId = entry.fromTabId;
+  const targetTabName = entry.fromTabName;
+  const storagePrefix = targetMode === "wishlist" ? WISHLIST_STORAGE_KEY : STORAGE_KEY;
+  const tabStorageKey = targetMode === "wishlist" ? WISHLIST_TAB_STORAGE_KEY : TAB_STORAGE_KEY;
+  let tabs = [];
+  try {
+    const stored = localStorage.getItem(tabStorageKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      tabs = Array.isArray(parsed.tabs) ? parsed.tabs : [];
+    }
+  } catch (error) { /* ignore */ }
+  const tabExists = tabs.some((t) => t.id === targetTabId);
+  let restoreTabId = tabExists ? targetTabId : null;
+  if (!restoreTabId && tabs.length > 0) {
+    restoreTabId = tabs[0].id;
+  }
+  if (!restoreTabId) {
+    alert("No tabs available to restore to. Please create a tab first.");
+    return;
+  }
+  const tabKey = `${storagePrefix}:${restoreTabId}`;
+  try {
+    const stored = localStorage.getItem(tabKey);
+    const parsed = stored ? JSON.parse(stored) : null;
+    if (parsed && typeof parsed === "object") {
+      const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+      const isOnlyDefault = rows.length === 1 && Object.values(rows[0].cells || {}).every((v) => !v);
+      if (isOnlyDefault) {
+        parsed.rows = [row];
+      } else {
+        parsed.rows.push(row);
+      }
+      localStorage.setItem(tabKey, JSON.stringify(parsed));
+    } else {
+      const cols = Array.isArray(entry.columns) ? entry.columns : (targetMode === "wishlist" ? getWishlistDefaultColumns() : getDefaultColumns());
+      localStorage.setItem(tabKey, JSON.stringify({
+        columns: cols,
+        rows: [row],
+        columnWidths: {},
+        sort: { columnId: null, direction: "asc" },
+        filter: { columnId: "all", query: "" },
+        readOnly: false,
+      }));
+    }
+  } catch (error) {
+    console.warn("Failed to restore row to tab", error);
+    return;
+  }
+  entries.splice(idx, 1);
+  saveDeletedRows(entries);
+  const restoredTabName = tabExists ? targetTabName : (tabs[0] ? tabs[0].name : "first tab");
+  addEventLog("Restored row from recycle bin", getRowNameFromEntry(entry), null);
+  if (targetMode === appMode && restoreTabId === tabsState.activeTabId) {
+    loadState();
+    ensureRowCells();
+    renderRows();
+    renderFooter();
+  }
+  scheduleSync();
+  renderRecycleBin();
+};
+
+const getRowNameFromEntry = (entry) => {
+  if (!entry || !entry.row || !entry.row.cells) return "Untitled row";
+  const cols = Array.isArray(entry.columns) ? entry.columns : [];
+  const nameCol = cols.find((c) => c.name === "Name" || c.name === "Shirt Name");
+  if (!nameCol) return "Untitled row";
+  const val = String(entry.row.cells[nameCol.id] || "").trim();
+  return val || "Untitled row";
+};
+
+const permanentlyDeleteRow = (idx) => {
+  const entries = loadDeletedRows();
+  if (idx < 0 || idx >= entries.length) return;
+  if (!confirm("Permanently delete this item? This cannot be undone.")) return;
+  const entry = entries[idx];
+  addEventLog("Permanently deleted from recycle bin", getRowNameFromEntry(entry), null);
+  entries.splice(idx, 1);
+  saveDeletedRows(entries);
+  scheduleSync();
+  renderRecycleBin();
+};
+
+const emptyRecycleBin = () => {
+  const entries = loadDeletedRows();
+  if (!entries.length) return;
+  if (!confirm(`Permanently delete all ${entries.length} item${entries.length !== 1 ? "s" : ""} in the recycle bin? This cannot be undone.`)) return;
+  addEventLog("Emptied recycle bin", `${entries.length} item${entries.length !== 1 ? "s" : ""} removed`, null);
+  saveDeletedRows([]);
+  scheduleSync();
+  renderRecycleBin();
+};
+
+const openRecycleBinDialog = () => {
+  purgeExpiredDeletedRows();
+  renderRecycleBin();
+  openDialog(recycleBinDialog);
+};
+
 const updateLastActivity = () => {
   if (!canUseLocalStorage()) return;
   try {
@@ -2610,6 +2848,7 @@ const buildCloudPayload = () => {
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
     version: "2.0.6",
+    deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
     result.wishlist = {
@@ -2676,6 +2915,10 @@ const applyCloudPayload = (payload) => {
   }
   if (Array.isArray(payload.customTags)) {
     saveCustomTags(payload.customTags);
+  }
+  if (Array.isArray(payload.deletedRows)) {
+    saveDeletedRows(payload.deletedRows);
+    purgeExpiredDeletedRows();
   }
   if (payload.publicShareId) {
     savePublicShareId(payload.publicShareId);
@@ -4144,6 +4387,7 @@ const deleteRow = (id) => {
   const target = state.rows.find((row) => row.id === id);
   if (target) {
     addEventLog("Deleted row", getRowName(target), snapshotRow(target));
+    addToDeletedRows([target], tabsState.activeTabId, getActiveTabName(), appMode);
   }
   state.rows = state.rows.filter((row) => row.id !== id);
   if (state.rows.length === 0) {
@@ -4176,6 +4420,7 @@ const deleteSelectedRows = () => {
   if (checked.length === 0) return;
   const ids = checked.map((input) => input.dataset.rowId).filter(Boolean);
   const removedRows = state.rows.filter((row) => ids.includes(row.id));
+  addToDeletedRows(removedRows, tabsState.activeTabId, getActiveTabName(), appMode);
   state.rows = state.rows.filter((row) => !ids.includes(row.id));
   if (state.rows.length === 0) {
     state.rows.push(defaultRow());
@@ -7256,6 +7501,22 @@ if (eventLogLink) {
   });
 }
 
+if (recycleBinCloseButton) {
+  recycleBinCloseButton.addEventListener("click", () => {
+    closeDialog(recycleBinDialog);
+  });
+}
+if (recycleBinEmptyAllButton) {
+  recycleBinEmptyAllButton.addEventListener("click", () => {
+    emptyRecycleBin();
+  });
+}
+if (recycleBinLink) {
+  recycleBinLink.addEventListener("click", () => {
+    openRecycleBinDialog();
+  });
+}
+
 const renderChangelog = () => {
   if (!changelogList) return;
   changelogList.textContent = "";
@@ -7452,13 +7713,14 @@ const initAdminLink = async () => {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
-    if (!token) return;
+    if (!token) { adminCheckStarted = false; return; }
     const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
       method: "GET",
       headers: { Authorization: "Bearer " + token },
     });
     if (res.status !== 200) return;
   } catch (e) {
+    adminCheckStarted = false;
     return;
   }
   const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
@@ -7624,6 +7886,7 @@ if (!tabsState.activeTabId && tabsState.tabs[0]) {
   saveTabsState();
 }
 loadState();
+purgeExpiredDeletedRows();
 normalizeNameColumnsEverywhere();
 normalizeSizeOptionsEverywhere();
 resetFilterDefault();
