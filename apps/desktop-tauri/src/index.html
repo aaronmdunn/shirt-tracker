@@ -2601,7 +2601,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/26/2026, 11:04:00 PM" readonly>
+                <input type="text" id="app-update-date" value="2/26/2026, 11:14:52 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3267,12 +3267,12 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T04:04:00.800Z";
+      const LAST_COMMIT_DATE = "2026-02-27T04:14:52.381Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
       const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
-      const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
+      const SIGNED_URL_TTL_MS = 12 * 60 * 60 * 1000;
       const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
       const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
       const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
@@ -3592,6 +3592,24 @@
         return value;
       };
 
+      const warmPhotoSrcCache = () => {
+        const photoColumnIds = state.columns
+          .filter((column) => column.type === "photo")
+          .map((column) => column.id);
+        if (photoColumnIds.length === 0) return;
+        const rows = Array.isArray(state.rows) ? state.rows : [];
+        rows.forEach((row) => {
+          if (!row || !row.cells) return;
+          photoColumnIds.forEach((columnId) => {
+            const value = row.cells[columnId];
+            if (!value || !value.startsWith("supa:")) return;
+            if (photoSrcCache.has(value)) return;
+            const cached = getCachedSignedUrl(value);
+            if (cached) photoSrcCache.set(value, cached);
+          });
+        });
+      };
+
       const prefetchPhotoSources = async () => {
         const photoColumnIds = state.columns
           .filter((column) => column.type === "photo")
@@ -3606,11 +3624,6 @@
             if (!value) return;
             if (value.startsWith("supa:")) {
               if (photoSrcCache.has(value)) return;
-              const cached = getCachedSignedUrl(value);
-              if (cached) {
-                photoSrcCache.set(value, cached);
-                return;
-              }
               pendingPaths.add(value.slice(5));
               return;
             }
@@ -6080,6 +6093,7 @@
         }
         resetFilterDefault();
         ensureRowCells();
+        warmPhotoSrcCache();
         renderTable();
         applyReadOnlyMode();
         renderTabs();
@@ -6834,6 +6848,7 @@
         pruneRowCells();
         ensureRowCells();
         sortRows();
+        warmPhotoSrcCache();
         renderTable();
         applyReadOnlyMode();
         renderTabs();
@@ -7169,6 +7184,7 @@
               state.readOnly = true;
             }
             applyViewerRedactions();
+            warmPhotoSrcCache();
             renderTable();
             applyReadOnlyMode();
             renderTabs();
@@ -7219,6 +7235,7 @@
           state.readOnly = true;
         }
         applyViewerRedactions();
+        warmPhotoSrcCache();
         renderTable();
         applyReadOnlyMode();
         renderTabs();
@@ -8326,6 +8343,17 @@
               openDialog(photoDialog);
               }
             });
+            img.onerror = () => {
+              if (img.dataset.retried) return;
+              img.dataset.retried = "1";
+              photoSrcCache.delete(value);
+              const cache = loadSignedUrlCache();
+              delete cache[value];
+              saveSignedUrlCache(cache);
+              getPhotoSrc(value).then((src) => {
+                if (src) img.src = src;
+              });
+            };
             if (photoSrcCache.has(value)) {
               img.src = photoSrcCache.get(value);
             } else {

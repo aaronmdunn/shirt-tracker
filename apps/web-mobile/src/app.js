@@ -37,7 +37,7 @@ const APP_VERSION_KEY = "shirts-app-version";
 const APP_UPDATE_KEY = "shirts-app-update-date";
 
 const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
-const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
+const SIGNED_URL_TTL_MS = 12 * 60 * 60 * 1000;
 const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
 const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
 const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
@@ -279,6 +279,24 @@ const getLogoSrc = async (value) => {
   return value;
 };
 
+const warmPhotoSrcCache = () => {
+  const photoColumnIds = state.columns
+    .filter((column) => column.type === "photo")
+    .map((column) => column.id);
+  if (photoColumnIds.length === 0) return;
+  const rows = Array.isArray(state.rows) ? state.rows : [];
+  rows.forEach((row) => {
+    if (!row || !row.cells) return;
+    photoColumnIds.forEach((columnId) => {
+      const value = row.cells[columnId];
+      if (!value || !value.startsWith("supa:")) return;
+      if (photoSrcCache.has(value)) return;
+      const cached = getCachedSignedUrl(value);
+      if (cached) photoSrcCache.set(value, cached);
+    });
+  });
+};
+
 const prefetchPhotoSources = async () => {
   const photoColumnIds = state.columns
     .filter((column) => column.type === "photo")
@@ -293,11 +311,6 @@ const prefetchPhotoSources = async () => {
       if (!value) return;
       if (value.startsWith("supa:")) {
         if (photoSrcCache.has(value)) return;
-        const cached = getCachedSignedUrl(value);
-        if (cached) {
-          photoSrcCache.set(value, cached);
-          return;
-        }
         pendingPaths.add(value.slice(5));
         return;
       }
@@ -2835,6 +2848,7 @@ const applyCloudPayload = (payload) => {
   }
   resetFilterDefault();
   ensureRowCells();
+  warmPhotoSrcCache();
   renderTable();
   applyReadOnlyMode();
   renderTabs();
@@ -3589,6 +3603,7 @@ const switchAppMode = (nextMode) => {
   pruneRowCells();
   ensureRowCells();
   sortRows();
+  warmPhotoSrcCache();
   renderTable();
   applyReadOnlyMode();
   renderTabs();
@@ -3944,6 +3959,7 @@ const switchTab = (tabId) => {
         state.readOnly = true;
       }
       applyViewerRedactions();
+      warmPhotoSrcCache();
       renderTable();
       applyReadOnlyMode();
       renderTabs();
@@ -3994,6 +4010,7 @@ const switchTab = (tabId) => {
     state.readOnly = true;
   }
   applyViewerRedactions();
+  warmPhotoSrcCache();
   renderTable();
   applyReadOnlyMode();
   renderTabs();
@@ -5045,6 +5062,17 @@ const createCellInput = (row, column) => {
         openDialog(photoDialog);
         }
       });
+      img.onerror = () => {
+        if (img.dataset.retried) return;
+        img.dataset.retried = "1";
+        photoSrcCache.delete(value);
+        const cache = loadSignedUrlCache();
+        delete cache[value];
+        saveSignedUrlCache(cache);
+        getPhotoSrc(value).then((src) => {
+          if (src) img.src = src;
+        });
+      };
       if (photoSrcCache.has(value)) {
         img.src = photoSrcCache.get(value);
       } else {
