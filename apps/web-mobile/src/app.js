@@ -7507,8 +7507,7 @@ if (recycleBinEmptyAllButton) {
   });
 }
 if (recycleBinLink) {
-  recycleBinLink.addEventListener("click", (event) => {
-    event.preventDefault();
+  recycleBinLink.addEventListener("click", () => {
     openRecycleBinDialog();
   });
 }
