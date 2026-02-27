@@ -31,6 +31,7 @@ const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
 const APP_VERSION = "2.0.6";
+const ADMIN_USER_ID = "fddd4713-0fee-4367-a2a9-5dff4574894a";
 const IS_WEB_BUILD = true;
 const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
