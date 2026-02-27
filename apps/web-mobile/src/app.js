@@ -2866,7 +2866,7 @@ const syncToSupabase = async () => {
     });
     if (upsertError) {
       console.warn("Cloud sync failed", upsertError);
-      setUnsavedStatus("Cloud sync failed. Your data is saved locally.", "alert");
+      setUnsavedStatus("Cloud sync failed. Data is safe locally — will retry. If it persists, sign out and back in.", "alert");
       return;
     }
     const parsedUpdatedAt = Date.parse(updatedAt);
