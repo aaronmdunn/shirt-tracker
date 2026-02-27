@@ -23,6 +23,7 @@ const ensureBucket = async () => {
 
   if (response.ok || response.status === 409) return;
   const body = await response.text();
+  if (body.includes("already exists") || body.includes("Duplicate")) return;
   throw new Error(`Bucket create failed: ${response.status} ${body}`);
 };
 
