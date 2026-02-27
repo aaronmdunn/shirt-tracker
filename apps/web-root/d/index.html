@@ -2799,7 +2799,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.6</div>
+        <div id="about-version">Shirt Tracker v2.0.7</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3367,10 +3367,10 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.6";
+      const APP_VERSION = "2.0.7";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-27T14:30:44-05:00";
+      const LAST_COMMIT_DATE = "2026-02-27T14:35:21-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3387,6 +3387,18 @@
       const DELETED_ROWS_PURGE_DAYS = 30;
 
       const CHANGELOG = [
+        {
+          "version": "2.0.7",
+          "date": "2026-02-27",
+          "changes": [
+            "Added Recycle Bin — deleted items are now recoverable for 30 days",
+            "Recycle Bin supports both Inventory and Wishlist modes",
+            "Restore deleted items to their original tab with all data intact",
+            "Deleted items sync to the cloud automatically",
+            "Fixed signed URL cache serving expired image URLs for up to 11 hours",
+            "Fixed admin panel link not appearing on first page load"
+          ]
+        },
         {
           "version": "2.0.6",
           "date": "2026-02-26",
@@ -6276,7 +6288,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.6",
+          version: "2.0.7",
           deletedRows: purgeExpiredDeletedRows(),
         };
         if (wishlistTabs.length > 0) {
