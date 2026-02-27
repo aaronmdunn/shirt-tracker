@@ -3466,7 +3466,8 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T04:17:41-05:00";
+      const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
+      const LAST_COMMIT_DATE = "2026-02-27T04:20:47-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -10944,7 +10945,7 @@
           if (!token) {
             throw new Error("No auth token available");
           }
-          const response = await fetch("/.netlify/functions/admin-stats", {
+          const response = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
             headers: { Authorization: "Bearer " + token },
           });
           if (!response.ok) {
@@ -10971,7 +10972,7 @@
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData?.session?.access_token;
           if (!token) return;
-          const res = await fetch("/.netlify/functions/admin-stats", {
+          const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
             method: "GET",
             headers: { Authorization: "Bearer " + token },
           });

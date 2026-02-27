@@ -2601,7 +2601,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/27/2026, 4:20:41 AM" readonly>
+                <input type="text" id="app-update-date" value="2/27/2026, 4:28:10 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3278,7 +3278,8 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T09:20:41.004Z";
+      const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
+      const LAST_COMMIT_DATE = "2026-02-27T09:28:10.851Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -10761,7 +10762,7 @@
           if (!token) {
             throw new Error("No auth token available");
           }
-          const response = await fetch("/.netlify/functions/admin-stats", {
+          const response = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
             headers: { Authorization: "Bearer " + token },
           });
           if (!response.ok) {
@@ -10788,7 +10789,7 @@
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData?.session?.access_token;
           if (!token) return;
-          const res = await fetch("/.netlify/functions/admin-stats", {
+          const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
             method: "GET",
             headers: { Authorization: "Bearer " + token },
           });
