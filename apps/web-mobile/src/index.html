@@ -323,6 +323,7 @@
                 <button class="btn danger" id="clear-all">🛑 Reset Tab</button>
                 <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
                 <button class="btn danger" id="reset-fresh">⚠️ Wipe & Reset</button>
+                <button class="btn secondary" id="recycle-bin-link">♻️ Recycle Bin</button>
               </div>
               <div class="danger-disclaimer">Use these buttons at your own risk!</div>
             </div>
@@ -475,6 +476,7 @@
         <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Danger Zone</strong></div>
         <div><strong>Reset Tab</strong> &mdash; Delete all rows on the current tab. This can be undone with the Undo button.</div>
         <div><strong>Wipe &amp; Reset</strong> &mdash; Erase everything and start fresh with default columns. This cannot be undone.</div>
+        <div><strong>Recycle Bin</strong> &mdash; View and restore recently deleted items. Items are kept for 30 days before being permanently removed.</div>
 
         <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Other</strong></div>
         <div><strong>Icon cells</strong> &mdash; Tap the icon to the left of each row to pick or change the icon for that shirt type.</div>
@@ -884,6 +886,19 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="event-log-clear">Clear Log</button>
         <button type="button" class="btn" id="event-log-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="recycle-bin-dialog">
+      <div class="dialog-body">
+        <h3>Recycle Bin</h3>
+        <div style="font-size:0.78rem; color:var(--muted);">Deleted items are kept for 30 days. Click an item to see details.</div>
+        <div class="recycle-bin-list" id="recycle-bin-list"></div>
+        <div class="recycle-bin-empty" id="recycle-bin-empty">Recycle bin is empty.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger-btn" id="recycle-bin-empty-all" style="font-size:0.78rem;">Empty Bin</button>
+        <button type="button" class="btn" id="recycle-bin-close">Close</button>
       </div>
     </dialog>
 
