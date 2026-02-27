@@ -2110,6 +2110,7 @@ const positionAuthAction = () => {
 };
 
 function applyDesktopAuthButtonSizing() {
+  if (publicShareToken) return;
   const syncNowButton = document.getElementById("sync-now");
   const authActionButton = document.getElementById("auth-action");
   [syncNowButton, authActionButton].forEach((button) => {
