@@ -2540,7 +2540,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/26/2026, 9:58:35 PM" readonly>
+                <input type="text" id="app-update-date" value="2/26/2026, 10:01:39 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3206,7 +3206,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T02:58:35.797Z";
+      const LAST_COMMIT_DATE = "2026-02-27T03:01:39.688Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -6046,7 +6046,7 @@
           });
           if (upsertError) {
             console.warn("Cloud sync failed", upsertError);
-            setUnsavedStatus("Cloud sync failed. Your data is saved locally.", "alert");
+            setUnsavedStatus("Cloud sync failed. Data is safe locally — will retry. If it persists, sign out and back in.", "alert");
             return;
           }
           const parsedUpdatedAt = Date.parse(updatedAt);

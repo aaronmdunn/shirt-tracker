@@ -3394,7 +3394,7 @@
       const LAST_CHANGE_KEY = "shirts-last-change";
       const APP_VERSION = "2.0.5";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-26T17:52:08-05:00";
+      const LAST_COMMIT_DATE = "2026-02-26T21:58:50-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -6306,7 +6306,7 @@
           });
           if (upsertError) {
             console.warn("Cloud sync failed", upsertError);
-            setUnsavedStatus("Cloud sync failed. Your data is saved locally.", "alert");
+            setUnsavedStatus("Cloud sync failed. Data is safe locally — will retry. If it persists, sign out and back in.", "alert");
             return;
           }
           const parsedUpdatedAt = Date.parse(updatedAt);
