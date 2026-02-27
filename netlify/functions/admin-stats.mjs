@@ -1,6 +1,6 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ADMIN_USER_ID = "fddd4713-0fee-4367-a2a9-5dff4574894a";
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 const BACKUP_BUCKET = process.env.SUPABASE_BACKUP_BUCKET || "shirt-tracker-backups";
 
 const corsHeaders = {
@@ -167,7 +167,7 @@ export const handler = async (event) => {
     };
   }
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ADMIN_USER_ID) {
     return {
       statusCode: 500,
       headers: corsHeaders,
