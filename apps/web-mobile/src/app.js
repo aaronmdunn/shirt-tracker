@@ -7704,19 +7704,20 @@ let adminCheckStarted = false;
 const initAdminLink = async () => {
   if (!supabase || !currentUser) return;
   if (adminCheckStarted) return;
+  adminCheckStarted = true;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
-    if (!token) return;
+    if (!token) { adminCheckStarted = false; return; }
     const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
       method: "GET",
       headers: { Authorization: "Bearer " + token },
     });
     if (res.status !== 200) return;
   } catch (e) {
+    adminCheckStarted = false;
     return;
   }
-  adminCheckStarted = true;
   const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
   if (!changelogLinkContainer) return;
   const adminLinkDiv = document.createElement("div");
