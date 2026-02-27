@@ -3279,7 +3279,7 @@
       const APP_VERSION = "2.0.6";
       const ADMIN_USER_ID = "fddd4713-0fee-4367-a2a9-5dff4574894a";
       const IS_WEB_BUILD = true;
-      const LAST_COMMIT_DATE = "2026-02-27T03:39:30-05:00";
+      const LAST_COMMIT_DATE = "2026-02-27T03:52:12-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3970,6 +3970,11 @@
       const adminStatsContent = document.getElementById("admin-stats-content");
       const adminRefreshButton = document.getElementById("admin-refresh");
       const adminCloseButton = document.getElementById("admin-close");
+      if (adminDialog) {
+        adminDialog.style.cssText = "max-width:720px; width:90vw;";
+        const adminBody = adminDialog.querySelector(".dialog-body");
+        if (adminBody) adminBody.style.cssText = "max-height:70vh; overflow-y:auto;";
+      }
       const photoDialog = document.getElementById("photo-dialog");
       const photoDialogImage = document.getElementById("photo-dialog-image");
       const clearPhotoDialogButton = document.getElementById("clear-photo-dialog");

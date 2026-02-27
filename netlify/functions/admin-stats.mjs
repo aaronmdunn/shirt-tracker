@@ -119,28 +119,36 @@ const fetchLastBackupTimestamp = async () => {
 };
 
 /**
- * Count items across all tabs in a user's data payload.
+ * Count items across all tabs in a user's cloud data payload.
+ *
+ * Cloud payload structure (from buildCloudPayload):
+ *   { tabStates: { tabId: { rows: [...] } }, wishlist: { tabStates: { tabId: { rows: [...] } } } }
  */
 const countItems = (data) => {
   if (!data) return 0;
   let total = 0;
 
-  // Count rows in tabs data (shirts-db-v3:*)
-  const countTabRows = (tabsKey, dataPrefix) => {
-    const tabs = data[tabsKey];
-    if (!tabs || !Array.isArray(tabs.tabs)) return;
-    for (const tab of tabs.tabs) {
-      const tabData = data[`${dataPrefix}:${tab.id}`];
+  // Count inventory rows from tabStates
+  const invStates = data.tabStates;
+  if (invStates && typeof invStates === "object") {
+    for (const tabId of Object.keys(invStates)) {
+      const tabData = invStates[tabId];
       if (tabData && Array.isArray(tabData.rows)) {
         total += tabData.rows.length;
       }
     }
-  };
+  }
 
-  // Inventory tabs
-  countTabRows("shirts-tabs-v1", "shirts-db-v3");
-  // Wishlist tabs
-  countTabRows("wishlist-tabs-v1", "wishlist-db-v1");
+  // Count wishlist rows from wishlist.tabStates
+  const wl = data.wishlist;
+  if (wl && wl.tabStates && typeof wl.tabStates === "object") {
+    for (const tabId of Object.keys(wl.tabStates)) {
+      const tabData = wl.tabStates[tabId];
+      if (tabData && Array.isArray(tabData.rows)) {
+        total += tabData.rows.length;
+      }
+    }
+  }
 
   return total;
 };
