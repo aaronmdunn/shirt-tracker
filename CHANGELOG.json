@@ -1,5 +1,17 @@
 [
   {
+    "version": "2.0.6",
+    "date": "2026-02-26",
+    "changes": [
+      "Fixed cloud sync silently discarding Supabase errors — now surfaces actionable warnings",
+      "Debounced filter input to prevent lag on every keystroke",
+      "Visual polish: hover states, transitions, focus rings, and improved table spacing",
+      "Fixed share page leaking owner-only buttons (Sign In, Tag Items, Delete, Sync)",
+      "Preview images now load instantly on repeat visits via warm cache and extended TTL",
+      "Added automatic retry for expired signed image URLs"
+    ]
+  },
+  {
     "version": "2.0.5",
     "date": "2026-02-26",
     "changes": [
