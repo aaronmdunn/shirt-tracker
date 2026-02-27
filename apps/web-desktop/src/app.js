@@ -635,7 +635,7 @@ const adminStatsContent = document.getElementById("admin-stats-content");
 const adminRefreshButton = document.getElementById("admin-refresh");
 const adminCloseButton = document.getElementById("admin-close");
 if (adminDialog) {
-  adminDialog.style.cssText = "max-width:720px; width:90vw;";
+  adminDialog.style.cssText = "max-width:780px; width:92vw;";
   const adminBody = adminDialog.querySelector(".dialog-body");
   if (adminBody) adminBody.style.cssText = "max-height:70vh; overflow-y:auto;";
 }
@@ -7354,20 +7354,13 @@ const renderAdminStats = (data) => {
 
   // User table
   const table = document.createElement("table");
-  table.style.cssText = "width:100%; border-collapse:collapse; font-size:0.8rem; table-layout:fixed;";
+  table.style.cssText = "width:100%; border-collapse:collapse; font-size:0.8rem;";
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  const columns = [
-    { label: "Email", width: "auto" },
-    { label: "Items", width: "52px" },
-    { label: "Last Sync", width: "140px" },
-    { label: "Signed Up", width: "140px" },
-  ];
-  columns.forEach((col) => {
+  ["Email", "Items", "Last Sync", "Signed Up"].forEach((text) => {
     const th = document.createElement("th");
     th.style.cssText = "text-align:left; padding:6px 8px; border-bottom:2px solid var(--border, #ddd); font-weight:600; white-space:nowrap;";
-    if (col.width !== "auto") th.style.width = col.width;
-    th.textContent = col.label;
+    th.textContent = text;
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -7378,7 +7371,7 @@ const renderAdminStats = (data) => {
     data.users.forEach((user) => {
       const tr = document.createElement("tr");
       const emailTd = document.createElement("td");
-      emailTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      emailTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
       emailTd.textContent = user.email;
       tr.appendChild(emailTd);
 
