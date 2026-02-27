@@ -2074,7 +2074,10 @@ dialog::backdrop {
 html[data-public-share="true"] #auth-action,
 html[data-public-share="true"] #auth-action-signedout,
 html[data-public-share="true"] #share-columns-button,
-html[data-public-share="true"] .signedout-login {
+html[data-public-share="true"] .signedout-login,
+html[data-public-share="true"] #bulk-tags,
+html[data-public-share="true"] #delete-selected-bottom,
+html[data-public-share="true"] #sync-now {
   display: none !important;
 }
 
