@@ -38,7 +38,7 @@ const APP_VERSION_KEY = "shirts-app-version";
 const APP_UPDATE_KEY = "shirts-app-update-date";
 
 const SIGNED_URL_CACHE_KEY = "shirts-signed-url-cache";
-const SIGNED_URL_TTL_MS = 12 * 60 * 60 * 1000;
+const SIGNED_URL_TTL_MS = 50 * 60 * 1000;
 const WISHLIST_STORAGE_KEY = "wishlist-db-v1";
 const WISHLIST_TAB_STORAGE_KEY = "wishlist-tabs-v1";
 const WISHLIST_COLUMNS_KEY = "wishlist-columns-v1";
@@ -215,7 +215,8 @@ const getPhotoSrc = async (value) => {
   }
   if (value.startsWith("supa:")) {
     if (!supabase) return "";
-    if (photoSrcCache.has(value)) return photoSrcCache.get(value);
+    if (photoSrcCache.has(value) && getCachedSignedUrl(value)) return photoSrcCache.get(value);
+    if (photoSrcCache.has(value) && !getCachedSignedUrl(value)) photoSrcCache.delete(value);
     const cached = getCachedSignedUrl(value);
     if (cached) {
       photoSrcCache.set(value, cached);
@@ -251,7 +252,8 @@ const getLogoSrc = async (value) => {
   if (value.startsWith("data:")) return value;
   if (value.startsWith("supa:")) {
     if (!supabase) return "";
-    if (photoSrcCache.has(value)) return photoSrcCache.get(value);
+    if (photoSrcCache.has(value) && getCachedSignedUrl(value)) return photoSrcCache.get(value);
+    if (photoSrcCache.has(value) && !getCachedSignedUrl(value)) photoSrcCache.delete(value);
     const cached = getCachedSignedUrl(value);
     if (cached) {
       photoSrcCache.set(value, cached);
