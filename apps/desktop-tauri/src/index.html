@@ -2677,7 +2677,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/27/2026, 2:30:38 PM" readonly>
+                <input type="text" id="app-update-date" value="2/27/2026, 2:35:13 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3370,7 +3370,7 @@
       const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-27T19:30:38.389Z";
+      const LAST_COMMIT_DATE = "2026-02-27T19:35:13.699Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11147,7 +11147,8 @@
             method: "GET",
             headers: { Authorization: "Bearer " + token },
           });
-          if (res.status !== 200) return;
+          if (res.status === 403) return;
+          if (res.status !== 200) { adminCheckStarted = false; return; }
         } catch (e) {
           adminCheckStarted = false;
           return;

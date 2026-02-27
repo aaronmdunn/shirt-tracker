@@ -3370,7 +3370,7 @@
       const APP_VERSION = "2.0.6";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-27T14:18:32-05:00";
+      const LAST_COMMIT_DATE = "2026-02-27T14:30:44-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11147,7 +11147,8 @@
             method: "GET",
             headers: { Authorization: "Bearer " + token },
           });
-          if (res.status !== 200) return;
+          if (res.status === 403) return;
+          if (res.status !== 200) { adminCheckStarted = false; return; }
         } catch (e) {
           adminCheckStarted = false;
           return;
