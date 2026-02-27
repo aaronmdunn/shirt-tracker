@@ -316,6 +316,9 @@
                 <button class="btn secondary" id="export-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Export CSV</button>
                 <button class="btn secondary" id="import-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Import CSV</button>
               </div>
+              <div style="display:flex; justify-content:center; margin-top:8px;">
+                <a href="#" id="recycle-bin-link" style="font-size:0.78rem; color:var(--muted);">Recycle Bin</a>
+              </div>
             </div>
             <div class="danger-box">
               <div class="danger-title">Danger Zone</div>
@@ -471,6 +474,7 @@
         <div><strong>Edit Profile Name</strong> &mdash; Change your display name.</div>
         <div><strong>Export CSV</strong> &mdash; Download the current tab&rsquo;s data as a CSV spreadsheet.</div>
         <div><strong>Import CSV</strong> &mdash; Upload a CSV file to add rows to the current tab.</div>
+        <div><strong>Recycle Bin</strong> &mdash; View and restore recently deleted items. Items are kept for 30 days before being permanently removed.</div>
 
         <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Danger Zone</strong></div>
         <div><strong>Reset Tab</strong> &mdash; Delete all rows on the current tab. This can be undone with the Undo button.</div>
@@ -884,6 +888,19 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="event-log-clear">Clear Log</button>
         <button type="button" class="btn" id="event-log-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="recycle-bin-dialog">
+      <div class="dialog-body">
+        <h3>Recycle Bin</h3>
+        <div style="font-size:0.78rem; color:var(--muted);">Deleted items are kept for 30 days. Click an item to see details.</div>
+        <div class="recycle-bin-list" id="recycle-bin-list"></div>
+        <div class="recycle-bin-empty" id="recycle-bin-empty">Recycle bin is empty.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger-btn" id="recycle-bin-empty-all" style="font-size:0.78rem;">Empty Bin</button>
+        <button type="button" class="btn" id="recycle-bin-close">Close</button>
       </div>
     </dialog>
 
