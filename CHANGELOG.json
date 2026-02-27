@@ -1,5 +1,17 @@
 [
   {
+    "version": "2.0.7",
+    "date": "2026-02-27",
+    "changes": [
+      "Added Recycle Bin — deleted items are now recoverable for 30 days",
+      "Recycle Bin supports both Inventory and Wishlist modes",
+      "Restore deleted items to their original tab with all data intact",
+      "Deleted items sync to the cloud automatically",
+      "Fixed signed URL cache serving expired image URLs for up to 11 hours",
+      "Fixed admin panel link not appearing on first page load"
+    ]
+  },
+  {
     "version": "2.0.6",
     "date": "2026-02-26",
     "changes": [
