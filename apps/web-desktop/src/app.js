@@ -2013,27 +2013,31 @@ const applyPublicShareMode = () => {
   document.body.setAttribute("data-public-share", "true");
   document.body.setAttribute("data-auth", "signed-in");
   document.body.setAttribute("data-viewer", "true");
+  // Build the header layout first so DOM nodes exist, then hide auth buttons.
+  applyDesktopHeaderInlineLayout();
   if (authActionButton) {
-    authActionButton.style.display = "none";
+    authActionButton.style.setProperty("display", "none", "important");
   }
   if (authActionSignedOutButton) {
-    authActionSignedOutButton.style.display = "none";
+    authActionSignedOutButton.style.setProperty("display", "none", "important");
   }
   const signedOutLogin = document.querySelector(".signedout-login");
   if (signedOutLogin) {
-    signedOutLogin.style.display = "none";
+    signedOutLogin.style.setProperty("display", "none", "important");
+  }
+  if (syncNowButton) {
+    syncNowButton.style.setProperty("display", "none", "important");
   }
   setAuthLoading(false);
   if (shareColumnsButton) {
-    shareColumnsButton.style.display = "none";
+    shareColumnsButton.style.setProperty("display", "none", "important");
   }
   if (copyShareLinkButton) {
-    copyShareLinkButton.style.display = "none";
+    copyShareLinkButton.style.setProperty("display", "none", "important");
   }
   if (bulkTagsButton) {
-    bulkTagsButton.style.display = "none";
+    bulkTagsButton.style.setProperty("display", "none", "important");
   }
-  if (syncNowButton) syncNowButton.disabled = true;
   if (verifyBackupButton) verifyBackupButton.disabled = true;
   updateUnsavedStatus();
   updateHeaderSubtitle();
@@ -2110,7 +2114,6 @@ const positionAuthAction = () => {
 };
 
 function applyDesktopAuthButtonSizing() {
-  if (publicShareToken) return;
   const syncNowButton = document.getElementById("sync-now");
   const authActionButton = document.getElementById("auth-action");
   [syncNowButton, authActionButton].forEach((button) => {
@@ -2128,7 +2131,6 @@ function applyDesktopAuthButtonSizing() {
 }
 
 function applyDesktopHeaderInlineLayout() {
-  if (publicShareToken) return;
   const dangerZone = document.querySelector(".danger-zone");
   const headerActions = document.querySelector(".header-actions");
   if (!dangerZone) return;
