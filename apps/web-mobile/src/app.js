@@ -2859,11 +2859,16 @@ const syncToSupabase = async () => {
     }
     const payload = buildCloudPayload();
     const updatedAt = new Date().toISOString();
-    await supabase.from("shirt_state").upsert({
+    const { error: upsertError } = await supabase.from("shirt_state").upsert({
       user_id: currentUser.id,
       data: payload,
       updated_at: updatedAt,
     });
+    if (upsertError) {
+      console.warn("Cloud sync failed", upsertError);
+      setUnsavedStatus("Cloud sync failed. Your data is saved locally.", "alert");
+      return;
+    }
     const parsedUpdatedAt = Date.parse(updatedAt);
     setBackupTimestamp(LAST_SYNC_KEY, Number.isNaN(parsedUpdatedAt) ? Date.now() : parsedUpdatedAt);
     setBackupTimestamp(LAST_CLOUD_UPDATE_KEY, parsedUpdatedAt);
@@ -7260,10 +7265,19 @@ filterColumnSelect.addEventListener("change", (event) => {
   renderTable();
 });
 
+const debounce = (fn, delay) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+};
+
+const debouncedFilterRender = debounce(() => { saveState(); renderTable(); }, 150);
+
 filterQueryInput.addEventListener("input", (event) => {
   state.filter.query = event.target.value;
-  saveState();
-  renderTable();
+  debouncedFilterRender();
 });
 
 if (filterTagsSelect) {
