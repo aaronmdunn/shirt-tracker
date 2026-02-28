@@ -79,19 +79,25 @@ const inlineSources = (dir) => {
   let html = fs.readFileSync(htmlPath, "utf8");
 
   if (fs.existsSync(cssPath)) {
-    const css = fs.readFileSync(cssPath, "utf8");
+    // Escape </style sequences so the HTML parser doesn't close the tag early
+    const css = fs.readFileSync(cssPath, "utf8").replace(/<\/style/gi, "<\\/style");
+    // Use a replacement function (not a string) so that $ sequences in the CSS
+    // are not interpreted as special replacement patterns by String.prototype.replace.
     html = html.replace(
       /^[ \t]*<link rel="stylesheet" href="style\.css">\s*$/m,
-      `    <style>\n${css}\n    </style>`
+      () => `    <style>\n${css}\n    </style>`
     );
     fs.rmSync(cssPath);
   }
 
   if (fs.existsSync(jsPath)) {
-    const js = fs.readFileSync(jsPath, "utf8");
+    // Escape </script sequences so the HTML parser doesn't close the tag early
+    const js = fs.readFileSync(jsPath, "utf8").replace(/<\/script/gi, "<\\/script");
+    // Use a replacement function (not a string) so that $ sequences in minified JS
+    // (e.g. $& meaning "matched text") are not expanded by String.prototype.replace.
     html = html.replace(
       /^[ \t]*<script src="app\.js"><\/script>\s*$/m,
-      `    <script>\n${js}\n    </script>`
+      () => `    <script>\n${js}\n    </script>`
     );
     fs.rmSync(jsPath);
   }
