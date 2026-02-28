@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.7";
+const APP_VERSION = "2.0.8";
 const IS_WEB_BUILD = true;
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
 const LAST_COMMIT_DATE = "2026-02-04T10:36:12-05:00";
@@ -2913,7 +2913,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.7",
+    version: "2.0.8",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -7513,7 +7513,8 @@ if (recycleBinLink) {
 const renderChangelog = () => {
   if (!changelogList) return;
   changelogList.textContent = "";
-  CHANGELOG.forEach((release) => {
+
+  const renderRelease = (release) => {
     const section = document.createElement("div");
     section.style.marginBottom = "18px";
     const heading = document.createElement("div");
@@ -7533,8 +7534,43 @@ const renderChangelog = () => {
       list.appendChild(li);
     });
     section.appendChild(list);
-    changelogList.appendChild(section);
-  });
+    return section;
+  };
+
+  // Always show the latest version
+  if (CHANGELOG.length > 0) {
+    changelogList.appendChild(renderRelease(CHANGELOG[0]));
+  }
+
+  // Older versions behind a toggle
+  if (CHANGELOG.length > 1) {
+    const toggle = document.createElement("a");
+    toggle.href = "#";
+    toggle.textContent = "Show older versions";
+    toggle.style.display = "inline-block";
+    toggle.style.marginTop = "4px";
+    toggle.style.fontSize = "0.85rem";
+    toggle.style.color = "#555";
+    toggle.style.cursor = "pointer";
+    toggle.style.textDecoration = "underline";
+
+    const olderContainer = document.createElement("div");
+    olderContainer.style.display = "none";
+    olderContainer.style.marginTop = "14px";
+    CHANGELOG.slice(1).forEach((release) => {
+      olderContainer.appendChild(renderRelease(release));
+    });
+
+    toggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      const isHidden = olderContainer.style.display === "none";
+      olderContainer.style.display = isHidden ? "block" : "none";
+      toggle.textContent = isHidden ? "Hide older versions" : "Show older versions";
+    });
+
+    changelogList.appendChild(toggle);
+    changelogList.appendChild(olderContainer);
+  }
 };
 
 if (changelogCloseButton) {
