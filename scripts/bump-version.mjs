@@ -25,8 +25,7 @@ const tauriConfigPath = path.join(
   root, "apps", "desktop-tauri", "src-tauri", "tauri.conf.json"
 );
 
-const desktopAppJs = path.join(root, "apps", "web-desktop", "src", "app.js");
-const mobileAppJs = path.join(root, "apps", "web-mobile", "src", "app.js");
+const sharedAppJs = path.join(root, "apps", "shared", "app.shared.js");
 const desktopHtml = path.join(root, "apps", "web-desktop", "src", "index.html");
 const mobileHtml = path.join(root, "apps", "web-mobile", "src", "index.html");
 
@@ -111,9 +110,8 @@ if (fs.existsSync(tauriConfigPath)) {
   console.error(`  WARNING: tauri.conf.json not found at ${tauriConfigPath}`);
 }
 
-// --- 2. Update the two app.js files ---
-applyReplacements(desktopAppJs, appJsReplacements);
-applyReplacements(mobileAppJs, appJsReplacements);
+// --- 2. Update the shared app.js ---
+applyReplacements(sharedAppJs, appJsReplacements);
 
 // --- 3. Update the two index.html files ---
 applyReplacements(desktopHtml, htmlReplacements);
@@ -125,10 +123,8 @@ console.log("\nVerifying...\n");
 const verifications = [
   [packageJsonPath, `"version": "${newVersion}"`],
   [tauriConfigPath, `"version": "${newVersion}"`],
-  [desktopAppJs, `const APP_VERSION = "${newVersion}"`],
-  [mobileAppJs, `const APP_VERSION = "${newVersion}"`],
-  [desktopAppJs, `version: "${newVersion}"`],
-  [mobileAppJs, `version: "${newVersion}"`],
+  [sharedAppJs, `const APP_VERSION = "${newVersion}"`],
+  [sharedAppJs, `version: "${newVersion}"`],
   [desktopHtml, `Shirt Tracker v${newVersion}`],
   [mobileHtml, `Shirt Tracker v${newVersion}`],
 ];
@@ -151,7 +147,7 @@ for (const [filePath, expectedString] of verifications) {
 }
 
 if (allGood) {
-  console.log(`\nDone! All 8 version locations updated to ${newVersion}.\n`);
+  console.log(`\nDone! All ${verifications.length + 2} version locations updated to ${newVersion}.\n`);
 } else {
   console.error("\nWARNING: Some verifications failed. Check the output above.\n");
   process.exit(1);

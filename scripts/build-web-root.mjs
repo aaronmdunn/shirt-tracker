@@ -6,6 +6,7 @@ import esbuild from "esbuild";
 const root = process.cwd();
 const desktopSrc = path.join(root, "apps", "web-desktop", "src");
 const mobileSrc = path.join(root, "apps", "web-mobile", "src");
+const sharedJs = path.join(root, "apps", "shared", "app.shared.js");
 const outDir = path.join(root, "apps", "web-root");
 const outDesktop = path.join(outDir, "d");
 const outMobile = path.join(outDir, "m");
@@ -108,12 +109,31 @@ const inlineSources = (dir) => {
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
+// Copy platform-specific assets (HTML, CSS, fonts, icons, manifest) from each src/ folder.
+// These still differ between desktop and mobile (different HTML structure, different CSS).
 copyDir(desktopSrc, outDesktop);
 copyDir(mobileSrc, outMobile);
 
-// Read APP_VERSION from desktop app.js so we can inject it into sw.js
-const appVersionMatch = fs.readFileSync(path.join(outDesktop, "app.js"), "utf8")
-  .match(/const APP_VERSION = "([^"]+)";/);
+// Replace each platform's app.js with the shared source, setting the PLATFORM constant.
+// The shared file contains both desktop and mobile code paths gated by PLATFORM checks.
+// esbuild's minifier will dead-code-eliminate the unused branches since PLATFORM is a
+// string literal after replacement, making the if-checks statically determinable.
+if (!fs.existsSync(sharedJs)) {
+  throw new Error(`Shared JS not found: ${sharedJs}`);
+}
+const sharedSource = fs.readFileSync(sharedJs, "utf8");
+for (const [dir, platform] of [[outDesktop, "desktop"], [outMobile, "mobile"]]) {
+  const jsPath = path.join(dir, "app.js");
+  // Replace the placeholder with the actual platform string
+  const platformized = sharedSource.replace(
+    /const PLATFORM = "__PLATFORM__";/,
+    `const PLATFORM = "${platform}";`
+  );
+  fs.writeFileSync(jsPath, platformized, "utf8");
+}
+
+// Read APP_VERSION from the shared source so we can inject it into sw.js
+const appVersionMatch = sharedSource.match(/const APP_VERSION = "([^"]+)";/);
 const appVersion = appVersionMatch ? appVersionMatch[1] : "0.0.0";
 
 // Inject version into sw.js and minify (sw.js must stay as a separate file — browsers
