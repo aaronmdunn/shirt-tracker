@@ -2647,7 +2647,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/28/2026, 10:31:39 AM" readonly>
+                <input type="text" id="app-update-date" value="2/28/2026, 10:55:58 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -2769,7 +2769,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.7</div>
+        <div id="about-version">Shirt Tracker v2.0.8</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3326,10 +3326,10 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.7";
+      const APP_VERSION = "2.0.8";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-28T15:31:39.616Z";
+      const LAST_COMMIT_DATE = "2026-02-28T15:55:58.231Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3346,6 +3346,20 @@
       const DELETED_ROWS_PURGE_DAYS = 30;
 
       const CHANGELOG = [
+        {
+          "version": "2.0.8",
+          "date": "2026-02-28",
+          "changes": [
+            "Tightened CORS on all Netlify functions to allow only shirt-tracker.com",
+            "Replaced hardcoded admin email with environment variable in notify-admin",
+            "Added in-memory signed URL cache to avoid repeated localStorage parsing",
+            "Removed duplicate CSS rules across desktop and mobile stylesheets",
+            "Added esbuild minification to the production build pipeline",
+            "Synced package.json version with app version across all files",
+            "Changelog dialog now shows only the latest version with a toggle for older ones",
+            "Fixed minified JS breaking when inlined into HTML due to $ pattern expansion"
+          ]
+        },
         {
           "version": "2.0.7",
           "date": "2026-02-27",
@@ -6243,7 +6257,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.7",
+          version: "2.0.8",
           deletedRows: purgeExpiredDeletedRows(),
         };
         if (wishlistTabs.length > 0) {
@@ -10916,7 +10930,8 @@
       const renderChangelog = () => {
         if (!changelogList) return;
         changelogList.textContent = "";
-        CHANGELOG.forEach((release) => {
+
+        const renderRelease = (release) => {
           const section = document.createElement("div");
           section.style.marginBottom = "18px";
           const heading = document.createElement("div");
@@ -10936,8 +10951,43 @@
             list.appendChild(li);
           });
           section.appendChild(list);
-          changelogList.appendChild(section);
-        });
+          return section;
+        };
+
+        // Always show the latest version
+        if (CHANGELOG.length > 0) {
+          changelogList.appendChild(renderRelease(CHANGELOG[0]));
+        }
+
+        // Older versions behind a toggle
+        if (CHANGELOG.length > 1) {
+          const toggle = document.createElement("a");
+          toggle.href = "#";
+          toggle.textContent = "Show older versions";
+          toggle.style.display = "inline-block";
+          toggle.style.marginTop = "4px";
+          toggle.style.fontSize = "0.85rem";
+          toggle.style.color = "#555";
+          toggle.style.cursor = "pointer";
+          toggle.style.textDecoration = "underline";
+
+          const olderContainer = document.createElement("div");
+          olderContainer.style.display = "none";
+          olderContainer.style.marginTop = "14px";
+          CHANGELOG.slice(1).forEach((release) => {
+            olderContainer.appendChild(renderRelease(release));
+          });
+
+          toggle.addEventListener("click", (event) => {
+            event.preventDefault();
+            const isHidden = olderContainer.style.display === "none";
+            olderContainer.style.display = isHidden ? "block" : "none";
+            toggle.textContent = isHidden ? "Hide older versions" : "Show older versions";
+          });
+
+          changelogList.appendChild(toggle);
+          changelogList.appendChild(olderContainer);
+        }
       };
 
       if (changelogCloseButton) {

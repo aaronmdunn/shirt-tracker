@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.0.8",
+    "date": "2026-02-28",
+    "changes": [
+      "Tightened CORS on all Netlify functions to allow only shirt-tracker.com",
+      "Replaced hardcoded admin email with environment variable in notify-admin",
+      "Added in-memory signed URL cache to avoid repeated localStorage parsing",
+      "Removed duplicate CSS rules across desktop and mobile stylesheets",
+      "Added esbuild minification to the production build pipeline",
+      "Synced package.json version with app version across all files",
+      "Changelog dialog now shows only the latest version with a toggle for older ones",
+      "Fixed minified JS breaking when inlined into HTML due to $ pattern expansion"
+    ]
+  },
+  {
     "version": "2.0.7",
     "date": "2026-02-27",
     "changes": [
