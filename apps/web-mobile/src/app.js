@@ -111,18 +111,23 @@ const PHOTO_DB = "shirt-tracker-photos";
 const PHOTO_STORE = "photos";
 const photoSrcCache = new Map();
 
+let signedUrlCacheMemory = null;
+
 const loadSignedUrlCache = () => {
+  if (signedUrlCacheMemory) return signedUrlCacheMemory;
   if (!canUseLocalStorage()) return {};
   try {
     const stored = localStorage.getItem(SIGNED_URL_CACHE_KEY);
     const parsed = stored ? JSON.parse(stored) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
+    signedUrlCacheMemory = parsed && typeof parsed === "object" ? parsed : {};
+    return signedUrlCacheMemory;
   } catch (error) {
     return {};
   }
 };
 
 const saveSignedUrlCache = (cache) => {
+  signedUrlCacheMemory = cache;
   if (!canUseLocalStorage()) return;
   try {
     localStorage.setItem(SIGNED_URL_CACHE_KEY, JSON.stringify(cache));
