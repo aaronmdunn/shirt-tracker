@@ -29,14 +29,20 @@ serve(async (req) => {
                  "Friend"
 
     // 4. Send the Email
+    const adminEmail = Deno.env.get('ADMIN_NOTIFY_EMAIL')
+    const fromEmail = Deno.env.get('ADMIN_FROM_EMAIL') || 'onboarding@resend.dev'
+    if (!adminEmail) {
+      throw new Error('ADMIN_NOTIFY_EMAIL env var is not set')
+    }
+    const escapeName = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     const data = await resend.emails.send({
-      from: 'onboarding@resend.dev',
-      to: 'geniusaaron@me.com', // <--- REMEMBER TO CHANGE THIS AGAIN!
+      from: fromEmail,
+      to: adminEmail,
       subject: 'New User Signup!',
       html: `
-        <h2>New User Alert! 🚀</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
+        <h2>New User Alert!</h2>
+        <p><strong>Name:</strong> ${escapeName(name)}</p>
+        <p><strong>Email:</strong> ${escapeName(email)}</p>
         <p>Time to celebrate!</p>
       `
     })

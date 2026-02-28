@@ -457,13 +457,6 @@ table.mobile-action-grid .btn {
   text-align: center;
 }
 
-#sync-now,
-#auth-action {
-  min-width: 120px;
-  justify-content: center;
-  text-align: center;
-}
-
 #sync-now:active {
   background: rgba(176, 0, 32, 0.12);
   color: var(--accent);
@@ -696,14 +689,6 @@ body[data-auth="signed-out"] .sheet-header {
 
 body[data-auth="signed-out"] .auth-row {
   display: flex !important;
-}
-
-body[data-auth="signed-out"] #auth-action {
-  display: inline-flex !important;
-}
-
-body[data-auth="signed-out"] .auth-row {
-  display: flex;
   flex-direction: column;
   align-items: center;
 }
@@ -1119,10 +1104,6 @@ td[data-label="Preview"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.cell-text,
-.cell-notes {
 }
 
 .row-actions {
@@ -1809,18 +1790,10 @@ body[data-viewer="true"] .viewer-banner {
   align-items: flex-end;
 }
 
-
 .sheet-footer .footer-item {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.footer-stats {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .stat-cell {
