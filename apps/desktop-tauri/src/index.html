@@ -2647,7 +2647,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/28/2026, 11:34:26 AM" readonly>
+                <input type="text" id="app-update-date" value="2/28/2026, 1:21:14 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3329,7 +3329,7 @@
       const APP_VERSION = "2.0.8";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-28T16:34:26.239Z";
+      const LAST_COMMIT_DATE = "2026-02-28T18:21:14.640Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3462,6 +3462,27 @@
           ]
         }
       ];
+
+      // --- Service Worker Registration ---
+      // Registers sw.js for offline support and instant repeat loads.
+      // Skipped in Tauri (native app doesn't use service workers).
+      if ("serviceWorker" in navigator && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
+        navigator.serviceWorker.register("sw.js").then((reg) => {
+          // When a new SW is found (deploy happened), listen for it to activate
+          reg.addEventListener("updatefound", () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
+                // A new version was installed & activated — the next reload will use it
+                console.log("[SW] New version installed. Refresh to update.");
+              }
+            });
+          });
+        }).catch((err) => {
+          console.warn("[SW] Registration failed:", err);
+        });
+      }
 
       const clearLegacyStorage = () => {
         try {
