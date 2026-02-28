@@ -3480,17 +3480,6 @@
       </div>
     </dialog>
 
-    <dialog id="admin-dialog">
-      <div class="dialog-body">
-        <h3>Admin Panel</h3>
-        <div id="admin-stats-content"></div>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" class="btn secondary" id="admin-refresh">Refresh</button>
-        <button type="button" class="btn" id="admin-close">Close</button>
-      </div>
-    </dialog>
-
     <script id="embedded-state" type="application/json">{}</script>
 
     <dialog id="photo-dialog" class="photo-dialog">
@@ -3558,7 +3547,7 @@
       const APP_VERSION = "2.0.7";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-27T14:35:21-05:00";
+      const LAST_COMMIT_DATE = "2026-02-28T06:46:13-05:00";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -4262,15 +4251,6 @@
       const recycleBinCloseButton = document.getElementById("recycle-bin-close");
       const recycleBinEmptyAllButton = document.getElementById("recycle-bin-empty-all");
       const recycleBinLink = document.getElementById("recycle-bin-link");
-      const adminDialog = document.getElementById("admin-dialog");
-      const adminStatsContent = document.getElementById("admin-stats-content");
-      const adminRefreshButton = document.getElementById("admin-refresh");
-      const adminCloseButton = document.getElementById("admin-close");
-      if (adminDialog) {
-        adminDialog.style.cssText = "max-width:780px; width:92vw;";
-        const adminBody = adminDialog.querySelector(".dialog-body");
-        if (adminBody) adminBody.style.cssText = "max-height:70vh; overflow-y:auto;";
-      }
       const photoDialog = document.getElementById("photo-dialog");
       const photoDialogImage = document.getElementById("photo-dialog-image");
       const clearPhotoDialogButton = document.getElementById("clear-photo-dialog");
@@ -11183,151 +11163,10 @@
         });
       }
 
-      // --- Admin Panel ---
-
-      const formatAdminDate = (dateStr) => {
-        if (!dateStr) return "Never";
-        try {
-          const d = new Date(dateStr);
-          if (isNaN(d.getTime())) return "Unknown";
-          return d.toLocaleString();
-        } catch (e) {
-          return "Unknown";
-        }
-      };
-
-      const renderAdminStats = (data) => {
-        if (!adminStatsContent) return;
-        adminStatsContent.textContent = "";
-
-        // Summary cards container
-        const summary = document.createElement("div");
-        summary.style.cssText = "display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;";
-
-        const addCard = (label, value) => {
-          const card = document.createElement("div");
-          card.style.cssText = "background:var(--surface, #f5f5f5); border-radius:8px; padding:12px; text-align:center;";
-          const valEl = document.createElement("div");
-          valEl.style.cssText = "font-size:1.4rem; font-weight:700; margin-bottom:2px;";
-          valEl.textContent = value;
-          card.appendChild(valEl);
-          const labelEl = document.createElement("div");
-          labelEl.style.cssText = "font-size:0.75rem; color:var(--muted, #888);";
-          labelEl.textContent = label;
-          card.appendChild(labelEl);
-          summary.appendChild(card);
-        };
-
-        addCard("Total Users", String(data.totalUsers));
-        addCard("Users with Data", String(data.totalShirtStateRows));
-        addCard("Total Items", String(data.totalItems));
-        addCard("App Version", "v" + APP_VERSION);
-
-        adminStatsContent.appendChild(summary);
-
-        // Last backup
-        const backupLine = document.createElement("div");
-        backupLine.style.cssText = "font-size:0.82rem; color:var(--muted, #888); margin-bottom:14px; text-align:center;";
-        backupLine.textContent = "Last backup: " + formatAdminDate(data.lastBackup);
-        adminStatsContent.appendChild(backupLine);
-
-        // Per-user breakdown heading
-        const heading = document.createElement("div");
-        heading.style.cssText = "font-weight:700; font-size:0.9rem; margin-bottom:8px;";
-        heading.textContent = "Per-User Breakdown";
-        adminStatsContent.appendChild(heading);
-
-        // User table
-        const table = document.createElement("table");
-        table.style.cssText = "width:100%; border-collapse:collapse; font-size:0.8rem;";
-        const thead = document.createElement("thead");
-        const headerRow = document.createElement("tr");
-        ["Email", "Items", "Last Sync", "Signed Up"].forEach((text) => {
-          const th = document.createElement("th");
-          th.style.cssText = "text-align:left; padding:6px 8px; border-bottom:2px solid var(--border, #ddd); font-weight:600; white-space:nowrap;";
-          th.textContent = text;
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement("tbody");
-        if (data.users && data.users.length > 0) {
-          data.users.forEach((user) => {
-            const tr = document.createElement("tr");
-            const emailTd = document.createElement("td");
-            emailTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
-            emailTd.textContent = user.email;
-            tr.appendChild(emailTd);
-
-            const itemsTd = document.createElement("td");
-            itemsTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); text-align:center;";
-            itemsTd.textContent = String(user.items);
-            tr.appendChild(itemsTd);
-
-            const syncTd = document.createElement("td");
-            syncTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); white-space:nowrap;";
-            syncTd.textContent = formatAdminDate(user.lastSync);
-            tr.appendChild(syncTd);
-
-            const createdTd = document.createElement("td");
-            createdTd.style.cssText = "padding:5px 8px; border-bottom:1px solid var(--border, #eee); white-space:nowrap;";
-            createdTd.textContent = formatAdminDate(user.createdAt);
-            tr.appendChild(createdTd);
-
-            tbody.appendChild(tr);
-          });
-        } else {
-          const tr = document.createElement("tr");
-          const td = document.createElement("td");
-          td.setAttribute("colspan", "4");
-          td.style.cssText = "padding:12px 8px; text-align:center; color:var(--muted, #888);";
-          td.textContent = "No user data found.";
-          tr.appendChild(td);
-          tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-
-        const tableWrap = document.createElement("div");
-        tableWrap.style.cssText = "overflow-x:auto;";
-        tableWrap.appendChild(table);
-        adminStatsContent.appendChild(tableWrap);
-      };
-
-      const loadAdminStats = async () => {
-        if (!adminStatsContent) return;
-        adminStatsContent.textContent = "";
-        const loading = document.createElement("div");
-        loading.style.cssText = "text-align:center; padding:24px; color:var(--muted, #888);";
-        loading.textContent = "Loading admin stats\u2026";
-        adminStatsContent.appendChild(loading);
-
-        try {
-          if (!supabase || !currentUser) {
-            throw new Error("Not authenticated");
-          }
-          const { data: sessionData } = await supabase.auth.getSession();
-          const token = sessionData?.session?.access_token;
-          if (!token) {
-            throw new Error("No auth token available");
-          }
-          const response = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
-            headers: { Authorization: "Bearer " + token },
-          });
-          if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || "Request failed (" + response.status + ")");
-          }
-          const data = await response.json();
-          renderAdminStats(data);
-        } catch (error) {
-          adminStatsContent.textContent = "";
-          const errEl = document.createElement("div");
-          errEl.style.cssText = "text-align:center; padding:24px; color:#c0392b;";
-          errEl.textContent = "Failed to load stats: " + (error.message || "Unknown error");
-          adminStatsContent.appendChild(errEl);
-        }
-      };
+      // --- Admin Panel (lazy-loaded from server) ---
+      // The admin UI code is NOT shipped to the browser. It is fetched from a
+      // server-side function (admin-ui) only after the caller's JWT is verified
+      // as belonging to the admin. Non-admins never download the code at all.
 
       let adminCheckStarted = false;
       const initAdminLink = async () => {
@@ -11338,45 +11177,27 @@
           const { data: sessionData } = await supabase.auth.getSession();
           const token = sessionData?.session?.access_token;
           if (!token) { adminCheckStarted = false; return; }
-          const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-stats", {
+          const res = await fetch(NETLIFY_BASE + "/.netlify/functions/admin-ui", {
             method: "GET",
             headers: { Authorization: "Bearer " + token },
           });
-          if (res.status === 403) return;
-          if (res.status !== 200) { adminCheckStarted = false; return; }
+          if (res.status === 403) return;           // confirmed not admin — lock permanently
+          if (res.status !== 200) { adminCheckStarted = false; return; } // transient error — allow retry
+          const jsText = await res.text();
+          // Bridge passes block-scoped references to the global-scope <script>.
+          // The injected IIFE reads from this object then immediately deletes it.
+          window.__adminBridge = {
+            openDialog, closeDialog, resetDialogScroll,
+            changelogLink, NETLIFY_BASE, APP_VERSION,
+            supabase, currentUser,
+          };
+          const script = document.createElement("script");
+          script.textContent = jsText;
+          document.body.appendChild(script);
         } catch (e) {
           adminCheckStarted = false;
-          return;
         }
-        const changelogLinkContainer = changelogLink ? changelogLink.closest(".event-log-link") : null;
-        if (!changelogLinkContainer) return;
-        const adminLinkDiv = document.createElement("div");
-        adminLinkDiv.className = "event-log-link";
-        const adminAnchor = document.createElement("a");
-        adminAnchor.href = "#";
-        adminAnchor.id = "admin-panel-link";
-        adminAnchor.textContent = "Admin Panel";
-        adminAnchor.addEventListener("click", (event) => {
-          event.preventDefault();
-          loadAdminStats();
-          openDialog(adminDialog);
-          resetDialogScroll(adminDialog);
-        });
-        adminLinkDiv.appendChild(adminAnchor);
-        changelogLinkContainer.insertAdjacentElement("afterend", adminLinkDiv);
       };
-
-      if (adminCloseButton) {
-        adminCloseButton.addEventListener("click", () => {
-          closeDialog(adminDialog);
-        });
-      }
-
-      if (adminRefreshButton) {
-        adminRefreshButton.addEventListener("click", () => {
-          loadAdminStats();
-        });
-      }
 
       // --- End Admin Panel ---
 
