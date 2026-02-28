@@ -22,10 +22,10 @@
     #   inline scripts for GTM init, share-token pre-loading, and UA routing. These are
     #   static, not user data. The XSS risk CSP script-src would normally guard against
     #   is separately addressed by the renderColumns() DOM-API refactor (Finding 1).
-    # - connect-src: self + Supabase project + Google Analytics endpoints
+    # - connect-src: self + Supabase project + Google Analytics + Plausible endpoints
     # - img-src: self, data URIs, blob URLs (photo previews), and Supabase storage
     # - style-src: 'unsafe-inline' required by existing extensive inline styles
     # - font-src: self (fonts are self-hosted)
     # - frame-ancestors 'none': prevents clickjacking from any origin
     # - form-action 'self': prevents form submissions to external sites
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; connect-src 'self' https://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://*.google-analytics.com https://*.googletagmanager.com; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com https://plausible.io; connect-src 'self' https://*.supabase.co https://www.google-analytics.com https://analytics.google.com https://*.google-analytics.com https://*.googletagmanager.com https://plausible.io; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
