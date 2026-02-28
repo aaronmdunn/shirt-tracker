@@ -125,6 +125,12 @@ if (fs.existsSync(changelogPath)) {
   }
 }
 
+// Inject LAST_COMMIT_DATE into app.js (must happen before minification mangles the variable name)
+const lastCommitDate = getLastCommitDate();
+for (const dir of [outDesktop, outMobile]) {
+  injectLastCommitDate(path.join(dir, "app.js"), lastCommitDate);
+}
+
 // Minify CSS and JS before inlining
 const minifyFile = async (filePath, loader) => {
   if (!fs.existsSync(filePath)) return;
@@ -146,10 +152,6 @@ for (const dir of [outDesktop, outMobile]) {
 // Inline CSS/JS back into single-file HTML for deployment
 inlineSources(outDesktop);
 inlineSources(outMobile);
-
-const lastCommitDate = getLastCommitDate();
-injectLastCommitDate(path.join(outDesktop, "index.html"), lastCommitDate);
-injectLastCommitDate(path.join(outMobile, "index.html"), lastCommitDate);
 
 fs.writeFileSync(path.join(outDir, "_redirects"), redirects, "utf8");
 
