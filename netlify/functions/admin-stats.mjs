@@ -4,7 +4,7 @@ const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 const BACKUP_BUCKET = process.env.SUPABASE_BACKUP_BUCKET || "shirt-tracker-backups";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://shirt-tracker.com",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
