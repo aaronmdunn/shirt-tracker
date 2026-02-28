@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import esbuild from "esbuild";
 
 const root = process.cwd();
 const desktopSrc = path.join(root, "apps", "web-desktop", "src");
@@ -79,21 +80,18 @@ const inlineSources = (dir) => {
 
   if (fs.existsSync(cssPath)) {
     const css = fs.readFileSync(cssPath, "utf8");
-    // Indent CSS to match original formatting (6 spaces inside <style>)
-    const indentedCss = css.split("\n").map(l => l ? "      " + l : l).join("\n");
     html = html.replace(
       /^[ \t]*<link rel="stylesheet" href="style\.css">\s*$/m,
-      `    <style>\n${indentedCss}\n    </style>`
+      `    <style>\n${css}\n    </style>`
     );
     fs.rmSync(cssPath);
   }
 
   if (fs.existsSync(jsPath)) {
     const js = fs.readFileSync(jsPath, "utf8");
-    const indentedJs = js.split("\n").map(l => l ? "      " + l : l).join("\n");
     html = html.replace(
       /^[ \t]*<script src="app\.js"><\/script>\s*$/m,
-      `    <script>\n${indentedJs}\n    </script>`
+      `    <script>\n${js}\n    </script>`
     );
     fs.rmSync(jsPath);
   }
@@ -119,6 +117,24 @@ if (fs.existsSync(changelogPath)) {
       fs.writeFileSync(jsPath, source.replace(marker, changelogJson), "utf8");
     }
   }
+}
+
+// Minify CSS and JS before inlining
+const minifyFile = async (filePath, loader) => {
+  if (!fs.existsSync(filePath)) return;
+  const source = fs.readFileSync(filePath, "utf8");
+  const result = await esbuild.transform(source, {
+    loader,
+    minify: true,
+    // Keep legal comments (licenses) but strip everything else
+    legalComments: "inline",
+  });
+  fs.writeFileSync(filePath, result.code, "utf8");
+};
+
+for (const dir of [outDesktop, outMobile]) {
+  await minifyFile(path.join(dir, "app.js"), "js");
+  await minifyFile(path.join(dir, "style.css"), "css");
 }
 
 // Inline CSS/JS back into single-file HTML for deployment

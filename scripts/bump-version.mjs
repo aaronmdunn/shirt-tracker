@@ -18,8 +18,9 @@ if (!/^\d+\.\d+\.\d+$/.test(newVersion)) {
   process.exit(1);
 }
 
-// --- Define the 5 source files and what to replace in each ---
+// --- Define the 6 source files and what to replace in each ---
 
+const packageJsonPath = path.join(root, "package.json");
 const tauriConfigPath = path.join(
   root, "apps", "desktop-tauri", "src-tauri", "tauri.conf.json"
 );
@@ -77,8 +78,20 @@ const applyReplacements = (filePath, replacements) => {
   }
 };
 
-// --- 1. Update tauri.conf.json (parsed as JSON, not regex) ---
+// --- 1. Update package.json and tauri.conf.json (parsed as JSON, not regex) ---
 console.log(`\nBumping version to ${newVersion}\n`);
+
+if (fs.existsSync(packageJsonPath)) {
+  const raw = fs.readFileSync(packageJsonPath, "utf8");
+  const pkg = JSON.parse(raw);
+  const oldVersion = pkg.version;
+  pkg.version = newVersion;
+  fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + "\n", "utf8");
+  const shortPath = path.relative(root, packageJsonPath);
+  console.log(`  ✓ ${shortPath} — updated version (${oldVersion} → ${newVersion})`);
+} else {
+  console.error(`  WARNING: package.json not found at ${packageJsonPath}`);
+}
 
 if (fs.existsSync(tauriConfigPath)) {
   const raw = fs.readFileSync(tauriConfigPath, "utf8");
@@ -110,6 +123,7 @@ applyReplacements(mobileHtml, htmlReplacements);
 console.log("\nVerifying...\n");
 
 const verifications = [
+  [packageJsonPath, `"version": "${newVersion}"`],
   [tauriConfigPath, `"version": "${newVersion}"`],
   [desktopAppJs, `const APP_VERSION = "${newVersion}"`],
   [mobileAppJs, `const APP_VERSION = "${newVersion}"`],
@@ -137,7 +151,7 @@ for (const [filePath, expectedString] of verifications) {
 }
 
 if (allGood) {
-  console.log(`\nDone! All 7 version locations updated to ${newVersion}.\n`);
+  console.log(`\nDone! All 8 version locations updated to ${newVersion}.\n`);
 } else {
   console.error("\nWARNING: Some verifications failed. Check the output above.\n");
   process.exit(1);

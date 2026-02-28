@@ -329,14 +329,6 @@ header .wrap {
   letter-spacing: 0.02em;
 }
 
-.auth-subtitle {
-  display: none;
-  margin-top: 6px;
-  font-size: 0.95rem;
-  color: var(--muted);
-  letter-spacing: 0.02em;
-}
-
 
 .danger-zone {
   display: grid;
@@ -381,10 +373,6 @@ header .wrap {
 #share-columns-button .share-columns-sub {
   font-size: inherit;
   font-weight: 600;
-}
-
-#share-columns-button .share-columns-sub {
-  color: #111111;
 }
 
 #share-columns-button .share-columns-sub {
@@ -530,9 +518,6 @@ body[data-auth="signed-out"] .sheet-footer {
 body[data-auth="signed-out"] .sheet {
   border-bottom: none;
   background: linear-gradient(90deg, #c0c0c0, #efefef);
-}
-
-body[data-auth="signed-out"] .sheet {
   width: min(520px, 92vw);
 }
 
@@ -588,14 +573,6 @@ body[data-auth="signed-out"] .sheet-header {
 
 body[data-auth="signed-out"] .auth-row {
   display: flex !important;
-}
-
-body[data-auth="signed-out"] #auth-action {
-  display: inline-flex !important;
-}
-
-body[data-auth="signed-out"] .auth-row {
-  display: flex;
   flex-direction: column;
   align-items: center;
 }
@@ -1015,10 +992,6 @@ td[data-label="Preview"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.cell-text,
-.cell-notes {
 }
 
 .row-actions {
@@ -1675,7 +1648,6 @@ body[data-viewer="true"] .viewer-banner {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-left: auto;
 }
 
 .local-edit-status {
@@ -1689,18 +1661,10 @@ body[data-viewer="true"] .viewer-banner {
   align-items: flex-end;
 }
 
-
 .sheet-footer .footer-item {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.footer-stats {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
 .stat-cell {
