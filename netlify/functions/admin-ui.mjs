@@ -45,14 +45,26 @@ const verifyAdmin = async (authHeader) => {
 /**
  * The admin UI code, returned as a JavaScript string.
  *
- * This code executes in the global scope of app.js (injected via <script> tag).
- * It has access to all top-level variables: openDialog, closeDialog,
- * resetDialogScroll, changelogLink, NETLIFY_BASE, APP_VERSION, supabase,
- * currentUser.
+ * This code is injected via <script> tag and runs in global scope.
+ * Since app.js variables are block-scoped inside a try{}, the injected
+ * code reads dependencies from window.__adminBridge (set by the stub
+ * in app.js just before injection, and deleted immediately after).
  */
 const adminUiScript = `
 (function () {
   // --- Admin Panel (dynamically loaded) ---
+
+  var bridge = window.__adminBridge;
+  if (!bridge) return;
+  var openDialog = bridge.openDialog;
+  var closeDialog = bridge.closeDialog;
+  var resetDialogScroll = bridge.resetDialogScroll;
+  var changelogLink = bridge.changelogLink;
+  var NETLIFY_BASE = bridge.NETLIFY_BASE;
+  var APP_VERSION = bridge.APP_VERSION;
+  var supabase = bridge.supabase;
+  var currentUser = bridge.currentUser;
+  delete window.__adminBridge;
 
   // Build the dialog element
   var dialog = document.createElement("dialog");
@@ -244,7 +256,7 @@ const adminUiScript = `
 
   // --- Inject the Admin Panel link ---
 
-  var changelogLinkContainer = typeof changelogLink !== "undefined" && changelogLink
+  var changelogLinkContainer = changelogLink
     ? changelogLink.closest(".event-log-link")
     : null;
   if (changelogLinkContainer) {

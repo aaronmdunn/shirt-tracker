@@ -2677,7 +2677,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="2/28/2026, 6:44:42 AM" readonly>
+                <input type="text" id="app-update-date" value="2/28/2026, 6:50:15 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3359,7 +3359,7 @@
       const APP_VERSION = "2.0.7";
       const IS_WEB_BUILD = true;
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-02-28T11:44:42.242Z";
+      const LAST_COMMIT_DATE = "2026-02-28T11:50:15.828Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11001,6 +11001,13 @@
           if (res.status === 403) return;           // confirmed not admin — lock permanently
           if (res.status !== 200) { adminCheckStarted = false; return; } // transient error — allow retry
           const jsText = await res.text();
+          // Bridge passes block-scoped references to the global-scope <script>.
+          // The injected IIFE reads from this object then immediately deletes it.
+          window.__adminBridge = {
+            openDialog, closeDialog, resetDialogScroll,
+            changelogLink, NETLIFY_BASE, APP_VERSION,
+            supabase, currentUser,
+          };
           const script = document.createElement("script");
           script.textContent = jsText;
           document.body.appendChild(script);

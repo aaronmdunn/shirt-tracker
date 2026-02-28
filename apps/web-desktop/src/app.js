@@ -7573,6 +7573,13 @@ const initAdminLink = async () => {
     if (res.status === 403) return;           // confirmed not admin — lock permanently
     if (res.status !== 200) { adminCheckStarted = false; return; } // transient error — allow retry
     const jsText = await res.text();
+    // Bridge passes block-scoped references to the global-scope <script>.
+    // The injected IIFE reads from this object then immediately deletes it.
+    window.__adminBridge = {
+      openDialog, closeDialog, resetDialogScroll,
+      changelogLink, NETLIFY_BASE, APP_VERSION,
+      supabase, currentUser,
+    };
     const script = document.createElement("script");
     script.textContent = jsText;
     document.body.appendChild(script);
