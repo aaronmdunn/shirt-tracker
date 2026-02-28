@@ -111,6 +111,22 @@ fs.mkdirSync(outDir, { recursive: true });
 copyDir(desktopSrc, outDesktop);
 copyDir(mobileSrc, outMobile);
 
+// Read APP_VERSION from desktop app.js so we can inject it into sw.js
+const appVersionMatch = fs.readFileSync(path.join(outDesktop, "app.js"), "utf8")
+  .match(/const APP_VERSION = "([^"]+)";/);
+const appVersion = appVersionMatch ? appVersionMatch[1] : "0.0.0";
+
+// Inject version into sw.js and minify (sw.js must stay as a separate file — browsers
+// require service workers to be fetched from a real URL, not inlined into HTML)
+for (const dir of [outDesktop, outMobile]) {
+  const swPath = path.join(dir, "sw.js");
+  if (fs.existsSync(swPath)) {
+    let sw = fs.readFileSync(swPath, "utf8");
+    sw = sw.replace(/__SW_VERSION__/g, appVersion);
+    fs.writeFileSync(swPath, sw, "utf8");
+  }
+}
+
 // Inject CHANGELOG.json into app.js before inlining
 const changelogPath = path.join(root, "CHANGELOG.json");
 if (fs.existsSync(changelogPath)) {
@@ -147,6 +163,7 @@ const minifyFile = async (filePath, loader) => {
 for (const dir of [outDesktop, outMobile]) {
   await minifyFile(path.join(dir, "app.js"), "js");
   await minifyFile(path.join(dir, "style.css"), "css");
+  await minifyFile(path.join(dir, "sw.js"), "js");
 }
 
 // Inline CSS/JS back into single-file HTML for deployment
