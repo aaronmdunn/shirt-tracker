@@ -5,7 +5,7 @@ const root = process.cwd();
 const sourceDir = path.join(root, "apps", "web-desktop", "src");
 const sourcePath = path.join(sourceDir, "index.html");
 const sourceCss = path.join(sourceDir, "style.css");
-const sourceJs = path.join(sourceDir, "app.js");
+const sourceJs = path.join(root, "apps", "shared", "app.shared.js");
 const targetPath = path.join(root, "apps", "desktop-tauri", "src", "index.html");
 const sourceAssets = path.join(sourceDir, "assets");
 const targetAssets = path.join(root, "apps", "desktop-tauri", "src", "assets");
@@ -39,6 +39,11 @@ if (fs.existsSync(sourceCss)) {
 
 if (fs.existsSync(sourceJs)) {
   let js = fs.readFileSync(sourceJs, "utf8");
+  // Tauri uses the desktop platform
+  js = js.replace(
+    /const PLATFORM = "__PLATFORM__";/,
+    'const PLATFORM = "desktop";'
+  );
   const changelogPath = path.join(root, "CHANGELOG.json");
   if (fs.existsSync(changelogPath)) {
     const changelogJson = fs.readFileSync(changelogPath, "utf8").trim();
