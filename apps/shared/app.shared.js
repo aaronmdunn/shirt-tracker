@@ -32,8 +32,9 @@ const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
 const APP_VERSION = "2.0.8";
 const IS_WEB_BUILD = true;
+const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-const LAST_COMMIT_DATE = "2026-02-04T10:36:12-05:00";
+const LAST_COMMIT_DATE = "2026-02-03T12:43:59-05:00";
 const APP_VERSION_KEY = "shirts-app-version";
 const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -444,6 +445,10 @@ const modeSwitcher = document.getElementById("mode-switcher");
 const sheetBody = document.getElementById("sheet-body");
 const sheetColgroup = document.getElementById("sheet-colgroup");
 const sheetHeadRow = document.getElementById("sheet-head-row");
+const aboutVersion = document.getElementById("about-version");
+const sheetTableScroll = document.getElementById("sheet-table-scroll");
+const sheetTable = document.getElementById("sheet-table");
+const tableScrollHint = document.getElementById("table-scroll-hint");
 const columnManager = document.getElementById("column-manager");
 const emptyState = document.getElementById("empty-state");
 const tabBar = document.getElementById("tab-bar");
@@ -463,6 +468,7 @@ const backupStatusText = document.getElementById("backup-status");
 const unsavedStatusText = document.getElementById("unsaved-status");
 const publicShareLinkInput = document.getElementById("public-share-link");
 const copyShareLinkButton = document.getElementById("copy-share-link");
+const bulkTagsButton = document.getElementById("bulk-tags");
 const shareColumnsButton = document.getElementById("share-columns-button");
 let copyShareSizingObserver = null;
 const shareColumnsSummary = document.getElementById("share-columns-summary");
@@ -478,6 +484,9 @@ const undoClearButton = document.getElementById("undo-clear");
 const filterColumnSelect = document.getElementById("filter-column");
 const filterQueryInput = document.getElementById("filter-query");
 const filterTagsSelect = document.getElementById("filter-tags");
+const findBar = document.getElementById("find-bar");
+const findBarInput = document.getElementById("find-bar-input");
+const findBarCloseButton = document.getElementById("find-bar-close");
 const clearFilterButton = document.getElementById("clear-filter");
 const totalCountEl = document.getElementById("total-count");
 const totalCostEl = document.getElementById("total-cost");
@@ -487,7 +496,6 @@ const totalsPanel = document.getElementById("totals-panel");
 const shirtUpdateDateInput = document.getElementById("shirt-update-date");
 const appUpdateDateInput = document.getElementById("app-update-date");
 const footerVersionLine = document.getElementById("footer-version-line");
-const aboutVersion = document.getElementById("about-version");
 const iconCreditsDialog = document.getElementById("icon-credits-dialog");
 const iconCreditsCloseButton = document.getElementById("icon-credits-close");
 const creditsLink = document.getElementById("credits-link");
@@ -498,6 +506,7 @@ const resetFreshButton = document.getElementById("reset-fresh");
 const privacyPolicyDialog = document.getElementById("privacy-policy-dialog");
 const privacyPolicyCloseButton = document.getElementById("privacy-policy-close");
 const privacyPolicyLink = document.getElementById("privacy-policy-link");
+const privacyContactLink = document.getElementById("privacy-contact-link");
 const contactDialog = document.getElementById("contact-dialog");
 const contactForm = document.querySelector('form[name="contact"]');
 const contactFormMessage = document.getElementById("contact-form-message");
@@ -521,14 +530,13 @@ const bulkTagsAddButton = document.getElementById("bulk-tags-add");
 const bulkTagsRemoveButton = document.getElementById("bulk-tags-remove");
 const bulkTagsSuggestions = document.getElementById("bulk-tags-suggestions");
 const bulkTagsCloseButton = document.getElementById("bulk-tags-close");
-const bulkTagsButton = document.getElementById("bulk-tags");
 const appTitleEl = document.getElementById("app-title");
 const appSubtitleEl = document.getElementById("app-subtitle");
 
 const tabLogoPanel = document.getElementById("tab-logo-panel");
 const topControls = document.getElementById("top-controls");
 const dangerZone = document.querySelector(".danger-zone");
-const authRow = document.getElementById("auth-action-inline-cell") || document.getElementById("auth-action-cell");
+const authRow = document.querySelector(".auth-row");
 const headerActions = document.querySelector(".header-actions");
 const columnDialog = document.getElementById("column-dialog");
 const columnForm = document.getElementById("column-form");
@@ -585,16 +593,29 @@ const helpButton = (() => {
     padding: "0",
     lineHeight: "1",
   });
-  btn.addEventListener("touchstart", () => {
-    btn.style.background = "#e8e8e8";
-    btn.style.borderColor = "#999";
-    btn.style.color = "#555";
-  }, { passive: true });
-  btn.addEventListener("touchend", () => {
-    btn.style.background = "#f5f5f5";
-    btn.style.borderColor = "#bbb";
-    btn.style.color = "#888";
-  }, { passive: true });
+  if (PLATFORM === "mobile") {
+    btn.addEventListener("touchstart", () => {
+      btn.style.background = "#e8e8e8";
+      btn.style.borderColor = "#999";
+      btn.style.color = "#555";
+    }, { passive: true });
+    btn.addEventListener("touchend", () => {
+      btn.style.background = "#f5f5f5";
+      btn.style.borderColor = "#bbb";
+      btn.style.color = "#888";
+    }, { passive: true });
+  } else {
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "#e8e8e8";
+      btn.style.borderColor = "#999";
+      btn.style.color = "#555";
+    });
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = "#f5f5f5";
+      btn.style.borderColor = "#bbb";
+      btn.style.color = "#888";
+    });
+  }
   document.body.appendChild(btn);
   return btn;
 })();
@@ -1535,7 +1556,18 @@ const updatePublicShareSummary = () => {
     shareColumnsButton.innerHTML = "";
     shareColumnsButton.appendChild(mainSpan);
     shareColumnsButton.appendChild(subSpan);
-    scheduleCopyShareSizing();
+    if (PLATFORM === "mobile") {
+      scheduleCopyShareSizing();
+    } else {
+if (PLATFORM === "desktop") {
+  applyDesktopHeaderInlineLayout();
+}
+if (PLATFORM === "mobile") {
+  applyMobileHeaderInlineLayout();
+  window.addEventListener("resize", () => { applyMobileHeaderInlineLayout(); });
+  window.addEventListener("orientationchange", () => { applyMobileHeaderInlineLayout(); });
+}
+    }
   };
   if (!currentUser || isViewerSession) {
     setShareColumnsButtonLabel("Share Columns", "Selected: Hide Price");
@@ -1720,13 +1752,17 @@ const setAuthStatus = () => {
     authActionButton.textContent = "Sign In";
     authActionButton.classList.remove("auth-signed-in");
     authActionButton.classList.add("auth-signed-out");
-    authActionButton.style.setProperty("display", "none", "important");
+    if (PLATFORM === "mobile") {
+      authActionButton.style.setProperty("display", "none", "important");
+    } else {
+      authActionButton.style.display = "inline-flex";
+    }
     if (authActionSignedOutButton) {
       authActionSignedOutButton.textContent = "Sign In";
       authActionSignedOutButton.style.display = "inline-flex";
     }
     positionAuthAction();
-    syncAuthActionSizing();
+    if (PLATFORM === "mobile") syncAuthActionSizing();
     if (syncNowButton) syncNowButton.disabled = true;
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
@@ -1744,8 +1780,12 @@ const setAuthStatus = () => {
     authActionButton.classList.remove("auth-signed-out");
     authActionButton.classList.add("auth-signed-in");
     positionAuthAction();
-    syncAuthActionSizing();
-    authActionButton.style.setProperty("display", "inline-flex", "important");
+    if (PLATFORM === "mobile") {
+      syncAuthActionSizing();
+      authActionButton.style.setProperty("display", "inline-flex", "important");
+    } else {
+      authActionButton.style.display = "inline-flex";
+    }
     if (authActionSignedOutButton) {
       authActionSignedOutButton.style.display = "none";
     }
@@ -1764,14 +1804,22 @@ const setAuthStatus = () => {
     authActionButton.textContent = "Sign In";
     authActionButton.classList.remove("auth-signed-in");
     authActionButton.classList.add("auth-signed-out");
-    authActionButton.style.setProperty("display", "none", "important");
+    if (PLATFORM === "mobile") {
+      authActionButton.style.setProperty("display", "none", "important");
+    } else {
+      authActionButton.style.display = "inline-flex";
+    }
     if (authActionSignedOutButton) {
       authActionSignedOutButton.textContent = "Sign In";
       authActionSignedOutButton.style.display = "inline-flex";
     }
     positionAuthAction();
-    syncAuthActionSizing();
-    authActionButton.style.setProperty("display", "none", "important");
+    if (PLATFORM === "mobile") {
+      syncAuthActionSizing();
+      authActionButton.style.setProperty("display", "none", "important");
+    } else {
+      authActionButton.style.display = "inline-flex";
+    }
     if (syncNowButton) syncNowButton.disabled = true;
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
@@ -1836,7 +1884,7 @@ const openDialog = (dialog) => {
       // fallthrough
     }
   }
-  dialog.style.display = "block";
+  if (PLATFORM === "mobile") dialog.style.display = "block";
   dialog.setAttribute("open", "");
 };
 
@@ -1860,7 +1908,7 @@ const closeDialog = (dialog) => {
     return;
   }
   dialog.removeAttribute("open");
-  dialog.style.display = "none";
+  if (PLATFORM === "mobile") dialog.style.display = "none";
 };
 
 const showTextPrompt = (title, label, defaultValue) => {
@@ -2019,16 +2067,52 @@ const openBulkTagsDialog = () => {
   if (bulkTagsInput) bulkTagsInput.focus();
 };
 
-const applyDialogFallback = (dialog) => {
-  if (!dialog) return;
-  if (typeof dialog.showModal !== "function") {
-    dialog.style.display = "none";
-  }
-};
+// Mobile dialog fallback for older browsers without native <dialog> support
+if (PLATFORM === "mobile") {
+  const applyDialogFallback = (dialog) => {
+    if (!dialog) return;
+    if (typeof dialog.showModal !== "function") {
+      dialog.style.display = "none";
+    }
+  };
+  document.querySelectorAll("dialog").forEach((dialog) => {
+    applyDialogFallback(dialog);
+  });
+}
 
-document.querySelectorAll("dialog").forEach((dialog) => {
-  applyDialogFallback(dialog);
-});
+// Mobile toast notification (not available on desktop)
+const showToast = (message) => {
+  if (PLATFORM !== "mobile" || !message) return;
+  let toast = document.getElementById("mobile-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "mobile-toast";
+    toast.style.position = "fixed";
+    toast.style.left = "50%";
+    toast.style.bottom = "20px";
+    toast.style.transform = "translateX(-50%)";
+    toast.style.background = "#111111";
+    toast.style.color = "#ffffff";
+    toast.style.padding = "8px 12px";
+    toast.style.borderRadius = "999px";
+    toast.style.fontSize = "0.8rem";
+    toast.style.zIndex = "9999";
+    toast.style.boxShadow = "0 6px 16px rgba(0,0,0,0.2)";
+    toast.style.opacity = "0";
+    toast.style.transition = "opacity 0.2s ease";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  if (toast._hideTimer) {
+    clearTimeout(toast._hideTimer);
+  }
+  requestAnimationFrame(() => {
+    toast.style.opacity = "1";
+  });
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = "0";
+  }, 1400);
+};
 
 const openEventLogDialog = () => {
   if (eventLogSearch) eventLogSearch.value = "";
@@ -2300,6 +2384,10 @@ const applyPublicShareMode = () => {
   document.body.setAttribute("data-public-share", "true");
   document.body.setAttribute("data-auth", "signed-in");
   document.body.setAttribute("data-viewer", "true");
+  if (PLATFORM === "desktop") {
+    // Build the header layout first so DOM nodes exist, then hide auth buttons.
+    applyDesktopHeaderInlineLayout();
+  }
   if (authActionButton) {
     authActionButton.style.setProperty("display", "none", "important");
   }
@@ -2320,7 +2408,11 @@ const applyPublicShareMode = () => {
   if (bulkTagsButton) {
     bulkTagsButton.style.display = "none";
   }
-  if (syncNowButton) syncNowButton.disabled = true;
+  if (PLATFORM === "mobile") {
+    if (syncNowButton) syncNowButton.disabled = true;
+  } else {
+    if (syncNowButton) syncNowButton.style.setProperty("display", "none", "important");
+  }
   if (verifyBackupButton) verifyBackupButton.disabled = true;
   updateUnsavedStatus();
   updateHeaderSubtitle();
@@ -2381,49 +2473,32 @@ const setBackupStatus = (message) => {
   backupStatusText.textContent = message;
 };
 
-const showToast = (message) => {
-  if (!message) return;
-  let toast = document.getElementById("mobile-toast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "mobile-toast";
-    toast.style.position = "fixed";
-    toast.style.left = "50%";
-    toast.style.bottom = "20px";
-    toast.style.transform = "translateX(-50%)";
-    toast.style.background = "#111111";
-    toast.style.color = "#ffffff";
-    toast.style.padding = "8px 12px";
-    toast.style.borderRadius = "999px";
-    toast.style.fontSize = "0.8rem";
-    toast.style.zIndex = "9999";
-    toast.style.boxShadow = "0 6px 16px rgba(0,0,0,0.2)";
-    toast.style.opacity = "0";
-    toast.style.transition = "opacity 0.2s ease";
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  if (toast._hideTimer) {
-    clearTimeout(toast._hideTimer);
-  }
-  requestAnimationFrame(() => {
-    toast.style.opacity = "1";
-  });
-  toast._hideTimer = setTimeout(() => {
-    toast.style.opacity = "0";
-  }, 1400);
-};
-
 const positionAuthAction = () => {
   if (!authActionButton) return;
   authActionButton.classList.remove("auth-compact");
-  const authSlot = document.getElementById("auth-action-cell");
-  if (authSlot && authActionButton.parentElement !== authSlot) {
-    authSlot.appendChild(authActionButton);
+  if (PLATFORM === "mobile") {
+    const authSlot = document.getElementById("auth-action-cell");
+    if (authSlot && authActionButton.parentElement !== authSlot) {
+      authSlot.appendChild(authActionButton);
+    }
+  } else {
+    const inlineCell = document.getElementById("auth-action-inline-cell");
+    if (inlineCell && authActionButton.parentElement !== inlineCell) {
+      inlineCell.appendChild(authActionButton);
+      applyDesktopAuthButtonSizing();
+      return;
+    }
+    if (authRow && authActionButton.parentElement !== authRow) {
+      authRow.appendChild(authActionButton);
+    }
+    applyDesktopAuthButtonSizing();
   }
 };
 
+// --- Mobile-only layout helpers ---
+
 const syncAuthActionSizing = () => {
+  if (PLATFORM !== "mobile") return;
   if (!authActionButton || !syncNowButton) return;
   authActionButton.classList.remove("auth-compact");
   authActionButton.classList.remove("compact");
@@ -2439,6 +2514,7 @@ const syncAuthActionSizing = () => {
 };
 
 const syncCopyShareSizing = () => {
+  if (PLATFORM !== "mobile") return;
   const copyShareButton = document.getElementById("copy-share-link");
   if (!copyShareButton || !shareColumnsButton) return;
   const shareStyles = window.getComputedStyle(shareColumnsButton);
@@ -2455,12 +2531,14 @@ const syncCopyShareSizing = () => {
 };
 
 const scheduleCopyShareSizing = () => {
+  if (PLATFORM !== "mobile") return;
   syncCopyShareSizing();
   requestAnimationFrame(syncCopyShareSizing);
   setTimeout(syncCopyShareSizing, 80);
 };
 
 const setupCopyShareSizingObserver = () => {
+  if (PLATFORM !== "mobile") return;
   if (copyShareSizingObserver || !shareColumnsButton || !copyShareLinkButton) return;
   if (typeof ResizeObserver === "function") {
     copyShareSizingObserver = new ResizeObserver(() => {
@@ -2586,17 +2664,149 @@ const applyMobileHeaderInlineLayout = () => {
   scheduleCopyShareSizing();
 };
 
-requestAnimationFrame(applyMobileHeaderInlineLayout);
+// --- Desktop-only layout helpers ---
 
+function applyDesktopAuthButtonSizing() {
+  if (PLATFORM !== "desktop") return;
+  const syncNowButton = document.getElementById("sync-now");
+  const authActionButton = document.getElementById("auth-action");
+  [syncNowButton, authActionButton].forEach((button) => {
+    if (!button) return;
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.textAlign = "center";
+    button.style.setProperty("font-size", "12px", "important");
+    button.style.setProperty("padding", "3px 8px", "important");
+    button.style.setProperty("min-width", "0", "important");
+    button.style.setProperty("width", "auto", "important");
+    button.style.setProperty("line-height", "1.1", "important");
+  });
+}
 
+function applyDesktopHeaderInlineLayout() {
+  if (PLATFORM !== "desktop") return;
+  const dangerZone = document.querySelector(".danger-zone");
+  const headerActions = document.querySelector(".header-actions");
+  if (!dangerZone) return;
+  let inlineGrid = document.getElementById("desktop-action-inline-grid");
+  const columnsRow = document.querySelector(".columns-row");
+  const authRow = document.querySelector(".auth-row");
+  const addColumnButton = document.getElementById("add-column");
+  const editColumnsButton = document.getElementById("toggle-columns");
+  const chooseColumnsButton = document.getElementById("share-columns-button");
+  const syncNowButton = document.getElementById("sync-now");
+  const authActionButton = document.getElementById("auth-action");
+
+  if (!inlineGrid) {
+    inlineGrid = document.createElement("div");
+    inlineGrid.id = "desktop-action-inline-grid";
+    dangerZone.insertBefore(inlineGrid, dangerZone.firstChild);
+    if (columnsRow) columnsRow.style.display = "none";
+    if (authRow) authRow.style.display = "none";
+
+    const topRow = document.createElement("div");
+    topRow.className = "desktop-action-inline-row";
+    const bottomRow = document.createElement("div");
+    bottomRow.className = "desktop-action-inline-row";
+
+    const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton];
+    topButtons.forEach((button) => {
+      if (!button) return;
+      topRow.appendChild(button);
+    });
+
+    const bottomButtons = [syncNowButton, authActionButton];
+    bottomButtons.forEach((button) => {
+      if (!button) return;
+      if (button === authActionButton) {
+        const cell = document.createElement("div");
+        cell.id = "auth-action-inline-cell";
+        cell.appendChild(button);
+        bottomRow.appendChild(cell);
+      } else {
+        bottomRow.appendChild(button);
+      }
+    });
+
+    inlineGrid.appendChild(topRow);
+    inlineGrid.appendChild(bottomRow);
+  }
+
+  if (headerActions) {
+    headerActions.style.display = "flex";
+    headerActions.style.flexDirection = "column";
+    headerActions.style.alignItems = "flex-end";
+    headerActions.style.justifyContent = "flex-end";
+    headerActions.style.width = "100%";
+    headerActions.style.marginLeft = "auto";
+  }
+
+  if (dangerZone) {
+    dangerZone.style.display = "flex";
+    dangerZone.style.flexDirection = "column";
+    dangerZone.style.alignItems = "flex-end";
+    dangerZone.style.justifyContent = "flex-end";
+    dangerZone.style.width = "100%";
+  }
+
+  inlineGrid.style.display = "flex";
+  inlineGrid.style.flexDirection = "column";
+  inlineGrid.style.alignItems = "flex-end";
+  inlineGrid.style.gap = "8px";
+  inlineGrid.style.width = "auto";
+
+  const rows = inlineGrid.querySelectorAll(".desktop-action-inline-row");
+  rows.forEach((rowEl) => {
+    rowEl.style.display = "flex";
+    rowEl.style.gap = "8px";
+    rowEl.style.justifyContent = "flex-end";
+    rowEl.style.alignItems = "center";
+  });
+
+  if (addColumnButton) {
+    addColumnButton.style.minWidth = "140px";
+    addColumnButton.style.textAlign = "center";
+  }
+  if (editColumnsButton) {
+    editColumnsButton.style.minWidth = "140px";
+    editColumnsButton.style.textAlign = "center";
+  }
+  if (chooseColumnsButton) {
+    chooseColumnsButton.style.minWidth = "120px";
+    chooseColumnsButton.style.padding = "6px 10px";
+    chooseColumnsButton.style.fontSize = "0.75rem";
+    chooseColumnsButton.style.lineHeight = "1.1";
+    chooseColumnsButton.style.textAlign = "center";
+    const label = chooseColumnsButton.querySelector(".share-columns-label");
+    const sub = chooseColumnsButton.querySelector(".share-columns-sub");
+    if (label) {
+      label.style.fontSize = "0.75rem";
+      label.style.fontWeight = "600";
+    }
+    if (sub) {
+      sub.style.fontSize = "0.52rem";
+      sub.style.fontWeight = "400";
+    }
+  }
+
+  applyDesktopAuthButtonSizing();
+  positionAuthAction();
+}
+
+// --- Apply initial layout ---
+if (PLATFORM === "mobile") {
+  requestAnimationFrame(applyMobileHeaderInlineLayout);
+}
 
 const positionTotalCount = () => {
-  if (!totalCountEl || !totalCostEl || !totalsPanel) return;
-  if (totalCountEl.parentElement !== totalsPanel) {
-    totalsPanel.appendChild(totalCountEl);
+  const target = PLATFORM === "mobile" ? totalsPanel : footerStats;
+  if (!totalCountEl || !totalCostEl || !target) return;
+  if (totalCountEl.parentElement !== target) {
+    target.appendChild(totalCountEl);
   }
-  if (totalCostEl.parentElement !== totalsPanel) {
-    totalsPanel.appendChild(totalCostEl);
+  if (totalCostEl.parentElement !== target) {
+    target.appendChild(totalCostEl);
   }
 };
 
@@ -2777,7 +2987,11 @@ const updateTabLogo = async () => {
 const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
-  appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="3292" height="952" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+  if (PLATFORM === "mobile") {
+    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="3292" height="952" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+  } else {
+    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="3292" height="952" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
+  }
 };
 
 const formatDateOnly = (value) => {
@@ -3483,7 +3697,7 @@ const applyReadOnlyMode = () => {
   });
   const inputs = document.querySelectorAll("input, select, textarea, button.btn-icon");
   inputs.forEach((input) => {
-    if (input.id === "filter-column" || input.id === "filter-query") {
+    if (input.id === "filter-column" || input.id === "filter-query" || (PLATFORM === "desktop" && input.id === "find-bar-input")) {
       return;
     }
     if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog") || input.closest("#contact-dialog") || input.closest("#profile-name-dialog") || input.closest("#text-prompt-dialog")) {
@@ -3507,7 +3721,7 @@ const clearReadOnlyMode = () => {
   });
   const inputs = document.querySelectorAll("input, select, textarea, button.btn-icon");
   inputs.forEach((input) => {
-    if (input.id === "filter-column" || input.id === "filter-query") {
+    if (input.id === "filter-column" || input.id === "filter-query" || (PLATFORM === "desktop" && input.id === "find-bar-input")) {
       return;
     }
     if (input.closest("#auth-dialog") || input.closest("#request-access-dialog") || input.closest("#set-password-dialog") || input.closest("#share-columns-dialog")) {
@@ -3887,23 +4101,37 @@ const switchAppMode = (nextMode) => {
 const renderModeSwitcher = () => {
   if (!modeSwitcher) return;
   modeSwitcher.innerHTML = "";
-  if (!currentUser) {
+  if (PLATFORM === "mobile") {
+    if (!currentUser) {
+      modeSwitcher.style.display = "none";
+      return;
+    }
+    Object.assign(modeSwitcher.style, {
+      display: "flex",
+      justifyContent: "center",
+      padding: "12px 0 4px",
+      margin: "0",
+      background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
+    });
+  } else {
     modeSwitcher.style.display = "none";
-    return;
+    const sheetHeader = document.querySelector(".sheet-header");
+    if (sheetHeader) {
+      const prev = sheetHeader.querySelector("#mode-switcher-inline");
+      if (prev) prev.remove();
+    }
+    if (!currentUser) return;
   }
-  Object.assign(modeSwitcher.style, {
-    display: "flex",
-    justifyContent: "center",
-    padding: "12px 0 4px",
-    margin: "0",
-    background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
-  });
   const container = document.createElement("div");
+  if (PLATFORM === "desktop") {
+    container.id = "mode-switcher-inline";
+  }
   Object.assign(container.style, {
     display: "inline-flex",
-    borderRadius: "8px",
+    borderRadius: PLATFORM === "mobile" ? "8px" : "6px",
     overflow: "hidden",
     border: "2px solid #c62828",
+    ...(PLATFORM === "desktop" ? { flexShrink: "0", alignSelf: "center" } : {}),
   });
   const modes = [
     { id: "inventory", label: "Inventory" },
@@ -3915,8 +4143,9 @@ const renderModeSwitcher = () => {
     btn.textContent = mode.label;
     const isActive = appMode === mode.id;
     Object.assign(btn.style, {
-      padding: "7px 24px",
-      fontSize: "0.92rem",
+      padding: PLATFORM === "mobile" ? "7px 24px" : "5px 14px",
+      fontSize: PLATFORM === "mobile" ? "0.92rem" : "0.78rem",
+      ...(PLATFORM === "desktop" ? { whiteSpace: "nowrap" } : {}),
       fontWeight: isActive ? "700" : "500",
       border: "none",
       cursor: "pointer",
@@ -3929,21 +4158,28 @@ const renderModeSwitcher = () => {
     btn.addEventListener("click", () => switchAppMode(mode.id));
     container.appendChild(btn);
   });
-  modeSwitcher.appendChild(container);
-  const filterRow = document.querySelector(".filter-row");
-  if (filterRow) {
-    Object.assign(filterRow.style, {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: "12px",
-    });
-    const topActions = filterRow.querySelector(".top-table-actions");
-    if (topActions) {
-      Object.assign(topActions.style, {
-        order: "2",
-        alignSelf: "flex-start",
+  if (PLATFORM === "mobile") {
+    modeSwitcher.appendChild(container);
+    const filterRow = document.querySelector(".filter-row");
+    if (filterRow) {
+      Object.assign(filterRow.style, {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "12px",
       });
+      const topActions = filterRow.querySelector(".top-table-actions");
+      if (topActions) {
+        Object.assign(topActions.style, {
+          order: "2",
+          alignSelf: "flex-start",
+        });
+      }
+    }
+  } else {
+    const sheetHeader = document.querySelector(".sheet-header");
+    if (sheetHeader) {
+      sheetHeader.prepend(container);
     }
   }
 };
@@ -4149,8 +4385,7 @@ const moveRowToInventory = async (rowId) => {
 const renderTabs = () => {
   if (!tabBar) return;
   tabBar.innerHTML = "";
-  const grid = document.createElement("div");
-  grid.className = "tab-grid";
+  const tabContainer = PLATFORM === "mobile" ? (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })() : tabBar;
   tabsState.tabs
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -4160,12 +4395,13 @@ const renderTabs = () => {
     btn.className = `tab-btn${tab.id === tabsState.activeTabId ? " active" : ""}`;
     btn.textContent = tab.name;
     btn.addEventListener("click", () => switchTab(tab.id));
-    grid.appendChild(btn);
+    tabContainer.appendChild(btn);
   });
-  tabBar.appendChild(grid);
+  if (PLATFORM === "mobile") {
+    tabBar.appendChild(tabContainer);
+  }
   {
-    const controls = document.createElement("div");
-    controls.className = "tab-controls";
+    const controlsContainer = PLATFORM === "mobile" ? (() => { const c = document.createElement("div"); c.className = "tab-controls"; return c; })() : tabBar;
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.className = "tab-btn add";
@@ -4174,7 +4410,17 @@ const renderTabs = () => {
     addBtn.addEventListener("click", () => {
       openTabDialog();
     });
-    controls.appendChild(addBtn);
+    controlsContainer.appendChild(addBtn);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "tab-btn delete";
+    deleteBtn.textContent = "🗑️ Delete";
+    deleteBtn.setAttribute("aria-label", "Delete current tab");
+    deleteBtn.addEventListener("click", () => {
+      if (!tabsState.activeTabId) return;
+      if (tabsState.tabs.length <= 1) return;
+      openTabDeleteDialog(tabsState.activeTabId);
+    });
     const renameBtn = document.createElement("button");
     renameBtn.type = "button";
     renameBtn.className = "tab-btn rename";
@@ -4196,19 +4442,11 @@ const renderTabs = () => {
       renderTable();
       renderFooter();
     });
-    controls.appendChild(renameBtn);
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "tab-btn delete";
-    deleteBtn.textContent = "🗑️ Delete";
-    deleteBtn.setAttribute("aria-label", "Delete current tab");
-    deleteBtn.addEventListener("click", () => {
-      if (!tabsState.activeTabId) return;
-      if (tabsState.tabs.length <= 1) return;
-      openTabDeleteDialog(tabsState.activeTabId);
-    });
-    controls.appendChild(deleteBtn);
-    tabBar.appendChild(controls);
+    controlsContainer.appendChild(renameBtn);
+    controlsContainer.appendChild(deleteBtn);
+    if (PLATFORM === "mobile") {
+      tabBar.appendChild(controlsContainer);
+    }
   }
   updateTabLogo();
 };
@@ -5057,6 +5295,50 @@ const updateFilterInputMode = () => {
   filterQueryInput.style.display = "";
 };
 
+let findBarPreviousFilter = null;
+let findBarPreviousPadding = "";
+let openFindBar = () => {};
+let closeFindBar = () => {};
+
+if (PLATFORM === "desktop") {
+  openFindBar = () => {
+    if (!findBar || !findBarInput || !filterColumnSelect || !filterQueryInput) return;
+    if (!findBarPreviousFilter) {
+      findBarPreviousFilter = { columnId: state.filter.columnId, query: state.filter.query };
+    }
+    state.filter.columnId = "all";
+    filterColumnSelect.value = "all";
+    state.filter.query = findBarInput.value || "";
+    filterQueryInput.value = state.filter.query;
+    updateFilterInputMode();
+    findBar.style.display = "flex";
+    if (!findBarPreviousPadding) {
+      findBarPreviousPadding = document.body.style.paddingTop || "";
+    }
+    window.requestAnimationFrame(() => {
+      document.body.style.paddingTop = `${findBar.offsetHeight || 44}px`;
+    });
+    findBarInput.focus();
+    renderTable();
+  };
+
+  closeFindBar = () => {
+    if (!findBar || !findBarInput || !filterColumnSelect || !filterQueryInput) return;
+    findBar.style.display = "none";
+    document.body.style.paddingTop = findBarPreviousPadding;
+    findBarPreviousPadding = "";
+    if (findBarPreviousFilter) {
+      state.filter.columnId = findBarPreviousFilter.columnId || "all";
+      state.filter.query = findBarPreviousFilter.query || "";
+      filterColumnSelect.value = state.filter.columnId;
+      filterQueryInput.value = state.filter.query;
+      updateFilterInputMode();
+      findBarPreviousFilter = null;
+      renderTable();
+    }
+  };
+}
+
 const getDefaultColumnWidth = (column) => {
   if (column.type === "photo") return 110;
   const label = getColumnLabel(column).trim().toLowerCase();
@@ -5078,6 +5360,20 @@ const setColumnWidth = (columnId, width) => {
   saveState();
 };
 
+const syncTableScrollSizing = PLATFORM === "desktop" ? () => {
+  if (!sheetTableScroll || !sheetTable) return;
+  sheetTableScroll.style.overflowX = "auto";
+  sheetTableScroll.style.width = "100%";
+  sheetTableScroll.style.maxWidth = "100%";
+  sheetTableScroll.style.webkitOverflowScrolling = "touch";
+  sheetTable.style.width = "max-content";
+  sheetTable.style.minWidth = "100%";
+  if (tableScrollHint) {
+    const hasOverflow = sheetTableScroll.scrollWidth > sheetTableScroll.clientWidth + 1;
+    tableScrollHint.style.display = hasOverflow ? "block" : "none";
+  }
+} : () => {};
+
 const attachResizer = (th, col, columnId, minWidth = 80) => {
   if (state.readOnly) return;
   const resizer = document.createElement("span");
@@ -5097,6 +5393,7 @@ const attachResizer = (th, col, columnId, minWidth = 80) => {
     const onUp = () => {
       const finalWidth = Math.round(col.getBoundingClientRect().width);
       setColumnWidth(columnId, finalWidth);
+      syncTableScrollSizing();
       if (originalDraggable === null) {
         th.removeAttribute("draggable");
       } else {
@@ -5188,6 +5485,7 @@ const renderHeader = () => {
     deleteSelectedButton = null;
     attachResizer(actions, col, "actions", 60);
   }
+  syncTableScrollSizing();
 };
 
 const sortRows = () => {
@@ -6121,15 +6419,35 @@ const renderFooter = () => {
   });
   const sum = prices.reduce((acc, p) => acc + p, 0);
   const avg = prices.length ? sum / prices.length : 0;
-  totalCostEl.style.display = "flex";
-  totalCostEl.style.flexDirection = "column";
+  totalCostEl.style.display = "";
   totalCostEl.innerHTML = "";
-  const totalSpan = document.createElement("span");
-  totalSpan.textContent = `Total: ${formatCurrency(sum)}`;
-  totalCostEl.appendChild(totalSpan);
-  const avgSpan = document.createElement("span");
-  avgSpan.textContent = `Avg: ${formatCurrency(avg)}`;
-  totalCostEl.appendChild(avgSpan);
+  const lines = [
+    `Total: ${formatCurrency(sum)}`,
+    `Avg: ${formatCurrency(avg)}`,
+  ];
+  if (PLATFORM === "mobile") {
+    Object.assign(totalCostEl.style, {
+      display: "flex",
+      flexDirection: "column",
+    });
+    lines.forEach((text) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      totalCostEl.appendChild(span);
+    });
+  } else {
+    lines.forEach((text, i) => {
+      const span = document.createElement("span");
+      span.textContent = text;
+      totalCostEl.appendChild(span);
+      if (i < lines.length - 1) {
+        const sep = document.createElement("span");
+        sep.textContent = " | ";
+        Object.assign(sep.style, { color: "#ccc", margin: "0 2px" });
+        totalCostEl.appendChild(sep);
+      }
+    });
+  }
   positionTotalCount();
 };
 
@@ -6159,7 +6477,9 @@ const renderTable = () => {
       color: "#888",
       lineHeight: "1.5",
     });
-    body.textContent = "Start by filling in your first row below. Tap the ? button in the bottom-right corner anytime for help.";
+    body.textContent = PLATFORM === "mobile"
+      ? "Start by filling in your first row below. Tap the ? button in the bottom-right corner anytime for help."
+      : "Start by filling in your first row below. Click the ? button in the bottom-right corner anytime for help.";
     emptyState.appendChild(heading);
     emptyState.appendChild(body);
   } else {
@@ -6499,9 +6819,22 @@ deleteSelectedBottomButton.addEventListener("click", () => {
 
 
 if (window.__TAURI__ && window.__TAURI__.event) {
-  window.__TAURI__.event.listen("menu-share-csv", () => {
-    exportCsv();
-  });
+  if (PLATFORM === "desktop") {
+    window.__TAURI__.event.listen("menu-export-csv", () => {
+      exportCsv();
+    });
+    window.__TAURI__.event.listen("menu-import-csv", () => {
+      importCsv();
+    });
+    window.__TAURI__.event.listen("menu-event-log", () => {
+      openEventLogDialog();
+    });
+  }
+  if (PLATFORM === "mobile") {
+    window.__TAURI__.event.listen("menu-share-csv", () => {
+      exportCsv();
+    });
+  }
   window.__TAURI__.event.listen("menu-about", () => {
     openDialog(aboutDialog);
   });
@@ -6591,6 +6924,11 @@ if (supabase) {
     updateLastActivity();
   }, { passive: true });
 });
+if (PLATFORM === "desktop") {
+  window.addEventListener("resize", () => {
+    syncTableScrollSizing();
+  });
+}
 window.setInterval(() => {
   handleInactivityCheck();
 }, 5 * 60 * 1000);
@@ -6798,6 +7136,14 @@ if (contactForm && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
   });
 }
 
+if (PLATFORM === "desktop" && privacyContactLink && contactDialog) {
+  privacyContactLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    openDialog(contactDialog);
+    closeDialog(privacyPolicyDialog);
+  });
+}
+
 if (contactLink && contactDialog) {
   contactLink.addEventListener("click", (event) => {
     event.preventDefault();
@@ -6949,7 +7295,11 @@ if (resetFreshButton) {
       renderTable();
       renderFooter();
     } catch (error) {
-      showToast("Reset failed. Please try again.");
+      if (PLATFORM === "mobile") {
+        showToast("Reset failed. Please try again.");
+      } else {
+        alert("Reset failed. Please try again.");
+      }
       console.error("Fresh reset failed", error);
     }
   });
@@ -7292,18 +7642,36 @@ if (resetPasswordSendButton) {
     }
   });
 }
-if (editProfileNameButton) {
-  editProfileNameButton.addEventListener("click", () => {
-    if (!profileNameDialog || !profileNameInput) return;
-    profileNameInput.value = getUserDisplayName() || "";
-    openDialog(profileNameDialog);
-  });
+if (PLATFORM === "desktop") {
+  if (!editProfileNameButton) {
+    const authRow = document.querySelector(".header-row.auth-row");
+    if (authRow) {
+      editProfileNameButton = document.createElement("button");
+      editProfileNameButton.type = "button";
+      editProfileNameButton.id = "edit-profile-name";
+      editProfileNameButton.className = "btn secondary compact";
+      editProfileNameButton.textContent = "Edit Profile Name";
+      authRow.insertBefore(editProfileNameButton, authRow.firstChild);
+    }
+  }
+  if (editProfileNameButton) {
+    editProfileNameButton.style.display = "inline-flex";
+    editProfileNameButton.style.alignItems = "center";
+    editProfileNameButton.style.justifyContent = "center";
+    editProfileNameButton.addEventListener("click", () => {
+      if (!profileNameDialog || !profileNameInput) return;
+      profileNameInput.value = getUserDisplayName() || "";
+      openDialog(profileNameDialog);
+    });
+  }
 }
 
 if (copyShareLinkButton) {
   copyShareLinkButton.addEventListener("click", () => {
     copyPublicShareLink();
-    showToast("Copied!");
+    if (PLATFORM === "mobile") {
+      showToast("Copied!");
+    }
   });
 }
 if (shareColumnsButton) {
@@ -7316,13 +7684,14 @@ if (shareColumnsCancel) {
     closeDialog(shareColumnsDialog);
   });
 }
-
-scheduleCopyShareSizing();
-setupCopyShareSizingObserver();
 if (shareColumnsSave) {
   shareColumnsSave.addEventListener("click", () => {
     saveShareColumnsSelection();
   });
+}
+if (PLATFORM === "mobile") {
+  scheduleCopyShareSizing();
+  setupCopyShareSizingObserver();
 }
 if (shareColumnsDialog) {
   shareColumnsDialog.addEventListener("change", (event) => {
@@ -7682,6 +8051,44 @@ if (filterTagsSelect) {
   });
 }
 
+if (PLATFORM === "desktop") {
+  if (findBarInput) {
+    findBarInput.addEventListener("input", (event) => {
+      state.filter.columnId = "all";
+      filterColumnSelect.value = "all";
+      state.filter.query = event.target.value;
+      filterQueryInput.value = state.filter.query;
+      updateFilterInputMode();
+      saveState();
+      renderTable();
+    });
+    findBarInput.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeFindBar();
+      }
+    });
+  }
+
+  if (findBarCloseButton) {
+    findBarCloseButton.addEventListener("click", () => {
+      closeFindBar();
+    });
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && findBar && findBar.style.display !== "none") {
+      event.preventDefault();
+      closeFindBar();
+      return;
+    }
+    const isFindShortcut = (event.key === "f" || event.key === "F") && (event.ctrlKey || event.metaKey);
+    if (!isFindShortcut) return;
+    event.preventDefault();
+    openFindBar();
+  });
+}
+
 clearFilterButton.addEventListener("click", () => {
   state.filter = { columnId: "all", query: "" };
   saveState();
@@ -7746,12 +8153,21 @@ purgeExpiredDeletedRows();
 normalizeNameColumnsEverywhere();
 normalizeSizeOptionsEverywhere();
 resetFilterDefault();
+if (PLATFORM === "desktop") {
+  (() => {
+    const hint = document.getElementById("filter-hint");
+    if (hint) {
+      const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      hint.textContent = isMac ? "(⌘F to find)" : "(Ctrl+F to find)";
+    }
+  })();
+}
 loadShirtUpdateDate();
 updateHeaderTitle();
 updateHeaderSubtitle();
-applyMobileHeaderInlineLayout();
-window.addEventListener("resize", applyMobileHeaderInlineLayout);
-window.addEventListener("orientationchange", applyMobileHeaderInlineLayout);
+if (PLATFORM === "desktop") {
+  applyDesktopHeaderInlineLayout();
+}
 if (appMode === "inventory" && removeBrandColumn()) {
   ensureRowCells();
   saveState();

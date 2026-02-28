@@ -52,8 +52,8 @@ const getPackageVersion = () => {
   return pkg.version;
 };
 
-const getAppJsVersion = (platform) => {
-  const content = readFile(`apps/web-${platform}/src/app.js`);
+const getSharedAppJsVersion = () => {
+  const content = readFile("apps/shared/app.shared.js");
   const match = content?.match(/const APP_VERSION = "([^"]+)";/);
   return match ? match[1] : null;
 };
@@ -228,18 +228,34 @@ test("CHANGELOG.json first entry version matches package.json", () => {
 
 console.log("\n--- Version Consistency ---\n");
 
-test("package.json version matches desktop app.js APP_VERSION", () => {
-  const pkgVersion = getPackageVersion();
-  const appVersion = getAppJsVersion("desktop");
-  assert.equal(pkgVersion, appVersion,
-    `package.json (${pkgVersion}) != desktop app.js (${appVersion})`);
+test("app.shared.js exists", () => {
+  assert.ok(fileExists("apps/shared/app.shared.js"), "Missing shared app.js source");
 });
 
-test("package.json version matches mobile app.js APP_VERSION", () => {
+test("app.shared.js contains PLATFORM placeholder", () => {
+  const content = readFile("apps/shared/app.shared.js");
+  assert.ok(content, "Could not read app.shared.js");
+  assert.ok(content.includes('const PLATFORM = "__PLATFORM__"'),
+    "Missing PLATFORM placeholder in app.shared.js");
+});
+
+test("package.json version matches app.shared.js APP_VERSION", () => {
   const pkgVersion = getPackageVersion();
-  const appVersion = getAppJsVersion("mobile");
+  const appVersion = getSharedAppJsVersion();
   assert.equal(pkgVersion, appVersion,
-    `package.json (${pkgVersion}) != mobile app.js (${appVersion})`);
+    `package.json (${pkgVersion}) != app.shared.js (${appVersion})`);
+});
+
+test("Built desktop JS contains PLATFORM = desktop (no placeholder)", () => {
+  const html = readFile("apps/web-root/d/index.html");
+  assert.ok(html, "Could not read desktop build output");
+  assert.ok(!html.includes("__PLATFORM__"), "Desktop build still contains __PLATFORM__ placeholder");
+});
+
+test("Built mobile JS contains PLATFORM = mobile (no placeholder)", () => {
+  const html = readFile("apps/web-root/m/index.html");
+  assert.ok(html, "Could not read mobile build output");
+  assert.ok(!html.includes("__PLATFORM__"), "Mobile build still contains __PLATFORM__ placeholder");
 });
 
 test("package.json version matches tauri.conf.json", () => {
