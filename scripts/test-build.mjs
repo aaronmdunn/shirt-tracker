@@ -245,6 +245,10 @@ test("style.shared.css exists", () => {
   assert.ok(fileExists("apps/shared/style.shared.css"), "Missing shared CSS source");
 });
 
+test("sw.js shared source exists", () => {
+  assert.ok(fileExists("apps/shared/sw.js"), "Missing shared service worker source");
+});
+
 test("style.shared.css contains PLATFORM:desktop markers", () => {
   const content = readFile("apps/shared/style.shared.css");
   assert.ok(content, "Could not read style.shared.css");
