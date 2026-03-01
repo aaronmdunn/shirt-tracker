@@ -4484,7 +4484,7 @@ const moveRowToInventory = async (rowId) => {
 const renderTabs = () => {
   if (!tabBar) return;
   tabBar.innerHTML = "";
-  const tabContainer = PLATFORM === "mobile" ? (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })() : tabBar;
+  const tabContainer = (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })();
   tabsState.tabs
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -4501,9 +4501,7 @@ const renderTabs = () => {
     btn.addEventListener("click", () => switchTab(tab.id));
     tabContainer.appendChild(btn);
   });
-  if (PLATFORM === "mobile") {
-    tabBar.appendChild(tabContainer);
-  }
+  tabBar.appendChild(tabContainer);
   {
     const controlsContainer = PLATFORM === "mobile" ? (() => { const c = document.createElement("div"); c.className = "tab-controls"; return c; })() : tabBar;
     const addBtn = document.createElement("button");
