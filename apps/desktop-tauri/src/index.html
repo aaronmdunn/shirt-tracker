@@ -783,8 +783,8 @@
         font-family: "Work Sans", "Trebuchet MS", sans-serif;
       }
       .tab-grid {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(5, auto);
         gap: 8px;
         justify-content: flex-start;
         width: 100%;
@@ -2627,7 +2627,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 3:37:57 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 3:40:59 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3310,7 +3310,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T20:37:57.679Z";
+      const LAST_COMMIT_DATE = "2026-03-01T20:40:59.909Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 

@@ -997,8 +997,8 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
 
 /* PLATFORM:desktop */
 .tab-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, auto);
   gap: 8px;
   justify-content: flex-start;
   width: 100%;
