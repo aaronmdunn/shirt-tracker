@@ -8098,7 +8098,8 @@ const collectAllStats = () => {
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   })();
-  const top3Expensive = priceItems.slice(0, 3);
+  const top5Expensive = priceItems.slice(0, 5);
+  const top5Cheapest = priceItems.length ? priceItems.slice(-5).reverse() : [];
 
   // --- Name stats ---
   let longestName = { name: "", length: 0 };
@@ -8145,11 +8146,11 @@ const collectAllStats = () => {
     totalCost,
     meanPrice,
     medianPrice,
-    top3Expensive,
-    cheapestItem: priceItems.length ? priceItems[priceItems.length - 1] : null,
+    top5Expensive,
+    top5Cheapest,
     longestName,
     shortestName,
-    typeTally: typeTally.slice(0, 3),
+    typeTally: typeTally.slice(0, 5),
     fandomTally: fandomTally.slice(0, 5),
     sizeTally,
     conditionTally,
@@ -8180,12 +8181,15 @@ const openStatsDialog = () => {
     let priceBlock = row("Total value", formatCurrency(s.totalCost));
     priceBlock += row("Mean price", formatCurrency(s.meanPrice));
     priceBlock += row("Median price", formatCurrency(s.medianPrice));
-    priceBlock += row("Top 3 most expensive", "");
-    s.top3Expensive.forEach((item, i) => {
+    priceBlock += row("Most expensive", "");
+    s.top5Expensive.forEach((item, i) => {
       priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
     });
-    if (s.cheapestItem) {
-      priceBlock += row("Cheapest item", `${s.cheapestItem.name} (${formatCurrency(s.cheapestItem.price)})`);
+    if (s.top5Cheapest.length) {
+      priceBlock += row("Cheapest", "");
+      s.top5Cheapest.forEach((item, i) => {
+        priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+      });
     }
     html += section(priceBlock);
   }
