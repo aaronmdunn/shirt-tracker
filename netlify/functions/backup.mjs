@@ -3,7 +3,7 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_BACKUP_BUCKET = process.env.SUPABASE_BACKUP_BUCKET || "shirt-tracker-backups";
 // Set BACKUP_SECRET in Netlify env vars. Any direct HTTP call must supply:
 //   x-backup-secret: <value>
-// Scheduled invocations from Netlify's cron are always allowed (no headers sent).
+// Scheduled invocations from Netlify's cron send x-netlify-event: schedule and are always allowed.
 const BACKUP_SECRET = process.env.BACKUP_SECRET;
 
 const buildHeaders = () => ({
@@ -66,24 +66,20 @@ const uploadBackup = async (payload, objectPath) => {
   }
 };
 
-export const handler = async (event) => {
+// Netlify V2 function format — required for scheduled functions.
+// Scheduled invocations arrive as a standard Request with the
+// x-netlify-event: schedule header. Direct HTTP calls must present
+// the correct x-backup-secret header when BACKUP_SECRET is configured.
+export default async (req) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    return {
-      statusCode: 500,
-      body: "Missing Supabase environment variables",
-    };
+    return new Response("Missing Supabase environment variables", { status: 500 });
   }
 
-  // Scheduled invocations from Netlify cron arrive without HTTP headers (event is minimal).
-  // Direct HTTP calls must present the correct secret header when BACKUP_SECRET is configured.
-  const isScheduled = !event || !event.httpMethod;
+  const isScheduled = req.headers.get("x-netlify-event") === "schedule";
   if (!isScheduled && BACKUP_SECRET) {
-    const provided = (event.headers || {})["x-backup-secret"];
+    const provided = req.headers.get("x-backup-secret");
     if (provided !== BACKUP_SECRET) {
-      return {
-        statusCode: 401,
-        body: "Unauthorized",
-      };
+      return new Response("Unauthorized", { status: 401 });
     }
   }
 
@@ -99,15 +95,9 @@ export const handler = async (event) => {
       rows,
     };
     await uploadBackup(payload, objectPath);
-    return {
-      statusCode: 200,
-      body: `Backup saved to ${objectPath}`,
-    };
+    return new Response(`Backup saved to ${objectPath}`, { status: 200 });
   } catch (error) {
-    return {
-      statusCode: 500,
-      body: `Backup failed: ${error.message}`,
-    };
+    return new Response(`Backup failed: ${error.message}`, { status: 500 });
   }
 };
 
