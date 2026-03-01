@@ -1000,8 +1000,12 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-start;
   width: 100%;
+}
+
+.tab-grid > .tab-btn {
+  flex: 0 1 calc((100% - 32px) / 5);
+  min-width: 0;
 }
 /* /PLATFORM:desktop */
 
@@ -1089,6 +1093,23 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   padding: 6px 10px;
 }
 /* /PLATFORM:desktop */
+
+.tab-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.4;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.1);
+  color: inherit;
+  vertical-align: middle;
+}
+
+.tab-btn.active .tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
 
 table {
   width: 100%;

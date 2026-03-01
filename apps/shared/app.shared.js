@@ -881,6 +881,18 @@ const getActiveTabName = () => {
   return active ? active.name : "";
 };
 
+const getTabRowCount = (tabId) => {
+  if (tabId === tabsState.activeTabId) return state.rows.length;
+  try {
+    const stored = localStorage.getItem(getStorageKey(tabId));
+    if (!stored) return 0;
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed.rows) ? parsed.rows.length : 0;
+  } catch (error) {
+    return 0;
+  }
+};
+
 const loadEventLog = () => {
   try {
     const stored = localStorage.getItem(EVENT_LOG_KEY);
@@ -4472,7 +4484,7 @@ const moveRowToInventory = async (rowId) => {
 const renderTabs = () => {
   if (!tabBar) return;
   tabBar.innerHTML = "";
-  const tabContainer = PLATFORM === "mobile" ? (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })() : tabBar;
+  const tabContainer = (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })();
   tabsState.tabs
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -4481,12 +4493,15 @@ const renderTabs = () => {
     btn.type = "button";
     btn.className = `tab-btn${tab.id === tabsState.activeTabId ? " active" : ""}`;
     btn.textContent = tab.name;
+    const count = getTabRowCount(tab.id);
+    const badge = document.createElement("span");
+    badge.className = "tab-count";
+    badge.textContent = count;
+    btn.appendChild(badge);
     btn.addEventListener("click", () => switchTab(tab.id));
     tabContainer.appendChild(btn);
   });
-  if (PLATFORM === "mobile") {
-    tabBar.appendChild(tabContainer);
-  }
+  tabBar.appendChild(tabContainer);
   {
     const controlsContainer = PLATFORM === "mobile" ? (() => { const c = document.createElement("div"); c.className = "tab-controls"; return c; })() : tabBar;
     const addBtn = document.createElement("button");
