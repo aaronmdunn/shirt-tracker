@@ -833,6 +833,7 @@ body[data-viewer="pending"] #undo-clear,
 body[data-viewer="pending"] #sync-now,
 body[data-viewer="pending"] .tab-btn.add,
 body[data-viewer="pending"] .tab-btn.delete,
+body[data-viewer="pending"] .tab-btn.rename,
 body[data-viewer="pending"] .btn-icon.trash,
 body[data-viewer="pending"] .row-actions {
   display: none !important;
@@ -2183,6 +2184,7 @@ body[data-readonly="true"] #clear-all,
 body[data-readonly="true"] #undo-clear,
 body[data-readonly="true"] .tab-btn.add,
 body[data-readonly="true"] .tab-btn.delete,
+body[data-readonly="true"] .tab-btn.rename,
 body[data-readonly="true"] .btn-icon {
   display: none !important;
 }
