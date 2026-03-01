@@ -2687,7 +2687,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:03:08 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:05:37 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3380,7 +3380,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:03:08.643Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:05:37.643Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -7690,9 +7690,6 @@
           if (!currentUser) return;
         }
         const container = document.createElement("div");
-        if (PLATFORM === "desktop") {
-          container.id = "mode-switcher-inline";
-        }
         Object.assign(container.style, {
           display: "inline-flex",
           borderRadius: PLATFORM === "mobile" ? "8px" : "6px",
@@ -7746,7 +7743,23 @@
         } else {
           const sheetHeader = document.querySelector(".sheet-header");
           if (sheetHeader) {
-            sheetHeader.prepend(container);
+            const modeRow = document.createElement("div");
+            modeRow.id = "mode-switcher-inline";
+            modeRow.style.display = "flex";
+            modeRow.style.alignItems = "center";
+            modeRow.style.gap = "10px";
+            modeRow.appendChild(container);
+            if (statsButton) {
+              Object.assign(statsButton.style, {
+                padding: "5px 12px",
+                fontSize: "0.78rem",
+                fontWeight: "600",
+                letterSpacing: "0.03em",
+                whiteSpace: "nowrap",
+              });
+              modeRow.appendChild(statsButton);
+            }
+            sheetHeader.prepend(modeRow);
           }
         }
       };
