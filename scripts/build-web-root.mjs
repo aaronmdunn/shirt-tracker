@@ -7,6 +7,7 @@ const root = process.cwd();
 const desktopSrc = path.join(root, "apps", "web-desktop", "src");
 const mobileSrc = path.join(root, "apps", "web-mobile", "src");
 const sharedJs = path.join(root, "apps", "shared", "app.shared.js");
+const sharedCss = path.join(root, "apps", "shared", "style.shared.css");
 const outDir = path.join(root, "apps", "web-root");
 const outDesktop = path.join(outDir, "d");
 const outMobile = path.join(outDir, "m");
@@ -64,6 +65,32 @@ const copyDir = (src, dest) => {
 };
 
 /**
+ * Strip platform-conditional CSS blocks from the shared stylesheet.
+ * Keeps blocks for the given platform and removes blocks for all other platforms.
+ *
+ * Markers use the format:
+ *   /* PLATFORM:desktop * /  ...  /* /PLATFORM:desktop * /
+ *   /* PLATFORM:mobile * /   ...  /* /PLATFORM:mobile * /
+ *
+ * Lines between (and including) the markers for non-matching platforms are removed.
+ */
+const stripPlatformBlocks = (css, platform) => {
+  const opposite = platform === "desktop" ? "mobile" : "desktop";
+  // Remove blocks for the opposite platform (including the marker lines)
+  const stripPattern = new RegExp(
+    `^[ \\t]*/\\* PLATFORM:${opposite} \\*/\\s*\\n[\\s\\S]*?^[ \\t]*/\\* /PLATFORM:${opposite} \\*/\\s*\\n?`,
+    "gm"
+  );
+  let result = css.replace(stripPattern, "");
+  // Remove the remaining marker comments for the matching platform (keep their content)
+  result = result.replace(
+    new RegExp(`^[ \\t]*/\\* /?PLATFORM:${platform} \\*/\\s*\\n?`, "gm"),
+    ""
+  );
+  return result;
+};
+
+/**
  * Inline style.css and app.js back into index.html to produce a single-file output.
  * Replaces <link rel="stylesheet" href="style.css"> with <style>…</style>
  * Replaces <script src="app.js"></script> with <script>…</script>
@@ -109,10 +136,22 @@ const inlineSources = (dir) => {
 fs.rmSync(outDir, { recursive: true, force: true });
 fs.mkdirSync(outDir, { recursive: true });
 
-// Copy platform-specific assets (HTML, CSS, fonts, icons, manifest) from each src/ folder.
-// These still differ between desktop and mobile (different HTML structure, different CSS).
+// Copy platform-specific assets (HTML, fonts, icons, manifest) from each src/ folder.
+// HTML structure still differs between desktop and mobile.
 copyDir(desktopSrc, outDesktop);
 copyDir(mobileSrc, outMobile);
+
+// Replace each platform's style.css with the shared CSS source, stripping the opposite
+// platform's blocks.  The shared file uses /* PLATFORM:desktop */ … /* /PLATFORM:desktop */
+// and /* PLATFORM:mobile */ … /* /PLATFORM:mobile */ comment markers.
+if (!fs.existsSync(sharedCss)) {
+  throw new Error(`Shared CSS not found: ${sharedCss}`);
+}
+const sharedCssSource = fs.readFileSync(sharedCss, "utf8");
+for (const [dir, platform] of [[outDesktop, "desktop"], [outMobile, "mobile"]]) {
+  const cssPath = path.join(dir, "style.css");
+  fs.writeFileSync(cssPath, stripPlatformBlocks(sharedCssSource, platform), "utf8");
+}
 
 // Replace each platform's app.js with the shared source, setting the PLATFORM constant.
 // The shared file contains both desktop and mobile code paths gated by PLATFORM checks.
