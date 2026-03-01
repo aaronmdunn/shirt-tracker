@@ -100,12 +100,8 @@ header .wrap {
 
 .title-row h1 {
   margin: 0;
-  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #ffffff;
-  font-family: "WaltographUI", "Heavy Dois", "Garamond", "Georgia", serif;
+  font-size: 0;
+  color: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
