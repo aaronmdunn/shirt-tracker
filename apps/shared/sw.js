@@ -1,5 +1,5 @@
 /**
- * Service Worker for Shirt Tracker (Desktop)
+ * Service Worker for Shirt Tracker
  *
  * Strategy:
  *   - App shell (index.html) -> Cache-first, fall back to network

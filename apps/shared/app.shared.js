@@ -2961,9 +2961,10 @@ const updateTabLogo = async () => {
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
+    const rawExt = (file.name.split(".").pop() || "png").toLowerCase();
+    const compressed = await compressImage(file, rawExt, { maxDimension: 400 });
     if (supabase && currentUser) {
-      const extension = (file.name.split(".").pop() || "png").toLowerCase();
-      const path = await uploadLogoToSupabase(file, extension);
+      const path = await uploadLogoToSupabase(compressed.blob, compressed.extension);
       if (path) {
         setCustomLogo(active.id, `supa:${path}`);
         updateTabLogo();
@@ -2977,7 +2978,7 @@ const updateTabLogo = async () => {
       setCustomLogo(active.id, result);
       updateTabLogo();
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed.blob);
   });
   tabLogoPanel.appendChild(changeButton);
   tabLogoPanel.appendChild(fileInput);
@@ -3443,6 +3444,91 @@ const loadRemoteState = async () => {
   }
 };
 
+/**
+ * Compress an image blob by drawing it onto a canvas at a constrained size
+ * and exporting as JPEG. Returns { blob, extension } with the compressed result,
+ * or the original blob/extension if compression isn't needed or fails.
+ *
+ * @param {Blob} blob - The image file blob
+ * @param {string} extension - Original file extension (e.g. "png", "jpg")
+ * @param {object} [options]
+ * @param {number} [options.maxDimension=1200] - Max width or height in pixels
+ * @param {number} [options.quality=0.85] - JPEG quality (0–1)
+ * @param {number} [options.skipBelowBytes=102400] - Skip compression for files under this size (default 100KB)
+ */
+const compressImage = (blob, extension, options = {}) => {
+  const {
+    maxDimension = 1200,
+    quality = 0.85,
+    skipBelowBytes = 102400,
+  } = options;
+
+  return new Promise((resolve) => {
+    // Skip tiny images — not worth the canvas round-trip
+    if (blob.size < skipBelowBytes) {
+      resolve({ blob, extension });
+      return;
+    }
+
+    // SVGs shouldn't be rasterized
+    if (extension && extension.toLowerCase() === "svg") {
+      resolve({ blob, extension });
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+
+      // Only downscale — never upscale
+      if (width <= maxDimension && height <= maxDimension) {
+        // Image is within bounds but may still be a large PNG/BMP — re-encode as JPEG
+        if (blob.size < skipBelowBytes) {
+          resolve({ blob, extension });
+          return;
+        }
+      }
+
+      // Calculate constrained dimensions preserving aspect ratio
+      if (width > maxDimension || height > maxDimension) {
+        const ratio = Math.min(maxDimension / width, maxDimension / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (result) => {
+          if (result && result.size < blob.size) {
+            resolve({ blob: result, extension: "jpg" });
+          } else {
+            // Compressed version is larger (rare) — keep original
+            resolve({ blob, extension });
+          }
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      // Can't decode — pass through unmodified
+      resolve({ blob, extension });
+    };
+
+    img.src = url;
+  });
+};
+
 const uploadPhotoToSupabase = async (blob, extension) => {
   if (!supabase || !currentUser) return null;
   const path = `${currentUser.id}/${createId()}.${extension}`;
@@ -3492,7 +3578,8 @@ const migrateLocalPhotosToSupabase = async () => {
           blob = await (await fetch(value)).blob();
         }
         if (blob) {
-          const path = await uploadPhotoToSupabase(blob, "jpg");
+          const compressed = await compressImage(blob, "jpg");
+          const path = await uploadPhotoToSupabase(compressed.blob, compressed.extension);
           if (path) {
             row.cells[columnId] = `supa:${path}`;
             changed = true;
@@ -4698,11 +4785,14 @@ const onPhotoUpload = (id, columnId, file) => {
     try {
       const row = state.rows.find((item) => item.id === id);
       const prevValue = row && row.cells ? row.cells[columnId] : "";
-      const blob = file instanceof Blob ? file : new Blob([file]);
+      const rawBlob = file instanceof Blob ? file : new Blob([file]);
+      const rawExt = file.name && file.name.includes(".")
+        ? file.name.split(".").pop()
+        : "jpg";
+      const compressed = await compressImage(rawBlob, rawExt);
+      const blob = compressed.blob;
+      const extension = compressed.extension;
       if (supabase && currentUser) {
-        const extension = file.name && file.name.includes(".")
-          ? file.name.split(".").pop()
-          : "jpg";
         const path = await uploadPhotoToSupabase(blob, extension);
         if (path) {
           logRowChange(id, columnId, prevValue, `supa:${path}`);
