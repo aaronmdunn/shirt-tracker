@@ -4,7 +4,7 @@ import path from "path";
 const root = process.cwd();
 const sourceDir = path.join(root, "apps", "web-desktop", "src");
 const sourcePath = path.join(sourceDir, "index.html");
-const sourceCss = path.join(sourceDir, "style.css");
+const sourceCss = path.join(root, "apps", "shared", "style.shared.css");
 const sourceJs = path.join(root, "apps", "shared", "app.shared.js");
 const targetPath = path.join(root, "apps", "desktop-tauri", "src", "index.html");
 const sourceAssets = path.join(sourceDir, "assets");
@@ -19,6 +19,24 @@ if (!fs.existsSync(sourcePath)) {
   throw new Error(`Source file not found: ${sourcePath}`);
 }
 
+/**
+ * Strip platform-conditional CSS blocks from the shared stylesheet.
+ * Keeps blocks for the given platform and removes blocks for all other platforms.
+ */
+const stripPlatformBlocks = (css, platform) => {
+  const opposite = platform === "desktop" ? "mobile" : "desktop";
+  const stripPattern = new RegExp(
+    `^[ \\t]*/\\* PLATFORM:${opposite} \\*/\\s*\\n[\\s\\S]*?^[ \\t]*/\\* /PLATFORM:${opposite} \\*/\\s*\\n?`,
+    "gm"
+  );
+  let result = css.replace(stripPattern, "");
+  result = result.replace(
+    new RegExp(`^[ \\t]*/\\* /?PLATFORM:${platform} \\*/\\s*\\n?`, "gm"),
+    ""
+  );
+  return result;
+};
+
 const formatLocalDateTime = (value) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -29,7 +47,8 @@ let html = fs.readFileSync(sourcePath, "utf8");
 
 // Inline style.css and app.js into the HTML to produce a single-file output for Tauri
 if (fs.existsSync(sourceCss)) {
-  const css = fs.readFileSync(sourceCss, "utf8");
+  // Tauri uses the desktop platform — strip mobile-only blocks from the shared CSS
+  const css = stripPlatformBlocks(fs.readFileSync(sourceCss, "utf8"), "desktop");
   const indentedCss = css.split("\n").map(l => l ? "      " + l : l).join("\n");
   html = html.replace(
     /^[ \t]*<link rel="stylesheet" href="style\.css">\s*$/m,
