@@ -9,6 +9,8 @@
  *   5. CHANGELOG.json is valid and matches the current version
  *   6. Version strings are consistent across all source files
  *   7. _redirects file is generated correctly
+ *   8. Shared CSS file exists with balanced platform markers
+ *   9. Built CSS outputs contain no platform markers or cross-platform selectors
  *
  * Usage:  node scripts/test-build.mjs
  * Exit 0 on success, exit 1 on any failure.
@@ -237,6 +239,79 @@ test("app.shared.js contains PLATFORM placeholder", () => {
   assert.ok(content, "Could not read app.shared.js");
   assert.ok(content.includes('const PLATFORM = "__PLATFORM__"'),
     "Missing PLATFORM placeholder in app.shared.js");
+});
+
+test("style.shared.css exists", () => {
+  assert.ok(fileExists("apps/shared/style.shared.css"), "Missing shared CSS source");
+});
+
+test("style.shared.css contains PLATFORM:desktop markers", () => {
+  const content = readFile("apps/shared/style.shared.css");
+  assert.ok(content, "Could not read style.shared.css");
+  assert.ok(content.includes("/* PLATFORM:desktop */"),
+    "Missing PLATFORM:desktop marker in style.shared.css");
+  assert.ok(content.includes("/* /PLATFORM:desktop */"),
+    "Missing /PLATFORM:desktop closing marker in style.shared.css");
+});
+
+test("style.shared.css contains PLATFORM:mobile markers", () => {
+  const content = readFile("apps/shared/style.shared.css");
+  assert.ok(content, "Could not read style.shared.css");
+  assert.ok(content.includes("/* PLATFORM:mobile */"),
+    "Missing PLATFORM:mobile marker in style.shared.css");
+  assert.ok(content.includes("/* /PLATFORM:mobile */"),
+    "Missing /PLATFORM:mobile closing marker in style.shared.css");
+});
+
+test("style.shared.css has balanced platform markers", () => {
+  const content = readFile("apps/shared/style.shared.css");
+  assert.ok(content, "Could not read style.shared.css");
+  const dOpen = (content.match(/^\/\* PLATFORM:desktop \*\/$/gm) || []).length;
+  const dClose = (content.match(/^\/\* \/PLATFORM:desktop \*\/$/gm) || []).length;
+  assert.equal(dOpen, dClose,
+    `Unbalanced desktop markers: ${dOpen} opens vs ${dClose} closes`);
+  const mOpen = (content.match(/^\/\* PLATFORM:mobile \*\/$/gm) || []).length;
+  const mClose = (content.match(/^\/\* \/PLATFORM:mobile \*\/$/gm) || []).length;
+  assert.equal(mOpen, mClose,
+    `Unbalanced mobile markers: ${mOpen} opens vs ${mClose} closes`);
+});
+
+test("Built desktop CSS has no PLATFORM markers or mobile-only selectors", () => {
+  const html = readFile("apps/web-root/d/index.html");
+  assert.ok(html, "Could not read desktop build output");
+  assert.ok(!html.includes("PLATFORM:desktop"), "Desktop build still contains PLATFORM:desktop marker");
+  assert.ok(!html.includes("PLATFORM:mobile"), "Desktop build still contains PLATFORM:mobile marker");
+  // Extract the CSS (inside <style>…</style>) to check for mobile-only selectors.
+  // JS may legitimately reference mobile class names as querySelector strings.
+  const cssMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  if (cssMatch) {
+    assert.ok(!cssMatch[1].includes("mobile-action-grid"),
+      "Desktop CSS contains mobile-only .mobile-action-grid selector");
+  }
+});
+
+test("Built mobile CSS has no PLATFORM markers or desktop-only selectors", () => {
+  const html = readFile("apps/web-root/m/index.html");
+  assert.ok(html, "Could not read mobile build output");
+  assert.ok(!html.includes("PLATFORM:desktop"), "Mobile build still contains PLATFORM:desktop marker");
+  assert.ok(!html.includes("PLATFORM:mobile"), "Mobile build still contains PLATFORM:mobile marker");
+  const cssMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  if (cssMatch) {
+    assert.ok(!cssMatch[1].includes("tab-btn.rename"),
+      "Mobile CSS contains desktop-only .tab-btn.rename selector");
+  }
+});
+
+test("Tauri HTML has no PLATFORM markers or mobile-only selectors", () => {
+  const html = readFile("apps/desktop-tauri/src/index.html");
+  assert.ok(html, "Could not read Tauri build output");
+  assert.ok(!html.includes("PLATFORM:desktop"), "Tauri build still contains PLATFORM:desktop marker");
+  assert.ok(!html.includes("PLATFORM:mobile"), "Tauri build still contains PLATFORM:mobile marker");
+  const cssMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  if (cssMatch) {
+    assert.ok(!cssMatch[1].includes("mobile-action-grid"),
+      "Tauri CSS contains mobile-only .mobile-action-grid selector");
+  }
 });
 
 test("package.json version matches app.shared.js APP_VERSION", () => {
