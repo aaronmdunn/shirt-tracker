@@ -2712,7 +2712,6 @@ function applyDesktopHeaderInlineLayout() {
   const addColumnButton = document.getElementById("add-column");
   const editColumnsButton = document.getElementById("toggle-columns");
   const chooseColumnsButton = document.getElementById("share-columns-button");
-  const statsBtn = document.getElementById("stats-button");
   const syncNowButton = document.getElementById("sync-now");
   const authActionButton = document.getElementById("auth-action");
 
@@ -2728,7 +2727,7 @@ function applyDesktopHeaderInlineLayout() {
     const bottomRow = document.createElement("div");
     bottomRow.className = "desktop-action-inline-row";
 
-    const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton, statsBtn];
+    const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton];
     topButtons.forEach((button) => {
       if (!button) return;
       topRow.appendChild(button);
@@ -4289,11 +4288,16 @@ const renderModeSwitcher = () => {
       modeRow.appendChild(container);
       if (statsButton) {
         Object.assign(statsButton.style, {
-          padding: "5px 12px",
-          fontSize: "0.78rem",
-          fontWeight: "600",
+          padding: "4px 10px",
+          fontSize: "0.72rem",
+          fontWeight: "500",
           letterSpacing: "0.03em",
           whiteSpace: "nowrap",
+          borderRadius: "6px",
+          border: "1px solid #ccc",
+          background: "#f5f5f5",
+          color: "#666",
+          cursor: "pointer",
         });
         modeRow.appendChild(statsButton);
       }
