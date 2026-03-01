@@ -301,8 +301,8 @@ test("Built mobile CSS has no PLATFORM markers or desktop-only selectors", () =>
   assert.ok(!html.includes("PLATFORM:mobile"), "Mobile build still contains PLATFORM:mobile marker");
   const cssMatch = html.match(/<style>([\s\S]*?)<\/style>/);
   if (cssMatch) {
-    assert.ok(!cssMatch[1].includes("tab-btn.rename"),
-      "Mobile CSS contains desktop-only .tab-btn.rename selector");
+    assert.ok(!cssMatch[1].includes("tab-btn.rename{"),
+      "Mobile CSS contains desktop-only .tab-btn.rename cosmetic rule");
   }
 });
 

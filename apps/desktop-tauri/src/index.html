@@ -675,6 +675,7 @@
       body[data-viewer="pending"] #sync-now,
       body[data-viewer="pending"] .tab-btn.add,
       body[data-viewer="pending"] .tab-btn.delete,
+      body[data-viewer="pending"] .tab-btn.rename,
       body[data-viewer="pending"] .btn-icon.trash,
       body[data-viewer="pending"] .row-actions {
         display: none !important;
@@ -1743,6 +1744,7 @@
       body[data-readonly="true"] #undo-clear,
       body[data-readonly="true"] .tab-btn.add,
       body[data-readonly="true"] .tab-btn.delete,
+      body[data-readonly="true"] .tab-btn.rename,
       body[data-readonly="true"] .btn-icon {
         display: none !important;
       }
@@ -2694,7 +2696,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:35:22 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 5:11:44 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3387,7 +3389,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:35:22.902Z";
+      const LAST_COMMIT_DATE = "2026-03-01T22:11:44.617Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
