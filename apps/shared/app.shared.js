@@ -676,6 +676,11 @@ const changelogDialog = document.getElementById("changelog-dialog");
 const changelogList = document.getElementById("changelog-list");
 const changelogCloseButton = document.getElementById("changelog-close");
 const changelogLink = document.getElementById("changelog-link");
+const statsDialog = document.getElementById("stats-dialog");
+const statsContent = document.getElementById("stats-content");
+const statsTitle = document.getElementById("stats-title");
+const statsCloseButton = document.getElementById("stats-close");
+const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
 const recycleBinEmpty = document.getElementById("recycle-bin-empty");
@@ -8005,6 +8010,151 @@ if (recycleBinLink) {
   });
 }
 
+const collectAllStats = () => {
+  const tabs = tabsState.tabs;
+  const allRows = [];
+  const tabBreakdown = [];
+  let columns = state.columns;
+
+  tabs.forEach((tab) => {
+    let rows;
+    let cols;
+    if (tab.id === tabsState.activeTabId) {
+      rows = state.rows;
+      cols = state.columns;
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+        cols = Array.isArray(parsed.columns) ? parsed.columns : [];
+      } catch (error) {
+        return;
+      }
+    }
+    tabBreakdown.push({ name: tab.name, count: rows.length });
+    rows.forEach((row) => allRows.push({ row, columns: cols }));
+  });
+
+  const totalItems = allRows.length;
+
+  const findColumn = (cols, name) =>
+    cols.find((c) => (c.name || "").trim().toLowerCase() === name.toLowerCase());
+
+  const getCellValue = (entry, colName) => {
+    const col = findColumn(entry.columns, colName);
+    return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
+  };
+
+  const tally = (colName) => {
+    const counts = {};
+    allRows.forEach((entry) => {
+      const val = getCellValue(entry, colName);
+      if (val) counts[val] = (counts[val] || 0) + 1;
+    });
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return sorted.length ? { value: sorted[0][0], count: sorted[0][1] } : null;
+  };
+
+  const isInventory = appMode === "inventory";
+
+  let totalCost = 0;
+  let priceCount = 0;
+  let mostExpensiveName = "";
+  let mostExpensivePrice = 0;
+  if (isInventory) {
+    allRows.forEach((entry) => {
+      const raw = getCellValue(entry, "Price");
+      const parsed = parseCurrency(raw);
+      if (parsed !== null && parsed > 0) {
+        totalCost += parsed;
+        priceCount++;
+        if (parsed > mostExpensivePrice) {
+          mostExpensivePrice = parsed;
+          mostExpensiveName = getCellValue(entry, "Name") || "Unnamed";
+        }
+      }
+    });
+  }
+
+  let photosCount = 0;
+  allRows.forEach((entry) => {
+    const col = findColumn(entry.columns, "Preview");
+    if (col && entry.row.cells && entry.row.cells[col.id]) photosCount++;
+  });
+
+  const tagCounts = {};
+  allRows.forEach((entry) => {
+    const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+    tags.forEach((tag) => {
+      const t = String(tag || "").trim();
+      if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    });
+  });
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+  return {
+    totalItems,
+    tabBreakdown: tabBreakdown.sort((a, b) => b.count - a.count),
+    isInventory,
+    totalCost,
+    averageCost: priceCount ? totalCost / priceCount : 0,
+    priceCount,
+    mostExpensiveName,
+    mostExpensivePrice,
+    topSize: tally("Size"),
+    topType: tally("Type"),
+    topCondition: isInventory ? tally("Condition") : null,
+    photosCount,
+    photosPercent: totalItems ? Math.round((photosCount / totalItems) * 100) : 0,
+    topTags,
+  };
+};
+
+const openStatsDialog = () => {
+  if (!statsDialog || !statsContent) return;
+  const s = collectAllStats();
+  const modeLabel = s.isInventory ? "Inventory" : "Wishlist";
+  if (statsTitle) statsTitle.textContent = `${modeLabel} Stats`;
+
+  let html = "";
+
+  html += `<div class="stats-section">`;
+  html += `<div class="stats-row"><span class="stats-label">Total items</span><span class="stats-value">${s.totalItems}</span></div>`;
+  s.tabBreakdown.forEach((tab) => {
+    html += `<div class="stats-row stats-sub"><span class="stats-label">${tab.name}</span><span class="stats-value">${tab.count}</span></div>`;
+  });
+  html += `</div>`;
+
+  if (s.isInventory) {
+    html += `<div class="stats-section">`;
+    html += `<div class="stats-row"><span class="stats-label">Total value</span><span class="stats-value">${formatCurrency(s.totalCost)}</span></div>`;
+    if (s.priceCount) {
+      html += `<div class="stats-row"><span class="stats-label">Average price</span><span class="stats-value">${formatCurrency(s.averageCost)}</span></div>`;
+      html += `<div class="stats-row"><span class="stats-label">Most expensive</span><span class="stats-value">${s.mostExpensiveName} (${formatCurrency(s.mostExpensivePrice)})</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `<div class="stats-section">`;
+  if (s.topSize) html += `<div class="stats-row"><span class="stats-label">Most common size</span><span class="stats-value">${s.topSize.value} (${s.topSize.count})</span></div>`;
+  if (s.topType) html += `<div class="stats-row"><span class="stats-label">Most common type</span><span class="stats-value">${s.topType.value} (${s.topType.count})</span></div>`;
+  if (s.topCondition) html += `<div class="stats-row"><span class="stats-label">Most common condition</span><span class="stats-value">${s.topCondition.value} (${s.topCondition.count})</span></div>`;
+  html += `<div class="stats-row"><span class="stats-label">Items with photos</span><span class="stats-value">${s.photosCount} (${s.photosPercent}%)</span></div>`;
+  html += `</div>`;
+
+  if (s.topTags.length) {
+    html += `<div class="stats-section">`;
+    html += `<div class="stats-row"><span class="stats-label">Top tags</span><span class="stats-value">${s.topTags.map(([tag, count]) => `${tag} (${count})`).join(", ")}</span></div>`;
+    html += `</div>`;
+  }
+
+  statsContent.innerHTML = html;
+  openDialog(statsDialog);
+  resetDialogScroll(statsDialog);
+};
+
 const renderChangelog = () => {
   if (!changelogList) return;
   changelogList.textContent = "";
@@ -8080,6 +8230,18 @@ if (changelogLink) {
     renderChangelog();
     openDialog(changelogDialog);
     if (changelogDialog) changelogDialog.scrollTop = 0;
+  });
+}
+
+if (statsCloseButton) {
+  statsCloseButton.addEventListener("click", () => {
+    closeDialog(statsDialog);
+  });
+}
+
+if (statsButton) {
+  statsButton.addEventListener("click", () => {
+    openStatsDialog();
   });
 }
 

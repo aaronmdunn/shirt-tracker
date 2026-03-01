@@ -102,6 +102,7 @@
                   <button class="btn" id="add-column">Add Column</button>
                   <button class="btn" id="toggle-columns">Edit Columns</button>
                   <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
+                  <button class="btn secondary" id="stats-button" type="button">Stats</button>
                 </div>
                 <div class="header-row auth-row">
                   <button class="btn secondary compact" id="sync-now">Save + Sync to Cloud</button>
@@ -896,6 +897,16 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="changelog-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="stats-dialog">
+      <div class="dialog-body">
+        <h3 id="stats-title">Collection Stats</h3>
+        <div id="stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="stats-close">Close</button>
       </div>
     </dialog>
 
