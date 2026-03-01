@@ -1840,12 +1840,18 @@
       }
 
       #stats-dialog {
-        max-width: 420px;
+        max-width: 440px;
         width: 90vw;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
       }
 
       #stats-dialog .dialog-body {
         padding: 20px 24px 12px;
+        overflow-y: auto;
+        flex: 1;
+        min-height: 0;
       }
 
       #stats-dialog .dialog-actions {
@@ -2687,7 +2693,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:07:30 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:14:13 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3380,7 +3386,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:07:30.026Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:14:13.037Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11494,7 +11500,6 @@
         const tabs = tabsState.tabs;
         const allRows = [];
         const tabBreakdown = [];
-        let columns = state.columns;
 
         tabs.forEach((tab) => {
           let rows;
@@ -11527,43 +11532,60 @@
           return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
         };
 
-        const tally = (colName) => {
+        const tallyAll = (colName) => {
           const counts = {};
           allRows.forEach((entry) => {
             const val = getCellValue(entry, colName);
             if (val) counts[val] = (counts[val] || 0) + 1;
           });
-          const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-          return sorted.length ? { value: sorted[0][0], count: sorted[0][1] } : null;
+          return Object.entries(counts).sort((a, b) => b[1] - a[1]);
         };
 
         const isInventory = appMode === "inventory";
 
-        let totalCost = 0;
-        let priceCount = 0;
-        let mostExpensiveName = "";
-        let mostExpensivePrice = 0;
+        // --- Pricing stats (Inventory only) ---
+        const prices = [];
+        const priceItems = [];
         if (isInventory) {
           allRows.forEach((entry) => {
             const raw = getCellValue(entry, "Price");
             const parsed = parseCurrency(raw);
             if (parsed !== null && parsed > 0) {
-              totalCost += parsed;
-              priceCount++;
-              if (parsed > mostExpensivePrice) {
-                mostExpensivePrice = parsed;
-                mostExpensiveName = getCellValue(entry, "Name") || "Unnamed";
-              }
+              const name = getCellValue(entry, "Name") || "Unnamed";
+              prices.push(parsed);
+              priceItems.push({ name, price: parsed });
             }
           });
+          priceItems.sort((a, b) => b.price - a.price);
         }
+        const totalCost = prices.reduce((sum, p) => sum + p, 0);
+        const meanPrice = prices.length ? totalCost / prices.length : 0;
+        const medianPrice = (() => {
+          if (!prices.length) return 0;
+          const sorted = prices.slice().sort((a, b) => a - b);
+          const mid = Math.floor(sorted.length / 2);
+          return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+        })();
+        const top3Expensive = priceItems.slice(0, 3);
 
-        let photosCount = 0;
+        // --- Name stats ---
+        let longestName = { name: "", length: 0 };
+        let shortestName = { name: "", length: Infinity };
         allRows.forEach((entry) => {
-          const col = findColumn(entry.columns, "Preview");
-          if (col && entry.row.cells && entry.row.cells[col.id]) photosCount++;
+          const name = getCellValue(entry, "Name");
+          if (!name) return;
+          if (name.length > longestName.length) longestName = { name, length: name.length };
+          if (name.length < shortestName.length) shortestName = { name, length: name.length };
         });
+        if (shortestName.length === Infinity) shortestName = { name: "", length: 0 };
 
+        // --- Tallies ---
+        const typeTally = tallyAll("Type");
+        const fandomTally = tallyAll("Fandom");
+        const sizeTally = tallyAll("Size");
+        const conditionTally = isInventory ? tallyAll("Condition") : [];
+
+        // --- Tags ---
         const tagCounts = {};
         allRows.forEach((entry) => {
           const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
@@ -11574,21 +11596,32 @@
         });
         const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
+        // --- Recently deleted ---
+        const deletedEntries = loadDeletedRows();
+        const recentlyDeleted = deletedEntries.length ? (() => {
+          const entry = deletedEntries[0];
+          const name = getRowNameFromEntry(entry);
+          const date = entry.deletedAt ? new Date(entry.deletedAt).toLocaleDateString() : "";
+          const tab = entry.fromTabName || "";
+          return { name, date, tab };
+        })() : null;
+
         return {
           totalItems,
           tabBreakdown: tabBreakdown.sort((a, b) => b.count - a.count),
           isInventory,
           totalCost,
-          averageCost: priceCount ? totalCost / priceCount : 0,
-          priceCount,
-          mostExpensiveName,
-          mostExpensivePrice,
-          topSize: tally("Size"),
-          topType: tally("Type"),
-          topCondition: isInventory ? tally("Condition") : null,
-          photosCount,
-          photosPercent: totalItems ? Math.round((photosCount / totalItems) * 100) : 0,
+          meanPrice,
+          medianPrice,
+          top3Expensive,
+          longestName,
+          shortestName,
+          typeTally: typeTally.slice(0, 3),
+          fandomTally: fandomTally.slice(0, 3),
+          sizeTally,
+          conditionTally,
           topTags,
+          recentlyDeleted,
         };
       };
 
@@ -11598,36 +11631,77 @@
         const modeLabel = s.isInventory ? "Inventory" : "Wishlist";
         if (statsTitle) statsTitle.textContent = `${modeLabel} Stats`;
 
+        const row = (label, value) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`;
+        const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`;
+        const section = (content) => `<div class="stats-section">${content}</div>`;
+
         let html = "";
 
-        html += `<div class="stats-section">`;
-        html += `<div class="stats-row"><span class="stats-label">Total items</span><span class="stats-value">${s.totalItems}</span></div>`;
-        s.tabBreakdown.forEach((tab) => {
-          html += `<div class="stats-row stats-sub"><span class="stats-label">${tab.name}</span><span class="stats-value">${tab.count}</span></div>`;
-        });
-        html += `</div>`;
+        // --- Item counts ---
+        let countBlock = row("Total items", s.totalItems);
+        s.tabBreakdown.forEach((tab) => { countBlock += sub(tab.name, tab.count); });
+        html += section(countBlock);
 
-        if (s.isInventory) {
-          html += `<div class="stats-section">`;
-          html += `<div class="stats-row"><span class="stats-label">Total value</span><span class="stats-value">${formatCurrency(s.totalCost)}</span></div>`;
-          if (s.priceCount) {
-            html += `<div class="stats-row"><span class="stats-label">Average price</span><span class="stats-value">${formatCurrency(s.averageCost)}</span></div>`;
-            html += `<div class="stats-row"><span class="stats-label">Most expensive</span><span class="stats-value">${s.mostExpensiveName} (${formatCurrency(s.mostExpensivePrice)})</span></div>`;
-          }
-          html += `</div>`;
+        // --- Pricing (Inventory) ---
+        if (s.isInventory && s.top3Expensive.length) {
+          let priceBlock = row("Total value", formatCurrency(s.totalCost));
+          priceBlock += row("Mean price", formatCurrency(s.meanPrice));
+          priceBlock += row("Median price", formatCurrency(s.medianPrice));
+          priceBlock += row("Top 3 most expensive", "");
+          s.top3Expensive.forEach((item, i) => {
+            priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+          });
+          html += section(priceBlock);
         }
 
-        html += `<div class="stats-section">`;
-        if (s.topSize) html += `<div class="stats-row"><span class="stats-label">Most common size</span><span class="stats-value">${s.topSize.value} (${s.topSize.count})</span></div>`;
-        if (s.topType) html += `<div class="stats-row"><span class="stats-label">Most common type</span><span class="stats-value">${s.topType.value} (${s.topType.count})</span></div>`;
-        if (s.topCondition) html += `<div class="stats-row"><span class="stats-label">Most common condition</span><span class="stats-value">${s.topCondition.value} (${s.topCondition.count})</span></div>`;
-        html += `<div class="stats-row"><span class="stats-label">Items with photos</span><span class="stats-value">${s.photosCount} (${s.photosPercent}%)</span></div>`;
-        html += `</div>`;
+        // --- Names ---
+        if (s.longestName.name || s.shortestName.name) {
+          let nameBlock = "";
+          if (s.longestName.name) nameBlock += row("Longest name", `${s.longestName.name} (${s.longestName.length})`);
+          if (s.shortestName.name) nameBlock += row("Shortest name", `${s.shortestName.name} (${s.shortestName.length})`);
+          html += section(nameBlock);
+        }
 
+        // --- Condition counts (Inventory) ---
+        if (s.isInventory && s.conditionTally.length) {
+          let condBlock = row("Condition breakdown", "");
+          s.conditionTally.forEach(([val, count]) => { condBlock += sub(val, count); });
+          html += section(condBlock);
+        }
+
+        // --- Top types ---
+        if (s.typeTally.length) {
+          let typeBlock = row("Top types", "");
+          s.typeTally.forEach(([val, count]) => { typeBlock += sub(val, count); });
+          html += section(typeBlock);
+        }
+
+        // --- Top fandoms ---
+        if (s.fandomTally.length) {
+          let fandomBlock = row("Top fandoms", "");
+          s.fandomTally.forEach(([val, count]) => { fandomBlock += sub(val, count); });
+          html += section(fandomBlock);
+        }
+
+        // --- Size counts ---
+        if (s.sizeTally.length) {
+          let sizeBlock = row("Size breakdown", "");
+          s.sizeTally.forEach(([val, count]) => { sizeBlock += sub(val, count); });
+          html += section(sizeBlock);
+        }
+
+        // --- Tags ---
         if (s.topTags.length) {
-          html += `<div class="stats-section">`;
-          html += `<div class="stats-row"><span class="stats-label">Top tags</span><span class="stats-value">${s.topTags.map(([tag, count]) => `${tag} (${count})`).join(", ")}</span></div>`;
-          html += `</div>`;
+          let tagBlock = row("Top tags", "");
+          s.topTags.forEach(([tag, count]) => { tagBlock += sub(tag, count); });
+          html += section(tagBlock);
+        }
+
+        // --- Recently deleted ---
+        if (s.recentlyDeleted) {
+          let delBlock = row("Last deleted", "");
+          delBlock += sub(s.recentlyDeleted.name, `${s.recentlyDeleted.tab} · ${s.recentlyDeleted.date}`);
+          html += section(delBlock);
         }
 
         statsContent.innerHTML = html;
