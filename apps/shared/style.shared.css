@@ -997,11 +997,15 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
 
 /* PLATFORM:desktop */
 .tab-grid {
-  display: grid;
-  grid-template-columns: repeat(5, auto);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  justify-content: flex-start;
   width: 100%;
+}
+
+.tab-grid > .tab-btn {
+  flex: 0 1 calc((100% - 32px) / 5);
+  min-width: 0;
 }
 /* /PLATFORM:desktop */
 
