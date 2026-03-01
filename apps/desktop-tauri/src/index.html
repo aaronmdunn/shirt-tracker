@@ -2694,7 +2694,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:23:37 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:35:22 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -2816,7 +2816,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.8</div>
+        <div id="about-version">Shirt Tracker v2.0.9</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3383,11 +3383,11 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.8";
+      const APP_VERSION = "2.0.9";
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:23:37.057Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:35:22.902Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3404,6 +3404,19 @@
       const DELETED_ROWS_PURGE_DAYS = 30;
 
       const CHANGELOG = [
+        {
+          "version": "2.0.9",
+          "date": "2026-03-01",
+          "changes": [
+            "Fixed logo flash on page refresh caused by alt text rendering in Disney font",
+            "Optimized header logo from 2.6MB to 317KB (88% reduction)",
+            "Removed unused WaltographUI and Mickey font files",
+            "Added row count badges to tab buttons",
+            "Desktop tabs now wrap to multiple rows (max 5 per row)",
+            "Added Collection Stats dialog with cross-tab aggregation",
+            "Stats include: item counts, pricing (total/mean/median/top 5 expensive/cheapest), names, condition breakdown, top types/fandoms/sizes, top tags, and last deleted item"
+          ]
+        },
         {
           "version": "2.0.8",
           "date": "2026-02-28",
@@ -6635,7 +6648,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.8",
+          version: "2.0.9",
           deletedRows: purgeExpiredDeletedRows(),
         };
         if (wishlistTabs.length > 0) {
