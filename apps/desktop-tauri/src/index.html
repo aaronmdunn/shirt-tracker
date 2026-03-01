@@ -2694,7 +2694,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:22:03 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:23:37 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3387,7 +3387,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:22:03.161Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:23:37.057Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11646,7 +11646,7 @@
         html += section(countBlock);
 
         // --- Pricing (Inventory) ---
-        if (s.isInventory && s.top3Expensive.length) {
+        if (s.isInventory && s.top5Expensive.length) {
           let priceBlock = row("Total value", formatCurrency(s.totalCost));
           priceBlock += row("Mean price", formatCurrency(s.meanPrice));
           priceBlock += row("Median price", formatCurrency(s.medianPrice));

@@ -8177,7 +8177,7 @@ const openStatsDialog = () => {
   html += section(countBlock);
 
   // --- Pricing (Inventory) ---
-  if (s.isInventory && s.top3Expensive.length) {
+  if (s.isInventory && s.top5Expensive.length) {
     let priceBlock = row("Total value", formatCurrency(s.totalCost));
     priceBlock += row("Mean price", formatCurrency(s.meanPrice));
     priceBlock += row("Median price", formatCurrency(s.medianPrice));
