@@ -2280,12 +2280,18 @@ dialog {
 }
 
 #stats-dialog {
-  max-width: 420px;
+  max-width: 440px;
   width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
 }
 
 #stats-dialog .dialog-body {
   padding: 20px 24px 12px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 #stats-dialog .dialog-actions {
