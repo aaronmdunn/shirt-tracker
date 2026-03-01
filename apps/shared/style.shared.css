@@ -662,7 +662,8 @@ body[data-auth="signed-out"] #toggle-columns,
 body[data-auth="signed-out"] #sync-now,
 body[data-auth="signed-out"] #go-bottom,
 body[data-auth="signed-out"] #go-top,
-body[data-auth="signed-out"] #help-button {
+body[data-auth="signed-out"] #help-button,
+body[data-auth="signed-out"] #stats-button {
   display: none !important;
 }
 
@@ -2279,7 +2280,7 @@ dialog {
   margin-bottom: 8px;
 }
 
-#stats-dialog {
+#stats-dialog[open] {
   max-width: 440px;
   width: 90vw;
   max-height: 80vh;

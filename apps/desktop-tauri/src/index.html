@@ -526,7 +526,8 @@
       body[data-auth="signed-out"] #sync-now,
       body[data-auth="signed-out"] #go-bottom,
       body[data-auth="signed-out"] #go-top,
-      body[data-auth="signed-out"] #help-button {
+      body[data-auth="signed-out"] #help-button,
+      body[data-auth="signed-out"] #stats-button {
         display: none !important;
       }
 
@@ -1839,7 +1840,7 @@
         margin-bottom: 8px;
       }
 
-      #stats-dialog {
+      #stats-dialog[open] {
         max-width: 440px;
         width: 90vw;
         max-height: 80vh;
@@ -2693,7 +2694,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:19:31 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:22:03 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3386,7 +3387,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:19:31.427Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:22:03.161Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
