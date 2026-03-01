@@ -4228,9 +4228,6 @@ const renderModeSwitcher = () => {
     if (!currentUser) return;
   }
   const container = document.createElement("div");
-  if (PLATFORM === "desktop") {
-    container.id = "mode-switcher-inline";
-  }
   Object.assign(container.style, {
     display: "inline-flex",
     borderRadius: PLATFORM === "mobile" ? "8px" : "6px",
@@ -4284,7 +4281,23 @@ const renderModeSwitcher = () => {
   } else {
     const sheetHeader = document.querySelector(".sheet-header");
     if (sheetHeader) {
-      sheetHeader.prepend(container);
+      const modeRow = document.createElement("div");
+      modeRow.id = "mode-switcher-inline";
+      modeRow.style.display = "flex";
+      modeRow.style.alignItems = "center";
+      modeRow.style.gap = "10px";
+      modeRow.appendChild(container);
+      if (statsButton) {
+        Object.assign(statsButton.style, {
+          padding: "5px 12px",
+          fontSize: "0.78rem",
+          fontWeight: "600",
+          letterSpacing: "0.03em",
+          whiteSpace: "nowrap",
+        });
+        modeRow.appendChild(statsButton);
+      }
+      sheetHeader.prepend(modeRow);
     }
   }
 };
