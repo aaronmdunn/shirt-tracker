@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Shirt Tracker">
+    <title>Shirt Tracker</title>
+    <link rel="icon" href="assets/icons/hawaiian-shirt.png">
+    <link rel="apple-touch-icon" href="assets/icons/hawaiian-shirt.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://jbmzsxbzqvgsasjhwuko.supabase.co" crossorigin>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-T80L2765XZ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-T80L2765XZ');
+    </script>
+    <!-- Privacy-friendly analytics by Plausible -->
+    <script async src="https://plausible.io/js/pa-kmjUIM6R3--66CzHID1k7.js"></script>
+    <script>
+      window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+      plausible.init()
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get("share") || params.get("viewer");
+        if (!token) return;
+        document.documentElement.setAttribute("data-public-share", "true");
+        if (document.body) {
+          document.body.setAttribute("data-public-share", "true");
+          document.body.setAttribute("data-auth", "signed-in");
+          document.body.setAttribute("data-viewer", "pending");
+          return;
+        }
+        document.addEventListener("DOMContentLoaded", () => {
+          document.body.setAttribute("data-public-share", "true");
+          document.body.setAttribute("data-auth", "signed-in");
+          document.body.setAttribute("data-viewer", "pending");
+        });
+      })();
+    </script>
+    <script>
+      (function () {
+        if (window.__TAURI__ || window.__TAURI_INTERNALS__) return;
+        const path = window.location.pathname || "/";
+        const ua = navigator.userAgent || "";
+        const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+        const isIpadDesktop = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+        const shouldBeMobile = isMobileUA || isIpadDesktop;
+        const current = window.location.pathname + window.location.search + window.location.hash;
+        if (path === "/") {
+          const target = (shouldBeMobile ? "/m/" : "/d/") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+          return;
+        }
+        if (path.startsWith("/d") && shouldBeMobile) {
+          const target = path.replace(/^\/d(?=\/|$)/, "/m") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+        if (path.startsWith("/m") && !shouldBeMobile) {
+          const target = path.replace(/^\/m(?=\/|$)/, "/d") + window.location.search + window.location.hash;
+          if (target !== current) window.location.replace(target);
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body data-auth="signed-out" data-viewer="false">
+    <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" style="display:none;">
+      <input type="hidden" name="form-name" value="contact">
+      <input type="text" name="bot-field">
+      <input type="text" name="name">
+      <input type="email" name="email">
+      <textarea name="comments"></textarea>
+      <input type="checkbox" name="require_response">
+    </form>
+    <header>
+      <div class="wrap">
+          <div class="title-card">
+            <div class="title-row">
+            <h1 id="app-title"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></h1>
+            <p id="app-subtitle">An open-source, fan-made clothing inventory system for hobbyists.</p>
+            </div>
+          </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section class="sheet">
+        <div class="sheet-header">
+          <div class="signedout-login">
+            <button class="btn secondary" id="auth-action-signedout">Sign In</button>
+            <div class="signedout-help">Please login to continue. Need access? <a href="#request-access" id="request-access-link">Request access</a>.</div>
+          </div>
+          <div class="auth-loading" id="auth-loading" style="display:none; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.8rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:var(--muted); animation:loading-pulse 1.8s ease-in-out infinite;">Loading</div>
+            <div class="header-actions">
+              <div class="danger-zone">
+                <div class="header-row columns-row">
+                  <button class="btn" id="add-column">Add Column</button>
+                  <button class="btn" id="toggle-columns">Edit Columns</button>
+                  <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
+                  <button class="btn secondary" id="stats-button" type="button">Stats</button>
+                </div>
+                <div class="header-row auth-row">
+                  <button class="btn secondary compact" id="sync-now">Save + Sync to Cloud</button>
+                  <button class="btn secondary compact" id="auth-action">Sign In</button>
+                  <div class="signedout-greeting" data-static="true">Please sign in to continue.</div>
+                </div>
+              <button class="btn install" id="install-app" style="display:none;">Install App</button>
+            </div>
+          </div>
+        </div>
+        <div class="viewer-banner" id="viewer-banner">Viewer mode: view-only access.</div>
+        <div id="find-bar" style="display:none; position:fixed; top:0; left:0; right:0; z-index:10000; background:var(--paper); border-bottom:1px solid var(--line); padding:8px 12px; align-items:center; gap:8px; font-family:inherit;">
+          <div style="display:inline-block; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.78rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); background:rgba(0,0,0,0.04); border:1px solid var(--line); border-radius:999px; padding:4px 10px;">Find</div>
+          <input id="find-bar-input" type="text" placeholder="Search this tab" style="flex:1; max-width:520px; font-family:'Work Sans','Trebuchet MS',sans-serif;">
+          <button class="btn secondary" id="find-bar-close" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%;">Close</button>
+        </div>
+        <div class="column-toggle-row"></div>
+        <div class="column-manager hidden" id="column-manager"><div class="column-manager-list"><div class="column-row" draggable="true" data-column-id="7ae82df2-d187-4885-8739-edf614480817">
+            <div class="column-meta">
+              <div class="column-name">Condition</div>
+              <div class="column-type">select</div>
+            </div>
+            <div class="column-type">NWT, EUC, Other</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="0e43448b-f944-40d0-a4ac-b0e07bd8263a">
+            <div class="column-meta">
+              <div class="column-name">Shirt Name</div>
+              <div class="column-type">text</div>
+            </div>
+            <div class="column-type">—</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="b250c993-937e-4d3b-b608-5a7faff06d81">
+            <div class="column-meta">
+              <div class="column-name">Size</div>
+              <div class="column-type">select</div>
+            </div>
+            <div class="column-type">L, XL</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="ee411b9b-f360-4407-bff2-986c4bfdaff2">
+            <div class="column-meta">
+              <div class="column-name">Brand</div>
+              <div class="column-type">select</div>
+            </div>
+            <div class="column-type">RSVLTS, 7-Strong, Project Good, Dixxon, Reyn Spooner, Park Candy</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="b7e1f2f1-3177-41b8-8730-c34ef1b754c0">
+            <div class="column-meta">
+              <div class="column-name">Fandom</div>
+              <div class="column-type">text</div>
+            </div>
+            <div class="column-type">—</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="c024056d-45c3-4d99-84e6-eb2277172b4a">
+            <div class="column-meta">
+              <div class="column-name">Type</div>
+              <div class="column-type">select</div>
+            </div>
+            <div class="column-type">Button down, Kunu, Borlandflex, Performance Hoodie, Hoodie, Breakfast Balls Polo, Bamboo, Jacket, Joggers, Red Tag, Boxer Briefs, Hat, Misc, Shorts, Socks, Outerwear</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="6734c2f0-2e20-46e6-82dc-0f781c63563b">
+            <div class="column-meta">
+              <div class="column-name">Price</div>
+              <div class="column-type">number</div>
+            </div>
+            <div class="column-type">—</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="c3edc82a-84cb-44c9-9e8a-01c22f7f7af5">
+            <div class="column-meta">
+              <div class="column-name">Preview</div>
+              <div class="column-type">photo</div>
+            </div>
+            <div class="column-type">—</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div><div class="column-row" draggable="true" data-column-id="e2aa0ffa-bdcc-43fe-9bb8-eba7c52b2d93">
+            <div class="column-meta">
+              <div class="column-name">Notes</div>
+              <div class="column-type">notes</div>
+            </div>
+            <div class="column-type">—</div>
+            <div class="column-actions">
+              <button type="button" class="edit-button" aria-label="Edit column">Edit</button>
+              <button type="button" aria-label="Remove column">Delete</button>
+            </div>
+          </div></div></div>
+        <div id="mode-switcher"></div>
+        <div class="tab-bar" id="tab-bar"></div>
+        <div class="filter-row">
+          <div class="top-table-actions">
+            <button class="btn" id="go-bottom">Go to Bottom</button>
+            <button class="btn" id="add-row">Add Row</button>
+          </div>
+          <div class="filter-center">
+            <div class="filter-bar">
+              <label for="filter-query">Filter <span id="filter-hint" style="font-size:0.65rem; font-weight:400; letter-spacing:0.04em; color:#999; text-transform:none;"></span></label>
+              <select id="filter-column"><option value="all">All Columns</option></select>
+              <input id="filter-query" type="text" placeholder="Type to filter">
+              <select id="filter-tags" style="display:none;"></select>
+              <button class="btn" id="clear-filter">Reset Filters</button>
+            </div>
+            <div class="tab-logo-panel" id="tab-logo-panel"></div>
+          </div>
+        </div>
+        <div class="empty-state" id="empty-state"></div>
+        <div id="table-scroll-hint" style="display:none; text-align:right; padding:6px 12px;">
+          <span style="display:inline-block; font-family:'Work Sans','Trebuchet MS',sans-serif; font-size:0.78rem; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); background:rgba(0,0,0,0.04); border:1px solid var(--line); border-radius:999px; padding:4px 10px;">Scroll &rarr;</span>
+        </div>
+        <div id="sheet-table-scroll" style="overflow-x:auto; width:100%; max-width:100%; -webkit-overflow-scrolling:touch;">
+          <table id="sheet-table" aria-label="Shirt tracking sheet" style="width:max-content; min-width:100%;">
+            <thead>
+              <tr id="sheet-head-row"></tr>
+            </thead>
+            <tbody id="sheet-body"></tbody>
+            <colgroup id="sheet-colgroup"></colgroup>
+          </table>
+        </div>
+        <div class="sheet-footer">
+          <div class="footer-actions" id="footer-actions">
+            <button class="btn" id="go-top">Go to Top</button>
+            <button class="btn" id="add-row-bottom" style="width:auto;">Add Row</button>
+          </div>
+          <div class="footer-stats" id="footer-stats">
+            <div class="footer-item stat-cell" id="total-count">Total items: 3</div>
+            <div class="footer-item stat-cell" id="total-cost">Total cost: $199.00</div>
+            <div class="footer-item" style="display:flex; gap:8px; align-items:center; margin-left:auto;">
+              <button class="btn secondary compact" id="delete-selected-bottom" style="width:auto;">Delete Item(s)</button>
+              <button class="btn secondary compact" id="bulk-tags" style="width:auto;">Tag Item(s)</button>
+            </div>
+          </div>
+          <div class="footer-panels">
+            <div class="footer-note">
+              <span class="legal-title">The Legal Stuff</span>
+              <p>This app is copyright 2026 Aaron Dunn. All rights reserved. Do not duplicate or redistribute without permission. Portions of this app were designed and coded with the help of artificial intelligence (AI).</p>
+              <p><a href="#" id="legal-disclaimer-link">Legal Disclaimer &amp; Terms of Use</a></p>
+              <p><a href="#" id="credits-link">Credits &amp; Acknowledgements</a></p>
+              <p><a href="#" id="privacy-policy-link">Privacy Policy</a> | <a href="#" id="contact-link">Contact Us</a></p>
+              <p><a href="https://github.com/aaronmdunn/shirt-tracker" target="_blank">GitHub Repository</a></p>
+              <div class="footer-version-line" id="footer-version-line"></div>
+            </div>
+            <div class="update-box">
+              <div class="update-title">Update Log</div>
+              <div class="update-row">
+                <label for="shirt-update-date">Last Inventory Update</label>
+                <input type="text" id="shirt-update-date" readonly>
+              </div>
+              <div class="update-row">
+                <label for="app-update-date">App Last Updated</label>
+                <input type="text" id="app-update-date" value="2/3/2026, 12:43:59 PM" readonly>
+              </div>
+              <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
+              <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
+            </div>
+            <div class="backup-box">
+              <div class="backup-title">Cloud Backup</div>
+              <button class="btn secondary" id="verify-backup" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Verify Cloud Status</button>
+              <div class="backup-status" id="backup-status" style="text-align:center;">Cloud backup not checked yet.</div>
+              <div class="unsaved-status" id="unsaved-status" style="text-align:center;"></div>
+              <div style="font-size:0.78rem; color:var(--muted); margin-top:6px; text-align:center;">
+              </div>
+              <div class="public-share-row">
+                <label for="edit-profile-name">Profile</label>
+                <div class="public-share-actions">
+                  <button class="btn secondary" id="edit-profile-name" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Edit Profile Name</button>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+                <button class="btn secondary" id="export-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Export CSV</button>
+                <button class="btn secondary" id="import-csv" type="button" style="padding:6px 10px; font-size:0.78rem; width:fit-content;">Import CSV</button>
+              </div>
+            </div>
+            <div class="danger-box">
+              <div class="danger-title">Danger Zone</div>
+              <div class="danger-actions">
+                <button class="btn danger" id="clear-all">🛑 Reset Tab</button>
+                <button class="btn success" id="undo-clear" disabled>↩️ Undo Clear</button>
+                <button class="btn danger" id="reset-fresh">⚠️ Wipe & Reset</button>
+                <button class="btn secondary" id="recycle-bin-link">♻️ Recycle Bin</button>
+              </div>
+              <div class="danger-disclaimer">Use these buttons at your own risk!</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+
+    <dialog id="column-dialog">
+      <form method="dialog" id="column-form">
+        <div class="dialog-body">
+          <h3 id="column-dialog-title">Add Column</h3>
+          <div class="dialog-row">
+            <label for="column-name">Column Name</label>
+            <input id="column-name" type="text" required="">
+          </div>
+          <div class="dialog-row">
+            <label for="column-type">Column Type</label>
+            <select id="column-type">
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="date">Date</option>
+              <option value="select">Dropdown</option>
+              <option value="photo">Photo</option>
+              <option value="notes">Notes</option>
+            </select>
+          </div>
+          <div class="dialog-row" id="column-options-row" style="display:none;">
+            <label for="column-options">Dropdown Options (comma separated)</label>
+            <input id="column-options" type="text" placeholder="NWT, EUC, Other">
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="cancel-column">Cancel</button>
+          <button type="submit" class="btn" id="column-submit">Add</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tab-dialog">
+      <form method="dialog" id="tab-form">
+        <div class="dialog-body">
+          <h3>Add Tab</h3>
+          <div class="dialog-row">
+            <label for="tab-name-input">Tab Name</label>
+            <input id="tab-name-input" type="text" placeholder="New tab name">
+          </div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="tab-cancel">Cancel</button>
+          <button type="submit" class="btn" id="tab-submit">Add</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tab-delete-dialog">
+      <div class="dialog-body">
+        <h3>Delete Tab</h3>
+        <p id="tab-delete-message">Delete this tab? This cannot be undone.</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="tab-delete-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="tab-delete-confirm">Delete</button>
+      </div>
+    </dialog>
+
+    <dialog id="clear-confirm-dialog">
+      <div class="dialog-body">
+        <h3>Clear All Rows?</h3>
+        <p>Are you sure you want to clear all rows in this tab?</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="clear-confirm-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="clear-confirm-next">Continue</button>
+      </div>
+    </dialog>
+
+    <dialog id="clear-confirm-final-dialog">
+      <div class="dialog-body">
+        <h3>Final Confirmation</h3>
+        <p>This will permanently remove every row in the current tab. Continue?</p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="clear-final-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="clear-final-confirm">Yes, clear it</button>
+      </div>
+    </dialog>
+
+    <dialog id="about-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <div class="about-goose">🪿</div>
+        <div id="about-version">Shirt Tracker v2.0.9</div>
+        <div>Date created: 01/30/2026</div>
+        <div>© 2026 Aaron Dunn</div>
+        <div style="margin-top: 12px;">“Always almost there…”</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="about-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="help-dialog" class="privacy-dialog">
+      <div class="dialog-body">
+        <h3>Help</h3>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Header Buttons</strong></div>
+        <div><strong>Add Column</strong> &mdash; Add a new column to the current tab. You can choose from text, dropdown, number, notes, photo, or tags.</div>
+        <div><strong>Edit Columns</strong> &mdash; Rename, reorder, or remove columns. Drag columns to rearrange them.</div>
+        <div><strong>Share Columns</strong> &mdash; Create a public read-only link so others can view your inventory. You can choose which columns are visible.</div>
+        <div><strong>Save + Sync to Cloud</strong> &mdash; Manually save your data and sync it to the cloud. Your data also auto-saves periodically.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Table Controls</strong></div>
+        <div><strong>Add Row</strong> &mdash; Add a new blank row to the table.</div>
+        <div><strong>Go to Bottom / Go to Top</strong> &mdash; Jump to the bottom or top of the table.</div>
+        <div><strong>Filter</strong> &mdash; Filter rows by typing in the filter bar. You can filter by a specific column or across all columns.</div>
+        <div><strong>Reset Filters</strong> &mdash; Clear all active filters and show all rows.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Tabs</strong></div>
+        <div><strong>Add</strong> &mdash; Create a new tab to organize your inventory into separate collections.</div>
+        <div><strong>Delete / Edit</strong> &mdash; Delete or rename the current tab.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Column Definitions</strong></div>
+        <div><strong>Condition Abbreviations:</strong></div>
+        <div><strong>NWT</strong> &mdash; New With Tags</div>
+        <div><strong>NWOT</strong> &mdash; New Without Tags</div>
+        <div><strong>EUC</strong> &mdash; Excellent Used Condition</div>
+        <div><strong>Other</strong> &mdash; Other</div>
+        <div style="margin-top:6px;"><strong>Size Options:</strong> XS, S, M, L, XL, 2X, 3X, 4X, 5X</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Selection Actions</strong></div>
+        <div><strong>Delete Item(s)</strong> &mdash; Delete all rows that are selected with checkboxes.</div>
+        <div><strong>Tag Item(s)</strong> &mdash; Add or remove tags on all selected rows at once.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Cloud Backup</strong></div>
+        <div><strong>Verify Cloud Status</strong> &mdash; Check if your local data matches what&rsquo;s saved in the cloud.</div>
+        <div><strong>Edit Profile Name</strong> &mdash; Change your display name.</div>
+        <div><strong>Export CSV</strong> &mdash; Download the current tab&rsquo;s data as a CSV spreadsheet.</div>
+        <div><strong>Import CSV</strong> &mdash; Upload a CSV file to add rows to the current tab.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Danger Zone</strong></div>
+        <div><strong>Reset Tab</strong> &mdash; Delete all rows on the current tab. This can be undone with the Undo button.</div>
+        <div><strong>Wipe &amp; Reset</strong> &mdash; Erase everything and start fresh with default columns. This cannot be undone.</div>
+        <div><strong>Recycle Bin</strong> &mdash; View and restore recently deleted items. Items are kept for 30 days before being permanently removed.</div>
+
+        <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Other</strong></div>
+        <div><strong>Icon cells</strong> &mdash; Click the icon to the left of each row to pick or change the icon for that shirt type.</div>
+        <div><strong>Dropdowns</strong> &mdash; All dropdown columns have an &ldquo;Add new...&rdquo; option at the bottom to create new values on the fly.</div>
+        <div><strong>Photos</strong> &mdash; Click a photo thumbnail to view, upload, or clear the photo for that row.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="help-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="icon-credits-dialog" class="privacy-dialog">
+        <div class="dialog-body">
+          <h3>Credits &amp; Acknowledgements</h3>
+          <div><strong>Featured Brands:</strong></div>
+          <div><a href="https://www.rsvlts.com/">RSVLTS</a></div>
+          <div><a href="https://7-strong.com/">7-Strong</a></div>
+          <div><a href="https://www.reynspooner.com/">Reyn Spooner</a></div>
+          <div><a href="https://www.projectgoodapparel.co/">Project Good Apparel</a></div>
+          <div><a href="https://www.dixxon.com/">Dixxon</a></div>
+          <div><a href="https://www.parkcandy.com/">Park Candy</a></div>
+          <div><a href="https://retro-rifle.com/">Retro Rifle</a></div>
+          <div><a href="https://www.halesspeedshop.com/">Hales Speed Shop</a></div>
+          <div><strong>Community Credits:</strong></div>
+          <div>Product images sourced in part from <a href="https://www.roughridersregistry.com/">The Rough Rider Registry</a>, an independent fan-run catalog of RSVLTS products. Used with appreciation for their work in documenting the RSVLTS community.</div>
+          <p>Icon attributions: <a href="https://www.flaticon.com/free-icons/backpack" title="backpack icons">Backpack</a>, <a href="https://www.flaticon.com/free-icons/underwear" title="underwear icons">Underwear</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt</a>, <a href="https://www.flaticon.com/free-icons/shirt" title="shirt icons">Shirt (alt)</a>, <a href="https://www.flaticon.com/free-icons/hat" title="hat icons">Hat</a>, <a href="https://www.flaticon.com/free-icons/parka" title="parka icons">Parka</a>, <a href="https://www.flaticon.com/free-icons/clothes" title="clothes icons">Clothes</a>, <a href="https://www.flaticon.com/free-icons/garment" title="garment icons">Garment</a>, <a href="https://www.flaticon.com/free-icons/hawaiian-shirt" title="hawaiian shirt icons">Hawaiian shirt</a>, <a href="https://www.flaticon.com/free-icons/sock" title="sock icons">Sock</a>, <a href="https://www.flaticon.com/free-icons/hoodie" title="hoodie icons">Hoodie (alt)</a>. All icons are from Flaticon and credited to their original creators.</p>
+          <div>Fonts sourced from <a href="https://dafont.com">dafont.com</a></div>
+        </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="icon-credits-close">Close</button>
+      </div>
+    </dialog>
+    <dialog id="legal-disclaimer-dialog" class="privacy-dialog">
+      <div class="dialog-body">
+        <div><strong>Legal Disclaimer &amp; Terms of Use</strong></div>
+        <div><strong>App Name:</strong> Shirt Tracker</div>
+        <div><strong>1. Non-Commercial Fan Project</strong></div>
+        <p>"Shirt Tracker" is an unofficial, fan-made application created solely for hobbyist and personal use. It is not endorsed, sponsored, affiliated with, or authorized by RSVLTS, 7-Strong, Reyn Spooner, Project Good Apparel, Dixxon, Park Candy, Retro Rifle, Hales Speed Shop, or any of their subsidiaries.</p>
+        <div><strong>2. Intellectual Property &amp; Trademarks</strong></div>
+        <p>All company names, brand names, trademarks, logos, and images appear in this application for identification and tracking purposes only. They remain the property of their respective owners.</p>
+        <p>The creator of this app makes no claim of ownership over any third-party intellectual property, images, or assets used within the application.</p>
+        <div><strong>3. Limitation of Liability &amp; Data Privacy</strong></div>
+        <p><strong>By using this application, you acknowledge and agree to the following:</strong></p>
+        <div><strong>"As Is" Policy:</strong> This application is provided "as is" without any warranties. The creator makes no guarantee regarding the app's reliability or data integrity.</div>
+        <div><strong>Data Responsibility:</strong> The creator is not responsible for unauthorized access or malicious use of your account. While the app is designed with privacy in mind, please do not enter Personally Identifiable Information (PII) (such as real names, addresses, or sensitive financial info) that you would not want potentially exposed.</div>
+        <div><strong>Indemnification:</strong> You agree not to hold the creator of this app liable for any claims, damages, or legal issues arising from your use of this service.</div>
+        <div><strong>4. Code of Conduct</strong></div>
+        <p>The creator reserves the right to terminate access or ban any user detected engaging in malicious behavior or attempting to compromise the app. If your account is banned for malicious activity, your data may be permanently deleted and will not be retrievable.</p>
+        <div><strong>5. Support &amp; Feedback</strong></div>
+        <p>This is a personal hobby project. <strong>There is no guaranteed technical support.</strong></p>
+        <div>Feature requests are welcome via the contact form but are not guaranteed to be implemented.</div>
+        <div><strong>Backup Your Data:</strong> As with any technology, you are strongly encouraged to keep your own backups of your lists.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="legal-disclaimer-close">Close</button>
+      </div>
+    </dialog>
+	
+   <dialog id="privacy-policy-dialog" class="privacy-dialog">
+     <div class="dialog-body">
+       <h3>Privacy Policy</h3>
+       <div><strong>Effective Date:</strong> January 30, 2026</div>
+       <div><strong>App Name:</strong> Shirt Tracker</div>
+
+       <div><strong>1. Introduction</strong></div>
+       <p>At <strong>Shirt Tracker</strong>, accessible via this application, one of our main priorities is the privacy of our users. This Privacy Policy document describes the types of information that is collected and recorded by Shirt Tracker and how we use it.</p>
+       <p>By using our application, you hereby consent to this Privacy Policy and agree to its terms.</p>
+
+       <div><strong>2. Data Controller</strong></div>
+       <p>For the purposes of the General Data Protection Regulation (GDPR) and other applicable data protection laws, the <strong>Data Controller</strong> responsible for your personal information is:</p>
+       <div><strong>Aaron Dunn</strong> (Creator &amp; Developer)</div>
+       <div><strong>Contact:</strong> Please use the contact form linked at the bottom of this policy.</div>
+
+       <div><strong>3. Information We Collect</strong></div>
+       <p>We only collect information necessary to provide the functionality of the app. This includes:</p>
+       <ul>
+         <li><strong>Account Information:</strong> When you register for an Account, we may ask for basic contact information, such as your name and email address.</li>
+         <li><strong>User Content:</strong> We store the data you input into the application, such as your checklist of shirts, collection status, and notes.</li>
+         <li><strong>Logs:</strong> Like most apps, we use standard log files that may collect internet protocol (IP) addresses, browser type, and timestamps. This is strictly for debugging and maintaining the security of the app.</li>
+       </ul>
+       <div><strong>We do NOT sell, trade, or rent your personal identification information to others.</strong></div>
+
+       <div><strong>4. Legal Basis for Processing</strong></div>
+       <p>We process your personal data under the following legal bases:</p>
+       <ul>
+         <li><strong>Contractual Necessity:</strong> We need your email and shirt data to provide the service you signed up for (i.e., saving your list). The app cannot function without this.</li>
+         <li><strong>Legitimate Interests:</strong> We log basic technical data (IP addresses) to ensure the security and stability of the app.</li>
+       </ul>
+
+       <div><strong>5. How We Use Your Information</strong></div>
+       <p>We use the information we collect in the following ways:</p>
+       <ul>
+         <li>To provide, operate, and maintain the Shirt Tracker application.</li>
+         <li>To manage your account and login session.</li>
+         <li>To find and prevent fraud or abuse of the app.</li>
+         <li>To communicate with you regarding updates or support (only if you have contacted us first).</li>
+       </ul>
+
+       <div><strong>6. Third-Party Services &amp; Infrastructure</strong></div>
+       <p>To run this application securely and reliably, we utilize trusted third-party service providers. By using the app, you acknowledge that your data may pass through or be stored on servers managed by these providers:</p>
+       <ul>
+         <li><strong>Supabase:</strong> Used for secure database hosting, user data storage, and authentication management. Your email and shirt lists are stored here.</li>
+         <li><strong>Netlify:</strong> Used for web hosting and content delivery. Netlify may collect IP addresses in their server logs for security and performance analysis.</li>
+         <li><strong>GitHub:</strong> Used <strong>strictly</strong> for version control of the application's source code (the programming files). GitHub <strong>does not</strong> store, process, or have access to any user personal data, database records, or account information.</li>
+       </ul>
+       <p>These parties have access to necessary data only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.</p>
+
+       <div><strong>7. Data Retention</strong></div>
+       <p>We retain your personal information only for as long as is necessary to provide you with the Shirt Tracker service. If you delete your account, your personal data and shirt lists are permanently removed from our active database.</p>
+
+       <div><strong>8. User Rights (GDPR &amp; CCPA)</strong></div>
+       <p>We respect your control over your data. Regardless of where you live, we extend these rights to all users:</p>
+       <ul>
+         <li><strong>Access:</strong> You can request a copy of the data we hold about you.</li>
+         <li><strong>Correction:</strong> You can update your information within the app or request corrections if something is wrong.</li>
+         <li><strong>Deletion:</strong> You have the right to request that we delete your account and all associated data.</li>
+       </ul>
+       <p>To exercise these rights, please contact the Data Controller using the link below.</p>
+
+       <div><strong>9. Children's Privacy</strong></div>
+       <p>Shirt Tracker does not knowingly collect any Personal Identifiable Information from children under the age of 13. If you think that your child provided this kind of information on our website, please contact us immediately.</p>
+
+       <div><strong>10. Contact Us</strong></div>
+       <p>If you have any questions about our Privacy Policy or wish to exercise your data rights, please contact the developer.</p>
+
+       <div><a href="#" id="privacy-contact-link">Contact Us</a></div>
+     </div>
+  
+     <div class="dialog-actions">
+       <button type="button" class="btn" id="privacy-policy-close">Close</button>
+     </div>
+   </dialog>
+	
+    <dialog id="contact-dialog" class="contact-dialog">
+      <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="contact-form">
+        <input type="hidden" name="form-name" value="contact">
+        <div class="honeypot">
+          <label for="contact-bot-field">Leave this field blank</label>
+          <input id="contact-bot-field" name="bot-field" type="text">
+        </div>
+        <div class="dialog-body">
+          <h3>Contact Us</h3>
+          <div class="dialog-row">
+            <label for="contact-name">Name</label>
+            <input id="contact-name" name="name" type="text" placeholder="Your name">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-email">Email</label>
+            <input id="contact-email" name="email" type="email" placeholder="you@email.com">
+          </div>
+          <div class="dialog-row">
+            <label for="contact-comments">Comments</label>
+            <textarea id="contact-comments" name="comments" placeholder="How can we help?"></textarea>
+          </div>
+          <label class="contact-checkbox" for="contact-require-response">
+            <input id="contact-require-response" name="require_response" type="checkbox">
+            Require response?
+          </label>
+          <div id="contact-form-message" style="margin-top: 10px; color: var(--muted); font-size: 0.85rem; display: none;"></div>
+        </div>
+        <div class="dialog-actions contact-actions">
+          <button type="submit" class="btn">Send</button>
+          <button type="button" class="dialog-close-pill" id="contact-close">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tags-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <div id="tags-main-view">
+          <h3>Tags</h3>
+          <div id="tags-row-name" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
+          <div style="display:flex; gap:8px; margin-top: 12px;">
+            <input id="tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
+            <button type="button" class="btn secondary" id="tags-add">Add</button>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
+          <div id="tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
+          <div id="tags-list" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 10px;"></div>
+        </div>
+        <div id="tags-manage-view" style="display:none;">
+          <h3>Manage Tags</h3>
+          <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Rename or delete tags. Changes apply to all rows.</div>
+          <div id="tags-manage-list" style="margin-top: 12px; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="tags-manage-btn" style="margin-right:auto; padding:4px 10px; font-size:0.78rem;">Manage Tags</button>
+        <button type="button" class="btn" id="tags-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="bulk-tags-dialog" class="about-dialog">
+      <div class="dialog-body">
+        <h3>Bulk Tags</h3>
+        <div id="bulk-tags-count" style="margin-top: 6px; color: var(--muted); font-size: 0.85rem;"></div>
+        <div style="display:flex; gap:8px; margin-top: 12px;">
+          <input id="bulk-tags-input" type="text" placeholder="Add tags (comma separated)" style="flex:1;">
+          <button type="button" class="btn secondary" id="bulk-tags-add">Add</button>
+          <button type="button" class="btn secondary" id="bulk-tags-remove">Remove</button>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--muted); margin-top: 6px;">Press Enter to add, commas separate tags.</div>
+        <div id="bulk-tags-suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-top: 8px;"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="bulk-tags-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="auth-dialog">
+      <form method="dialog" id="auth-form">
+        <div class="dialog-body">
+          <h3>Sign In</h3>
+          <div class="dialog-row" id="auth-name-row" style="display:none;">
+            <label for="auth-name">Name</label>
+            <input id="auth-name" type="text" placeholder="Your name">
+          </div>
+          <div class="dialog-row">
+            <label for="auth-email">Email</label>
+            <input id="auth-email" type="email" placeholder="you@email.com" required>
+          </div>
+          <div class="dialog-row">
+            <label for="auth-password">Password</label>
+            <input id="auth-password" type="password" placeholder="Enter password" required>
+          </div>
+          <div class="dialog-row" style="text-align:right; font-size:0.8rem;"><a href="#forgot" id="forgot-password-link" style="color:var(--muted); text-decoration:underline;">Forgot password?</a></div>
+          <div class="dialog-row" id="auth-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="auth-close">Close</button>
+          <button type="submit" class="btn" id="auth-verify">Sign In</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="set-password-dialog">
+      <form id="set-password-form" method="dialog">
+        <div class="dialog-body">
+          <h3>Set Password</h3>
+          <div class="dialog-row">
+            <label for="set-password-input">New Password</label>
+            <input id="set-password-input" type="password" placeholder="Enter new password" required>
+          </div>
+          <div class="dialog-row">
+            <label for="set-password-confirm">Confirm Password</label>
+            <input id="set-password-confirm" type="password" placeholder="Re-enter password" required>
+          </div>
+          <div class="dialog-row" id="set-password-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="submit" class="btn" id="set-password-save">Save Password</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="request-access-dialog">
+      <form id="request-access-form">
+        <div class="dialog-body">
+          <h3>Request Access</h3>
+          <div style="display:none;">
+            <label>Do not fill this out: <input id="request-access-bot" name="bot-field"></label>
+          </div>
+          <div class="dialog-row">
+            <label for="request-access-name">Name</label>
+            <input id="request-access-name" type="text" name="name" placeholder="Your name" required>
+          </div>
+          <div class="dialog-row">
+            <label for="request-access-email">Email</label>
+            <input id="request-access-email" type="email" name="email" placeholder="you@email.com" required>
+          </div>
+          <div class="dialog-row" id="request-access-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="btn secondary" id="request-access-close">Close</button>
+          <button type="submit" class="btn" id="request-access-submit">Send Request</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="request-access-thanks">
+      <div class="dialog-body" style="text-align:center; font-family:inherit;">
+        <h3 style="font-family:inherit;">Thank You</h3>
+        <div style="color: var(--muted); font-size: 0.9rem; text-align:center; font-family:inherit;">Check your email for an invite link to set up your account.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="request-access-thanks-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="reset-password-dialog">
+      <div class="dialog-body">
+        <h3>Reset Password</h3>
+        <div class="dialog-row">
+          <label for="reset-password-email">Email</label>
+          <input id="reset-password-email" type="email" placeholder="you@email.com">
+        </div>
+        <div class="dialog-row" id="reset-password-message" style="color: var(--muted); font-size: 0.8rem;"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="reset-password-close">Close</button>
+        <button type="button" class="btn" id="reset-password-send">Send Reset Link</button>
+      </div>
+    </dialog>
+
+    <dialog id="profile-name-dialog">
+      <div class="dialog-body">
+        <h3>Profile Name</h3>
+        <div class="dialog-row">
+          <label for="profile-name-input">Display name (optional)</label>
+          <input id="profile-name-input" type="text" placeholder="How should your name appear?">
+        </div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.8rem;">
+          You can skip this and add a name later.
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="profile-name-skip">Skip</button>
+        <button type="button" class="btn" id="profile-name-save">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="text-prompt-dialog">
+      <div class="dialog-body">
+        <h3 id="text-prompt-title">Enter Value</h3>
+        <div class="dialog-row">
+          <label for="text-prompt-input" id="text-prompt-label">Value</label>
+          <input id="text-prompt-input" type="text" placeholder="">
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="text-prompt-cancel">Cancel</button>
+        <button type="button" class="btn" id="text-prompt-save">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="share-columns-dialog">
+      <div class="dialog-body">
+        <h3>Shared Columns</h3>
+        <div class="share-columns-controls">
+          <label>
+            <input type="radio" name="share-columns-mode" value="auto">
+            Default (hide price)
+          </label>
+          <label>
+            <input type="radio" name="share-columns-mode" value="all">
+            Share all columns
+          </label>
+          <label>
+            <input type="radio" name="share-columns-mode" value="custom">
+            Choose columns
+          </label>
+        </div>
+        <div class="share-columns-list" id="share-columns-list"></div>
+        <div class="share-columns-note">Controls what appears in your shared link.</div>
+      </div>
+      <div class="dialog-actions share-columns-actions-row">
+        <div class="public-share-row share-columns-link">
+          <label for="public-share-link">Public Viewer Link</label>
+          <div class="public-share-actions">
+            <input class="public-share-input" id="public-share-link" type="text" readonly>
+            <button class="btn secondary" id="copy-share-link">Copy</button>
+          </div>
+        </div>
+        <div class="share-columns-buttons">
+          <button type="button" class="btn secondary" id="share-columns-cancel">Cancel</button>
+          <button type="button" class="btn" id="share-columns-save">Save</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="csv-import-dialog">
+      <div class="dialog-body">
+        <h3>Import CSV</h3>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.8rem;">Choose which columns to import and how to apply them.</div>
+        <div class="dialog-row">
+          <div class="share-columns-controls" id="csv-import-mode">
+            <label>
+              <input type="radio" name="csv-import-mode" value="append" checked>
+              Import as new rows
+            </label>
+            <label>
+              <input type="radio" name="csv-import-mode" value="overwrite">
+              Overwrite existing rows
+            </label>
+            <label>
+              <input type="radio" name="csv-import-mode" value="fill-empty">
+              Only fill empty cells
+            </label>
+          </div>
+        </div>
+        <div class="dialog-row" style="color: var(--muted); font-size: 0.78rem;">Overwrite and fill-empty match rows by Name (first match). If only Name is selected, it matches by row order to restore blanks.</div>
+        <div class="dialog-row">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn secondary" id="csv-import-select-all">Select All</button>
+            <button type="button" class="btn secondary" id="csv-import-select-none">Select None</button>
+          </div>
+        </div>
+        <div class="dialog-row">
+          <div id="csv-import-columns" style="max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:8px;"></div>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="csv-import-cancel">Cancel</button>
+        <button type="button" class="btn" id="csv-import-confirm">Import</button>
+      </div>
+    </dialog>
+
+    <dialog id="event-log-dialog">
+      <div class="dialog-body">
+        <h3>Event Log</h3>
+        <input type="text" id="event-log-search" placeholder="Search events..." style="font-size:0.85rem; padding:8px 10px; border:1px solid var(--line); border-radius:10px; width:100%; box-sizing:border-box; font-family:inherit;">
+        <div class="event-log-list" id="event-log-list"></div>
+        <div class="event-log-empty" id="event-log-empty">No events yet.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="event-log-clear">Clear Log</button>
+        <button type="button" class="btn" id="event-log-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="recycle-bin-dialog">
+      <div class="dialog-body">
+        <h3>Recycle Bin</h3>
+        <div style="font-size:0.78rem; color:var(--muted);">Deleted items are kept for 30 days. Click an item to see details.</div>
+        <div class="recycle-bin-list" id="recycle-bin-list"></div>
+        <div class="recycle-bin-empty" id="recycle-bin-empty">Recycle bin is empty.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger-btn" id="recycle-bin-empty-all" style="font-size:0.78rem;">Empty Bin</button>
+        <button type="button" class="btn" id="recycle-bin-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="changelog-dialog">
+      <div class="dialog-body">
+        <h3>Changelog</h3>
+        <div id="changelog-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="changelog-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="stats-dialog">
+      <div class="dialog-body">
+        <h3 id="stats-title">Collection Stats</h3>
+        <div id="stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="stats-close">Close</button>
+      </div>
+    </dialog>
+
+    <script id="embedded-state" type="application/json">{}</script>
+
+    <dialog id="photo-dialog" class="photo-dialog">
+      <div class="dialog-body">
+        <img id="photo-dialog-image" alt="Full size photo">
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn danger" id="clear-photo-dialog">Clear Photo</button>
+        <button type="button" class="btn secondary" id="close-photo-dialog">Close</button>
+      </div>
+    </dialog>
+    <dialog id="type-icon-dialog">
+      <div class="dialog-body">
+        <h3>Choose Icon</h3>
+        <p id="type-icon-message">Pick an icon for this type.</p>
+        <div id="type-icon-grid"></div>
+        <select id="type-icon-select" style="display:none;"></select>
+        <div class="dialog-row" id="type-icon-upload-row" style="display:none;">
+          <label for="type-icon-upload">Upload Image</label>
+          <input type="file" id="type-icon-upload" accept="image/*" style="font-size:0.85rem;">
+        </div>
+        <div id="type-icon-preview" style="text-align:center; display:none;">
+          <img id="type-icon-preview-img" style="width:48px; height:48px; object-fit:contain;" alt="Preview">
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="type-icon-skip">Skip</button>
+        <button type="button" class="btn" id="type-icon-save">Save</button>
+      </div>
+    </dialog>
+
+    <script src="app.js"></script>
+  
+
+</body></html>
