@@ -84,13 +84,6 @@
       }
 
 
-      @font-face {
-        font-family: "WaltographUI";
-        src: url("fonts/waltographUI.ttf") format("truetype");
-        font-weight: 400;
-        font-style: normal;
-        font-display: swap;
-      }
       :root {
         --ink: #111111;
         --muted: #4a4a4a;
@@ -776,7 +769,7 @@
       }
       .signedout-greeting {
         display: none;
-        font-family: "WaltographUI", "JMH Typewriter", "Courier New", Courier, monospace;
+        font-family: "JMH Typewriter", "Courier New", Courier, monospace;
         font-size: 24px;
         text-align: center;
         line-height: 1.1;
@@ -2617,7 +2610,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 11:32:15 AM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 11:37:15 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3300,7 +3293,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T16:32:15.064Z";
+      const LAST_COMMIT_DATE = "2026-03-01T16:37:15.559Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
