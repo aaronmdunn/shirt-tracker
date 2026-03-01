@@ -676,6 +676,11 @@ const changelogDialog = document.getElementById("changelog-dialog");
 const changelogList = document.getElementById("changelog-list");
 const changelogCloseButton = document.getElementById("changelog-close");
 const changelogLink = document.getElementById("changelog-link");
+const statsDialog = document.getElementById("stats-dialog");
+const statsContent = document.getElementById("stats-content");
+const statsTitle = document.getElementById("stats-title");
+const statsCloseButton = document.getElementById("stats-close");
+const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
 const recycleBinEmpty = document.getElementById("recycle-bin-empty");
@@ -4222,9 +4227,6 @@ const renderModeSwitcher = () => {
     if (!currentUser) return;
   }
   const container = document.createElement("div");
-  if (PLATFORM === "desktop") {
-    container.id = "mode-switcher-inline";
-  }
   Object.assign(container.style, {
     display: "inline-flex",
     borderRadius: PLATFORM === "mobile" ? "8px" : "6px",
@@ -4278,7 +4280,28 @@ const renderModeSwitcher = () => {
   } else {
     const sheetHeader = document.querySelector(".sheet-header");
     if (sheetHeader) {
-      sheetHeader.prepend(container);
+      const modeRow = document.createElement("div");
+      modeRow.id = "mode-switcher-inline";
+      modeRow.style.display = "flex";
+      modeRow.style.alignItems = "center";
+      modeRow.style.gap = "10px";
+      modeRow.appendChild(container);
+      if (statsButton) {
+        Object.assign(statsButton.style, {
+          padding: "4px 10px",
+          fontSize: "0.72rem",
+          fontWeight: "500",
+          letterSpacing: "0.03em",
+          whiteSpace: "nowrap",
+          borderRadius: "6px",
+          border: "1px solid #ccc",
+          background: "#f5f5f5",
+          color: "#666",
+          cursor: "pointer",
+        });
+        modeRow.appendChild(statsButton);
+      }
+      sheetHeader.prepend(modeRow);
     }
   }
 };
@@ -8005,6 +8028,227 @@ if (recycleBinLink) {
   });
 }
 
+const collectAllStats = () => {
+  const tabs = tabsState.tabs;
+  const allRows = [];
+  const tabBreakdown = [];
+
+  tabs.forEach((tab) => {
+    let rows;
+    let cols;
+    if (tab.id === tabsState.activeTabId) {
+      rows = state.rows;
+      cols = state.columns;
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+        cols = Array.isArray(parsed.columns) ? parsed.columns : [];
+      } catch (error) {
+        return;
+      }
+    }
+    tabBreakdown.push({ name: tab.name, count: rows.length });
+    rows.forEach((row) => allRows.push({ row, columns: cols }));
+  });
+
+  const totalItems = allRows.length;
+
+  const findColumn = (cols, name) =>
+    cols.find((c) => (c.name || "").trim().toLowerCase() === name.toLowerCase());
+
+  const getCellValue = (entry, colName) => {
+    const col = findColumn(entry.columns, colName);
+    return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
+  };
+
+  const tallyAll = (colName) => {
+    const counts = {};
+    allRows.forEach((entry) => {
+      const val = getCellValue(entry, colName);
+      if (val) counts[val] = (counts[val] || 0) + 1;
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  };
+
+  const isInventory = appMode === "inventory";
+
+  // --- Pricing stats (Inventory only) ---
+  const prices = [];
+  const priceItems = [];
+  if (isInventory) {
+    allRows.forEach((entry) => {
+      const raw = getCellValue(entry, "Price");
+      const parsed = parseCurrency(raw);
+      if (parsed !== null && parsed > 0) {
+        const name = getCellValue(entry, "Name") || "Unnamed";
+        prices.push(parsed);
+        priceItems.push({ name, price: parsed });
+      }
+    });
+    priceItems.sort((a, b) => b.price - a.price);
+  }
+  const totalCost = prices.reduce((sum, p) => sum + p, 0);
+  const meanPrice = prices.length ? totalCost / prices.length : 0;
+  const medianPrice = (() => {
+    if (!prices.length) return 0;
+    const sorted = prices.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  })();
+  const top5Expensive = priceItems.slice(0, 5);
+  const top5Cheapest = priceItems.length ? priceItems.slice(-5).reverse() : [];
+
+  // --- Name stats ---
+  let longestName = { name: "", length: 0 };
+  let shortestName = { name: "", length: Infinity };
+  allRows.forEach((entry) => {
+    const name = getCellValue(entry, "Name");
+    if (!name) return;
+    if (name.length > longestName.length) longestName = { name, length: name.length };
+    if (name.length < shortestName.length) shortestName = { name, length: name.length };
+  });
+  if (shortestName.length === Infinity) shortestName = { name: "", length: 0 };
+
+  // --- Tallies ---
+  const typeTally = tallyAll("Type");
+  const fandomTally = tallyAll("Fandom");
+  const sizeTally = tallyAll("Size");
+  const conditionTally = isInventory ? tallyAll("Condition") : [];
+
+  // --- Tags ---
+  const tagCounts = {};
+  allRows.forEach((entry) => {
+    const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+    tags.forEach((tag) => {
+      const t = String(tag || "").trim();
+      if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
+    });
+  });
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // --- Recently deleted ---
+  const deletedEntries = loadDeletedRows();
+  const recentlyDeleted = deletedEntries.length ? (() => {
+    const entry = deletedEntries[0];
+    const name = getRowNameFromEntry(entry);
+    const date = entry.deletedAt ? new Date(entry.deletedAt).toLocaleDateString() : "";
+    const tab = entry.fromTabName || "";
+    return { name, date, tab };
+  })() : null;
+
+  return {
+    totalItems,
+    tabBreakdown: tabBreakdown.sort((a, b) => b.count - a.count),
+    isInventory,
+    totalCost,
+    meanPrice,
+    medianPrice,
+    top5Expensive,
+    top5Cheapest,
+    longestName,
+    shortestName,
+    typeTally: typeTally.slice(0, 5),
+    fandomTally: fandomTally.slice(0, 5),
+    sizeTally,
+    conditionTally,
+    topTags,
+    recentlyDeleted,
+  };
+};
+
+const openStatsDialog = () => {
+  if (!statsDialog || !statsContent) return;
+  const s = collectAllStats();
+  const modeLabel = s.isInventory ? "Inventory" : "Wishlist";
+  if (statsTitle) statsTitle.textContent = `${modeLabel} Stats`;
+
+  const row = (label, value) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`;
+  const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`;
+  const section = (content) => `<div class="stats-section">${content}</div>`;
+
+  let html = "";
+
+  // --- Item counts ---
+  let countBlock = row("Total items", s.totalItems);
+  s.tabBreakdown.forEach((tab) => { countBlock += sub(tab.name, tab.count); });
+  html += section(countBlock);
+
+  // --- Pricing (Inventory) ---
+  if (s.isInventory && s.top5Expensive.length) {
+    let priceBlock = row("Total value", formatCurrency(s.totalCost));
+    priceBlock += row("Mean price", formatCurrency(s.meanPrice));
+    priceBlock += row("Median price", formatCurrency(s.medianPrice));
+    priceBlock += row("Most expensive", "");
+    s.top5Expensive.forEach((item, i) => {
+      priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+    });
+    if (s.top5Cheapest.length) {
+      priceBlock += row("Cheapest", "");
+      s.top5Cheapest.forEach((item, i) => {
+        priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+      });
+    }
+    html += section(priceBlock);
+  }
+
+  // --- Names ---
+  if (s.longestName.name || s.shortestName.name) {
+    let nameBlock = "";
+    if (s.longestName.name) nameBlock += row("Longest name", `${s.longestName.name} (${s.longestName.length})`);
+    if (s.shortestName.name) nameBlock += row("Shortest name", `${s.shortestName.name} (${s.shortestName.length})`);
+    html += section(nameBlock);
+  }
+
+  // --- Condition counts (Inventory) ---
+  if (s.isInventory && s.conditionTally.length) {
+    let condBlock = row("Condition breakdown", "");
+    s.conditionTally.forEach(([val, count]) => { condBlock += sub(val, count); });
+    html += section(condBlock);
+  }
+
+  // --- Top types ---
+  if (s.typeTally.length) {
+    let typeBlock = row("Top types", "");
+    s.typeTally.forEach(([val, count]) => { typeBlock += sub(val, count); });
+    html += section(typeBlock);
+  }
+
+  // --- Top fandoms ---
+  if (s.fandomTally.length) {
+    let fandomBlock = row("Top fandoms", "");
+    s.fandomTally.forEach(([val, count]) => { fandomBlock += sub(val, count); });
+    html += section(fandomBlock);
+  }
+
+  // --- Size counts ---
+  if (s.sizeTally.length) {
+    let sizeBlock = row("Size breakdown", "");
+    s.sizeTally.forEach(([val, count]) => { sizeBlock += sub(val, count); });
+    html += section(sizeBlock);
+  }
+
+  // --- Tags ---
+  if (s.topTags.length) {
+    let tagBlock = row("Top tags", "");
+    s.topTags.forEach(([tag, count]) => { tagBlock += sub(tag, count); });
+    html += section(tagBlock);
+  }
+
+  // --- Recently deleted ---
+  if (s.recentlyDeleted) {
+    let delBlock = row("Last deleted", "");
+    delBlock += sub(s.recentlyDeleted.name, `${s.recentlyDeleted.tab} · ${s.recentlyDeleted.date}`);
+    html += section(delBlock);
+  }
+
+  statsContent.innerHTML = html;
+  openDialog(statsDialog);
+  resetDialogScroll(statsDialog);
+};
+
 const renderChangelog = () => {
   if (!changelogList) return;
   changelogList.textContent = "";
@@ -8080,6 +8324,18 @@ if (changelogLink) {
     renderChangelog();
     openDialog(changelogDialog);
     if (changelogDialog) changelogDialog.scrollTop = 0;
+  });
+}
+
+if (statsCloseButton) {
+  statsCloseButton.addEventListener("click", () => {
+    closeDialog(statsDialog);
+  });
+}
+
+if (statsButton) {
+  statsButton.addEventListener("click", () => {
+    openStatsDialog();
   });
 }
 
