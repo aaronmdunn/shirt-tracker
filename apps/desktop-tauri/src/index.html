@@ -2687,7 +2687,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 3:58:08 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:03:08 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3380,7 +3380,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T20:58:08.742Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:03:08.643Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -6174,6 +6174,7 @@
         const addColumnButton = document.getElementById("add-column");
         const editColumnsButton = document.getElementById("toggle-columns");
         const chooseColumnsButton = document.getElementById("share-columns-button");
+        const statsBtn = document.getElementById("stats-button");
         const syncNowButton = document.getElementById("sync-now");
         const authActionButton = document.getElementById("auth-action");
 
@@ -6189,7 +6190,7 @@
           const bottomRow = document.createElement("div");
           bottomRow.className = "desktop-action-inline-row";
 
-          const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton];
+          const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton, statsBtn];
           topButtons.forEach((button) => {
             if (!button) return;
             topRow.appendChild(button);

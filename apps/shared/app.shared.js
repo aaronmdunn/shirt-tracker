@@ -2712,6 +2712,7 @@ function applyDesktopHeaderInlineLayout() {
   const addColumnButton = document.getElementById("add-column");
   const editColumnsButton = document.getElementById("toggle-columns");
   const chooseColumnsButton = document.getElementById("share-columns-button");
+  const statsBtn = document.getElementById("stats-button");
   const syncNowButton = document.getElementById("sync-now");
   const authActionButton = document.getElementById("auth-action");
 
@@ -2727,7 +2728,7 @@ function applyDesktopHeaderInlineLayout() {
     const bottomRow = document.createElement("div");
     bottomRow.className = "desktop-action-inline-row";
 
-    const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton];
+    const topButtons = [addColumnButton, editColumnsButton, chooseColumnsButton, statsBtn];
     topButtons.forEach((button) => {
       if (!button) return;
       topRow.appendChild(button);
