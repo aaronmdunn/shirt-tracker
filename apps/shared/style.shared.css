@@ -2343,6 +2343,117 @@ dialog {
   font-size: 0.82rem;
 }
 
+.stats-section-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+/* --- Expandable per-tab details --- */
+.stats-tab-details {
+  margin-top: 2px;
+}
+
+.stats-tab-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.stats-tab-summary::-webkit-details-marker {
+  display: none;
+}
+
+.stats-tab-summary .stats-label {
+  white-space: nowrap;
+  padding-left: 14px;
+}
+
+.stats-tab-summary .stats-label::before {
+  content: "\25B8";
+  display: inline-block;
+  width: 14px;
+  margin-left: -14px;
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.stats-tab-details[open] > .stats-tab-summary .stats-label::before {
+  transform: rotate(90deg);
+}
+
+.stats-tab-body {
+  padding: 4px 0 8px 14px;
+}
+
+.stats-tab-body .stats-section {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+.stats-tab-body .stats-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* --- CSS bar charts --- */
+.stats-bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stats-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.stats-bar-label {
+  flex: 0 0 auto;
+  min-width: 50px;
+  max-width: 100px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-bar-track {
+  flex: 1;
+  height: 14px;
+  background: var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+  min-width: 40px;
+}
+
+.stats-bar-fill {
+  height: 100%;
+  background: var(--accent-2);
+  border-radius: 7px;
+  min-width: 3px;
+  transition: width 0.3s ease;
+}
+
+.stats-bar-count {
+  flex: 0 0 auto;
+  min-width: 20px;
+  text-align: right;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
 .privacy-dialog .dialog-body {
   gap: 10px;
   text-align: left;
