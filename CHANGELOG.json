@@ -1,5 +1,18 @@
 [
   {
+    "version": "2.0.9",
+    "date": "2026-03-01",
+    "changes": [
+      "Fixed logo flash on page refresh caused by alt text rendering in Disney font",
+      "Optimized header logo from 2.6MB to 317KB (88% reduction)",
+      "Removed unused WaltographUI and Mickey font files",
+      "Added row count badges to tab buttons",
+      "Desktop tabs now wrap to multiple rows (max 5 per row)",
+      "Added Collection Stats dialog with cross-tab aggregation",
+      "Stats include: item counts, pricing (total/mean/median/top 5 expensive/cheapest), names, condition breakdown, top types/fandoms/sizes, top tags, and last deleted item"
+    ]
+  },
+  {
     "version": "2.0.8",
     "date": "2026-02-28",
     "changes": [
