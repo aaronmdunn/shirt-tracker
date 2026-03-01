@@ -662,7 +662,8 @@ body[data-auth="signed-out"] #toggle-columns,
 body[data-auth="signed-out"] #sync-now,
 body[data-auth="signed-out"] #go-bottom,
 body[data-auth="signed-out"] #go-top,
-body[data-auth="signed-out"] #help-button {
+body[data-auth="signed-out"] #help-button,
+body[data-auth="signed-out"] #stats-button {
   display: none !important;
 }
 
@@ -2277,6 +2278,67 @@ dialog {
 .about-goose {
   font-size: 2rem;
   margin-bottom: 8px;
+}
+
+#stats-dialog[open] {
+  max-width: 440px;
+  width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#stats-dialog .dialog-body {
+  padding: 20px 24px 12px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+#stats-dialog .dialog-actions {
+  justify-content: center;
+}
+
+.stats-section {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.stats-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 0.88rem;
+  gap: 12px;
+}
+
+.stats-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.stats-value {
+  font-weight: 700;
+  text-align: right;
+  color: var(--ink);
+}
+
+.stats-sub .stats-label {
+  padding-left: 14px;
+  font-size: 0.82rem;
+}
+
+.stats-sub .stats-value {
+  font-weight: 400;
+  font-size: 0.82rem;
 }
 
 .privacy-dialog .dialog-body {

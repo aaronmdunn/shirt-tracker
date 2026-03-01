@@ -126,9 +126,14 @@
                         <td>
                           <button class="btn secondary compact" id="sync-now">Cloud Sync</button>
                         </td>
-                      <td>
-                        <button class="btn secondary compact" id="auth-action">Sign In</button>
-                      </td>
+                        <td>
+                          <button class="btn secondary compact" id="auth-action">Sign In</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="text-align:center;">
+                          <button class="btn secondary" id="stats-button" type="button">Stats</button>
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -915,6 +920,16 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="changelog-close">Close</button>
+      </div>
+    </dialog>
+
+    <dialog id="stats-dialog">
+      <div class="dialog-body">
+        <h3 id="stats-title">Collection Stats</h3>
+        <div id="stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="stats-close">Close</button>
       </div>
     </dialog>
 
