@@ -8126,7 +8126,7 @@ const collectAllStats = () => {
       if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
     });
   });
-  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   // --- Recently deleted ---
   const deletedEntries = loadDeletedRows();
@@ -8146,10 +8146,11 @@ const collectAllStats = () => {
     meanPrice,
     medianPrice,
     top3Expensive,
+    cheapestItem: priceItems.length ? priceItems[priceItems.length - 1] : null,
     longestName,
     shortestName,
     typeTally: typeTally.slice(0, 3),
-    fandomTally: fandomTally.slice(0, 3),
+    fandomTally: fandomTally.slice(0, 5),
     sizeTally,
     conditionTally,
     topTags,
@@ -8183,6 +8184,9 @@ const openStatsDialog = () => {
     s.top3Expensive.forEach((item, i) => {
       priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
     });
+    if (s.cheapestItem) {
+      priceBlock += row("Cheapest item", `${s.cheapestItem.name} (${formatCurrency(s.cheapestItem.price)})`);
+    }
     html += section(priceBlock);
   }
 
