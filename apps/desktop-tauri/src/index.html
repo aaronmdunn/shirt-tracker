@@ -2693,7 +2693,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 4:14:13 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 4:18:07 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3386,7 +3386,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-01T21:14:13.037Z";
+      const LAST_COMMIT_DATE = "2026-03-01T21:18:07.971Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -11594,7 +11594,7 @@
             if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
           });
         });
-        const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
         // --- Recently deleted ---
         const deletedEntries = loadDeletedRows();
@@ -11614,10 +11614,11 @@
           meanPrice,
           medianPrice,
           top3Expensive,
+          cheapestItem: priceItems.length ? priceItems[priceItems.length - 1] : null,
           longestName,
           shortestName,
           typeTally: typeTally.slice(0, 3),
-          fandomTally: fandomTally.slice(0, 3),
+          fandomTally: fandomTally.slice(0, 5),
           sizeTally,
           conditionTally,
           topTags,
@@ -11651,6 +11652,9 @@
           s.top3Expensive.forEach((item, i) => {
             priceBlock += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
           });
+          if (s.cheapestItem) {
+            priceBlock += row("Cheapest item", `${s.cheapestItem.name} (${formatCurrency(s.cheapestItem.price)})`);
+          }
           html += section(priceBlock);
         }
 
