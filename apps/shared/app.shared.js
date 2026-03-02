@@ -49,6 +49,7 @@ const CUSTOM_TAGS_KEY = "shirts-custom-tags-v1";
 const FOR_SALE_TAG = "For Sale";
 const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
+const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -571,52 +572,8 @@ const helpButton = (() => {
   const btn = document.createElement("button");
   btn.id = "help-button";
   btn.type = "button";
+  btn.className = "help-button";
   btn.textContent = "?";
-  Object.assign(btn.style, {
-    position: "fixed",
-    bottom: "18px",
-    right: "18px",
-    zIndex: "9999",
-    width: "36px",
-    height: "36px",
-    borderRadius: "50%",
-    border: "1px solid #bbb",
-    background: "#f5f5f5",
-    color: "#888",
-    fontSize: "16px",
-    fontFamily: "'Work Sans','Trebuchet MS',sans-serif",
-    fontWeight: "600",
-    cursor: "pointer",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0",
-    lineHeight: "1",
-  });
-  if (PLATFORM === "mobile") {
-    btn.addEventListener("touchstart", () => {
-      btn.style.background = "#e8e8e8";
-      btn.style.borderColor = "#999";
-      btn.style.color = "#555";
-    }, { passive: true });
-    btn.addEventListener("touchend", () => {
-      btn.style.background = "#f5f5f5";
-      btn.style.borderColor = "#bbb";
-      btn.style.color = "#888";
-    }, { passive: true });
-  } else {
-    btn.addEventListener("mouseenter", () => {
-      btn.style.background = "#e8e8e8";
-      btn.style.borderColor = "#999";
-      btn.style.color = "#555";
-    });
-    btn.addEventListener("mouseleave", () => {
-      btn.style.background = "#f5f5f5";
-      btn.style.borderColor = "#bbb";
-      btn.style.color = "#888";
-    });
-  }
   document.body.appendChild(btn);
   return btn;
 })();
@@ -4247,19 +4204,10 @@ const renderModeSwitcher = () => {
     btn.type = "button";
     btn.textContent = mode.label;
     const isActive = appMode === mode.id;
-    Object.assign(btn.style, {
-      padding: PLATFORM === "mobile" ? "7px 24px" : "5px 14px",
-      fontSize: PLATFORM === "mobile" ? "0.92rem" : "0.78rem",
-      ...(PLATFORM === "desktop" ? { whiteSpace: "nowrap" } : {}),
-      fontWeight: isActive ? "700" : "500",
-      border: "none",
-      cursor: "pointer",
-      background: isActive ? "#c62828" : "#fff",
-      color: isActive ? "#fff" : "#c62828",
-      transition: "background 0.15s, color 0.15s",
-      outline: "none",
-      letterSpacing: "0.03em",
-    });
+    btn.className = "btn-mode-switcher" + (isActive ? " active" : "");
+    btn.style.padding = PLATFORM === "mobile" ? "7px 24px" : "5px 14px";
+    btn.style.fontSize = PLATFORM === "mobile" ? "0.92rem" : "0.78rem";
+    if (PLATFORM === "desktop") btn.style.whiteSpace = "nowrap";
     btn.addEventListener("click", () => switchAppMode(mode.id));
     container.appendChild(btn);
   });
@@ -4291,18 +4239,7 @@ const renderModeSwitcher = () => {
       modeRow.style.gap = "10px";
       modeRow.appendChild(container);
       if (statsButton) {
-        Object.assign(statsButton.style, {
-          padding: "4px 10px",
-          fontSize: "0.72rem",
-          fontWeight: "500",
-          letterSpacing: "0.03em",
-          whiteSpace: "nowrap",
-          borderRadius: "6px",
-          border: "1px solid #ccc",
-          background: "#f5f5f5",
-          color: "#666",
-          cursor: "pointer",
-        });
+        statsButton.classList.add("btn-stats-inline");
         modeRow.appendChild(statsButton);
       }
       sheetHeader.prepend(modeRow);
@@ -4432,9 +4369,8 @@ const moveRowToInventory = async (rowId) => {
       cancelBtn.textContent = "Cancel";
       const moveBtn = document.createElement("button");
       moveBtn.type = "button";
-      moveBtn.className = "btn";
+      moveBtn.className = "btn btn-move-confirm";
       moveBtn.textContent = "Move";
-      Object.assign(moveBtn.style, { background: "#2e7d32", color: "#fff", fontWeight: "600" });
       actions.appendChild(cancelBtn);
       actions.appendChild(moveBtn);
       dialog.appendChild(actions);
@@ -4464,7 +4400,7 @@ const moveRowToInventory = async (rowId) => {
     if (stored) invState = JSON.parse(stored);
   } catch (error) { /* ignore */ }
   if (!invState || !Array.isArray(invState.columns)) return;
-  const newRow = { id: createId(), cells: {}, tags: row.tags ? row.tags.slice() : [] };
+  const newRow = { id: createId(), cells: {}, tags: row.tags ? row.tags.slice() : [], createdAt: new Date().toISOString() };
   let invColOverrides = null;
   try {
     const s = localStorage.getItem(COLUMNS_KEY);
@@ -4501,6 +4437,19 @@ const moveRowToInventory = async (rowId) => {
     localStorage.setItem(COLUMNS_KEY, JSON.stringify(invColOverrides));
   } catch (error) { /* ignore */ }
   delete savedModeState["inventory"];
+  // Log the "Got it!" transfer for stats
+  try {
+    const gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
+    const chosenTab = invTabs.find((t) => t.id === chosenTabId);
+    const activeWishTab = tabsState.tabs.find((t) => t.id === tabsState.activeTabId);
+    gotItLog.push({
+      name: cellValuesByName["name"] || "Unnamed",
+      fromTab: activeWishTab ? activeWishTab.name : "Wishlist",
+      toTab: chosenTab ? chosenTab.name : "Inventory",
+      date: new Date().toISOString(),
+    });
+    localStorage.setItem(GOT_IT_LOG_KEY, JSON.stringify(gotItLog));
+  } catch (error) { /* ignore */ }
   state.rows = state.rows.filter((r) => r.id !== rowId);
   if (state.rows.length === 0) state.rows = [defaultRow()];
   saveState();
@@ -6318,13 +6267,7 @@ const renderManageTagsView = () => {
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.textContent = "Delete";
-    deleteBtn.className = "btn secondary";
-    Object.assign(deleteBtn.style, {
-      padding: "4px 10px",
-      fontSize: "0.8rem",
-      color: "#c62828",
-      borderColor: "#c62828",
-    });
+    deleteBtn.className = "btn secondary btn-delete-tag";
     deleteBtn.addEventListener("click", () => {
       deleteGlobalTag(originalTag);
       renderManageTagsView();
@@ -6463,15 +6406,9 @@ const renderRows = () => {
     actionsWrap.style.gap = "6px";
     const tagsButton = document.createElement("button");
     tagsButton.type = "button";
-    tagsButton.className = "btn-icon";
+    tagsButton.className = "btn-icon" + (getRowTags(row).length ? " has-tags" : "");
     tagsButton.textContent = "Tags";
     tagsButton.style.marginRight = "0";
-    if (getRowTags(row).length) {
-      tagsButton.style.background = "#dbe9ff";
-      tagsButton.style.borderColor = "#8eb6ff";
-      tagsButton.style.color = "#234aa3";
-      tagsButton.style.fontWeight = "600";
-    }
     tagsButton.dataset.rowId = row.id;
     tagsButton.addEventListener("click", () => openTagsDialog(row.id));
     const checkbox = document.createElement("input");
@@ -6484,34 +6421,18 @@ const renderRows = () => {
       actionsWrap.appendChild(tagsButton);
       const saleBtn = document.createElement("button");
       saleBtn.type = "button";
-      saleBtn.className = "btn-icon";
+      saleBtn.className = "btn-icon for-sale" + (isForSale(row) ? " active" : "");
       saleBtn.textContent = "For Sale";
       saleBtn.style.marginRight = "0";
-      saleBtn.style.fontSize = "0.72rem";
-      if (isForSale(row)) {
-        Object.assign(saleBtn.style, {
-          background: "#e8f5e9",
-          borderColor: "#66bb6a",
-          color: "#2e7d32",
-          fontWeight: "600",
-        });
-      }
       saleBtn.addEventListener("click", () => toggleForSale(row.id));
       actionsWrap.appendChild(saleBtn);
     }
     if (appMode === "wishlist") {
       const moveBtn = document.createElement("button");
       moveBtn.type = "button";
-      moveBtn.className = "btn-icon";
+      moveBtn.className = "btn-icon got-it";
       moveBtn.textContent = "Got It!";
-      Object.assign(moveBtn.style, {
-        marginRight: "0",
-        background: "#e8f5e9",
-        borderColor: "#66bb6a",
-        color: "#2e7d32",
-        fontWeight: "600",
-        fontSize: "0.78rem",
-      });
+      moveBtn.style.marginRight = "0";
       moveBtn.addEventListener("click", () => moveRowToInventory(row.id));
       actionsWrap.appendChild(moveBtn);
     }
@@ -6520,9 +6441,101 @@ const renderRows = () => {
     tr.appendChild(actions);
   }
 
-  sheetBody.appendChild(tr);
-});
-updateDeleteSelectedState();
+    // --- Wear tracking: mobile inline card section (before actions) ---
+    if (PLATFORM === "mobile" && appMode === "inventory" && !state.readOnly) {
+      const wearTd = document.createElement("td");
+      wearTd.className = "wear-card-section";
+      wearTd.setAttribute("data-label", "");
+      const wearInner = document.createElement("div");
+      wearInner.className = "wear-panel-inner";
+      const wearCount = row.wearCount || 0;
+      const lastWorn = row.lastWorn || null;
+      const countStat = document.createElement("span");
+      countStat.className = "wear-stat";
+      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wearCount}</span>`;
+      wearInner.appendChild(countStat);
+      const dateStat = document.createElement("span");
+      dateStat.className = "wear-stat";
+      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lastWorn ? new Date(lastWorn).toLocaleDateString() : "Never"}</span>`;
+      wearInner.appendChild(dateStat);
+      const logBtn = document.createElement("button");
+      logBtn.type = "button";
+      logBtn.className = "btn-log-wear";
+      logBtn.textContent = "Wore it today";
+      logBtn.addEventListener("click", () => {
+        row.wearCount = (row.wearCount || 0) + 1;
+        row.lastWorn = new Date().toISOString();
+        saveState();
+        renderRows();
+      });
+      wearInner.appendChild(logBtn);
+      wearTd.appendChild(wearInner);
+      // Insert before actions cell (last child) so it sits below Notes
+      const actionsCell = tr.querySelector(".actions-cell");
+      if (actionsCell) {
+        tr.insertBefore(wearTd, actionsCell);
+      } else {
+        tr.appendChild(wearTd);
+      }
+    }
+
+    sheetBody.appendChild(tr);
+
+    // --- Wear tracking: desktop expandable sub-row ---
+    if (PLATFORM === "desktop" && appMode === "inventory" && !state.readOnly) {
+      const wearToggle = document.createElement("button");
+      wearToggle.type = "button";
+      wearToggle.className = "wear-toggle";
+      wearToggle.textContent = "\u25B6";
+      wearToggle.setAttribute("aria-label", "Toggle wear details");
+      iconTd.appendChild(wearToggle);
+
+      const wearTr = document.createElement("tr");
+      wearTr.className = "wear-panel-row";
+      const colSpan = getVisibleColumns().length + 2; // icon + visible cols + actions
+      const wearTd = document.createElement("td");
+      wearTd.className = "wear-panel-cell";
+      wearTd.setAttribute("colspan", String(colSpan));
+      const wearInner = document.createElement("div");
+      wearInner.className = "wear-panel-inner";
+
+      const wearCount = row.wearCount || 0;
+      const lastWorn = row.lastWorn || null;
+
+      const countStat = document.createElement("span");
+      countStat.className = "wear-stat";
+      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wearCount}</span>`;
+      wearInner.appendChild(countStat);
+
+      const dateStat = document.createElement("span");
+      dateStat.className = "wear-stat";
+      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lastWorn ? new Date(lastWorn).toLocaleDateString() : "Never"}</span>`;
+      wearInner.appendChild(dateStat);
+
+      const logBtn = document.createElement("button");
+      logBtn.type = "button";
+      logBtn.className = "btn-log-wear";
+      logBtn.textContent = "Wore it today";
+      logBtn.addEventListener("click", () => {
+        row.wearCount = (row.wearCount || 0) + 1;
+        row.lastWorn = new Date().toISOString();
+        saveState();
+        renderRows();
+      });
+      wearInner.appendChild(logBtn);
+
+      wearTd.appendChild(wearInner);
+      wearTr.appendChild(wearTd);
+      sheetBody.appendChild(wearTr);
+
+      wearToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = wearTr.classList.toggle("open");
+        wearToggle.textContent = isOpen ? "\u25BC" : "\u25B6";
+      });
+    }
+  });
+  updateDeleteSelectedState();
     };
 
 const renderFooter = () => {
@@ -8114,7 +8127,7 @@ const collectAllStats = () => {
         if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
       });
     });
-    return Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return Object.entries(tagCounts).filter(([tag]) => tag !== "Original").sort((a, b) => b[1] - a[1]).slice(0, 5);
   };
 
   const buildStatsFor = (subset) => {
@@ -8144,10 +8157,17 @@ const collectAllStats = () => {
   });
   if (shortestName.length === Infinity) shortestName = { name: "", length: 0 };
 
-  // --- Per-tab stats (with value ranking) ---
+  // --- Per-tab stats (with value ranking, excluding hidden columns) ---
   const perTab = perTabRows
     .sort((a, b) => b.count - a.count)
-    .map((tab) => ({ name: tab.name, id: tab.id, count: tab.count, stats: buildStatsFor(tab.entries) }));
+    .map((tab) => {
+      const hiddenIds = columnOverrides.hiddenColumnsByTab[tab.id];
+      const hidden = new Set(Array.isArray(hiddenIds) ? hiddenIds : []);
+      const filtered = hidden.size > 0
+        ? tab.entries.map((e) => ({ row: e.row, columns: e.columns.filter((c) => !hidden.has(c.id)) }))
+        : tab.entries;
+      return { name: tab.name, id: tab.id, count: tab.count, stats: buildStatsFor(filtered) };
+    });
 
   // --- Value per tab (Inventory only — sorted by value descending) ---
   const valuePerTab = [];
@@ -8351,6 +8371,47 @@ const collectAllStats = () => {
     return { name, date, tab };
   });
 
+  // --- Wear-based stats (Inventory only) ---
+  const nonWearableTypes = new Set(["Misc", "Boxer Briefs", "Socks", "Hat"]);
+  const wornItems = [];
+  const wearableWornItems = [];
+  if (isInventory) {
+    allRows.forEach((entry) => {
+      const wc = entry.row.wearCount || 0;
+      const lw = entry.row.lastWorn || null;
+      const name = getCellValue(entry, "Name") || "Unnamed";
+      const typeVal = getCellValue(entry, "Type");
+      const priceRaw = getCellValue(entry, "Price");
+      const price = parseCurrency(priceRaw);
+      if (wc >= 1) {
+        const item = { name, wearCount: wc, lastWorn: lw, type: typeVal, price };
+        wornItems.push(item);
+        if (!nonWearableTypes.has(typeVal)) wearableWornItems.push(item);
+      }
+    });
+  }
+  // Longest unworn: item with oldest lastWorn date
+  let longestUnworn = null;
+  if (wornItems.length) {
+    const withDate = wornItems.filter((i) => i.lastWorn);
+    if (withDate.length) {
+      withDate.sort((a, b) => new Date(a.lastWorn) - new Date(b.lastWorn));
+      const oldest = withDate[0];
+      const daysSince = Math.floor((Date.now() - new Date(oldest.lastWorn).getTime()) / 86400000);
+      longestUnworn = { name: oldest.name, daysSince, lastWorn: oldest.lastWorn };
+    }
+  }
+  // Cost per wear: Price / wearCount, sorted ascending (best value first)
+  const costPerWear = wornItems
+    .filter((i) => i.price !== null && i.price > 0)
+    .map((i) => ({ name: i.name, cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
+    .sort((a, b) => a.cpw - b.cpw)
+    .slice(0, 5);
+  // Top 5 most worn
+  const top5MostWorn = wornItems.slice().sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
+  // Bottom 5 least worn (wearable items only, wearCount >= 1)
+  const bottom5LeastWorn = wearableWornItems.slice().sort((a, b) => a.wearCount - b.wearCount).slice(0, 5);
+
   return {
     totalItems,
     isInventory,
@@ -8377,6 +8438,10 @@ const collectAllStats = () => {
     topWords,
     recentlyAdded: top5RecentlyAdded,
     recentlyDeleted,
+    longestUnworn,
+    costPerWear,
+    top5MostWorn,
+    bottom5LeastWorn,
   };
 };
 
@@ -8517,18 +8582,19 @@ const openStatsDialog = () => {
   html += renderTallySection("Size breakdown", s.sizeTally);
   if (s.topTags.length) html += renderTallySection("Top tags", s.topTags);
 
-  // --- Tag coverage ---
-  if (s.totalItems > 0) {
+  // --- Tag coverage (inventory only) ---
+  if (s.isInventory && s.totalItems > 0) {
     let tagBlock = row("Items tagged", `${s.taggedCount} / ${s.totalItems}`);
     tagBlock += progressBar(s.tagCoverage, `${s.tagCoverage}% coverage`);
     html += section(tagBlock);
   }
 
   if (PLATFORM === "desktop") {
-    // --- Collection diversity index ---
+    // --- Collection / Wishlist diversity index ---
     if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
-      let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
-      divBlock += `<div class="stats-hint">How evenly spread your collection is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
+      const divTitle = s.isInventory ? "Collection diversity" : "Wishlist diversity";
+      let divBlock = `<div class="stats-section-title">${divTitle}</div>`;
+      divBlock += `<div class="stats-hint">How evenly spread your ${s.isInventory ? "collection" : "wishlist"} is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
       if (s.typeDiversity > 0) {
         const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
         divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);
@@ -8601,6 +8667,33 @@ const openStatsDialog = () => {
     }
   }
 
+  // --- Wear tracking stats (Inventory only) ---
+  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn)) {
+    let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
+    if (s.longestUnworn) {
+      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${s.longestUnworn.daysSince} days)`);
+    }
+    if (s.top5MostWorn.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
+      s.top5MostWorn.forEach((item, i) => {
+        wearBlock += sub(`${i + 1}. ${item.name}`, `${item.wearCount} wears`);
+      });
+    }
+    if (s.bottom5LeastWorn.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Bottom 5 least worn</div>`;
+      s.bottom5LeastWorn.forEach((item, i) => {
+        wearBlock += sub(`${i + 1}. ${item.name}`, `${item.wearCount} ${item.wearCount === 1 ? "wear" : "wears"}`);
+      });
+    }
+    if (s.costPerWear.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Best cost per wear</div>`;
+      s.costPerWear.forEach((item, i) => {
+        wearBlock += sub(`${i + 1}. ${item.name}`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
+      });
+    }
+    html += section(wearBlock);
+  }
+
   // --- Recently added ---
   if (s.recentlyAdded.length) {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
@@ -8618,6 +8711,22 @@ const openStatsDialog = () => {
       delBlock += sub(item.name, `${item.tab} \u00B7 ${item.date}`);
     });
     html += section(delBlock);
+  }
+
+  // --- Wishlist-only: Items obtained & Most recent "Got it!" ---
+  if (!s.isInventory) {
+    let gotItLog = [];
+    try {
+      gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
+    } catch (error) { /* ignore */ }
+    let wishBlock = "";
+    wishBlock += row("Items obtained", String(gotItLog.length));
+    if (gotItLog.length > 0) {
+      const last = gotItLog[gotItLog.length - 1];
+      const lastDate = last.date ? new Date(last.date).toLocaleDateString() : "";
+      wishBlock += row("Most recent 'Got it!'", `${esc(last.name)} \u00B7 ${lastDate}`);
+    }
+    html += section(wishBlock);
   }
 
   statsContent.innerHTML = html;
