@@ -2454,6 +2454,36 @@ dialog {
   color: var(--ink);
 }
 
+/* --- Progress bar (tag coverage, diversity index) --- */
+.stats-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+
+.stats-progress-track {
+  flex: 1;
+  height: 10px;
+  background: var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.stats-progress-fill {
+  height: 100%;
+  background: var(--accent-2);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.stats-progress-label {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .privacy-dialog .dialog-body {
   gap: 10px;
   text-align: left;
