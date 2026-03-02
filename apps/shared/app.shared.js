@@ -8519,16 +8519,25 @@ const openStatsDialog = () => {
 
   // --- Rarity score ---
   if (s.rareTypes.length || s.rareFandoms.length) {
+    const rarityList = (items) => {
+      let out = "";
+      items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
+      if (items.length > 5) {
+        const rest = items.slice(5);
+        out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
+        rest.forEach((name) => { out += sub(name, ""); });
+        out += `</div></details>`;
+      }
+      return out;
+    };
     let rareBlock = `<div class="stats-section-title">Rarities</div>`;
     if (s.rareTypes.length) {
       rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
-      s.rareTypes.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
-      if (s.rareTypes.length > 5) rareBlock += sub(`+${s.rareTypes.length - 5} more`, "");
+      rareBlock += rarityList(s.rareTypes);
     }
     if (s.rareFandoms.length) {
       rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
-      s.rareFandoms.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
-      if (s.rareFandoms.length > 5) rareBlock += sub(`+${s.rareFandoms.length - 5} more`, "");
+      rareBlock += rarityList(s.rareFandoms);
     }
     html += section(rareBlock);
   }

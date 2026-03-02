@@ -2828,7 +2828,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 7:04:36 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 7:09:01 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3521,7 +3521,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T00:04:36.788Z";
+      const LAST_COMMIT_DATE = "2026-03-02T00:09:01.288Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -12135,16 +12135,25 @@
 
         // --- Rarity score ---
         if (s.rareTypes.length || s.rareFandoms.length) {
+          const rarityList = (items) => {
+            let out = "";
+            items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
+            if (items.length > 5) {
+              const rest = items.slice(5);
+              out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
+              rest.forEach((name) => { out += sub(name, ""); });
+              out += `</div></details>`;
+            }
+            return out;
+          };
           let rareBlock = `<div class="stats-section-title">Rarities</div>`;
           if (s.rareTypes.length) {
             rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
-            s.rareTypes.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
-            if (s.rareTypes.length > 5) rareBlock += sub(`+${s.rareTypes.length - 5} more`, "");
+            rareBlock += rarityList(s.rareTypes);
           }
           if (s.rareFandoms.length) {
             rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
-            s.rareFandoms.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
-            if (s.rareFandoms.length > 5) rareBlock += sub(`+${s.rareFandoms.length - 5} more`, "");
+            rareBlock += rarityList(s.rareFandoms);
           }
           html += section(rareBlock);
         }
