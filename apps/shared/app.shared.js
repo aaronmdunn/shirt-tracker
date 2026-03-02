@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.9";
+const APP_VERSION = "2.0.10";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -3010,9 +3010,9 @@ const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
   if (PLATFORM === "mobile") {
-    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker-600.webp" type="image/webp"><img src="assets/shirt-tracker-600.png" alt="Shirt Tracker" width="600" height="173" style="max-width:min(500px, 90vw); width:100%; height:auto;"></picture>`;
   } else {
-    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
+    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></picture>`;
   }
 };
 
@@ -3170,7 +3170,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.9",
+    version: "2.0.10",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
