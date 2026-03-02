@@ -6441,10 +6441,48 @@ const renderRows = () => {
     tr.appendChild(actions);
   }
 
+    // --- Wear tracking: mobile inline card section (before actions) ---
+    if (PLATFORM === "mobile" && appMode === "inventory" && !state.readOnly) {
+      const wearTd = document.createElement("td");
+      wearTd.className = "wear-card-section";
+      wearTd.setAttribute("data-label", "");
+      const wearInner = document.createElement("div");
+      wearInner.className = "wear-panel-inner";
+      const wearCount = row.wearCount || 0;
+      const lastWorn = row.lastWorn || null;
+      const countStat = document.createElement("span");
+      countStat.className = "wear-stat";
+      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wearCount}</span>`;
+      wearInner.appendChild(countStat);
+      const dateStat = document.createElement("span");
+      dateStat.className = "wear-stat";
+      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lastWorn ? new Date(lastWorn).toLocaleDateString() : "Never"}</span>`;
+      wearInner.appendChild(dateStat);
+      const logBtn = document.createElement("button");
+      logBtn.type = "button";
+      logBtn.className = "btn-log-wear";
+      logBtn.textContent = "Wore it today";
+      logBtn.addEventListener("click", () => {
+        row.wearCount = (row.wearCount || 0) + 1;
+        row.lastWorn = new Date().toISOString();
+        saveState();
+        renderRows();
+      });
+      wearInner.appendChild(logBtn);
+      wearTd.appendChild(wearInner);
+      // Insert before actions cell (last child) so it sits below Notes
+      const actionsCell = tr.querySelector(".actions-cell");
+      if (actionsCell) {
+        tr.insertBefore(wearTd, actionsCell);
+      } else {
+        tr.appendChild(wearTd);
+      }
+    }
+
     sheetBody.appendChild(tr);
 
-    // --- Wear tracking expandable panel (inventory only) ---
-    if (appMode === "inventory" && !state.readOnly) {
+    // --- Wear tracking: desktop expandable sub-row ---
+    if (PLATFORM === "desktop" && appMode === "inventory" && !state.readOnly) {
       const wearToggle = document.createElement("button");
       wearToggle.type = "button";
       wearToggle.className = "wear-toggle";
