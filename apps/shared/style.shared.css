@@ -1565,6 +1565,32 @@ td[data-label="Preview"] {
   border-color: #4caf50;
 }
 
+/* PLATFORM:mobile */
+.wear-card-section {
+  padding: 10px 0 4px;
+  border-top: 1px dashed var(--line);
+  margin-top: 4px;
+}
+
+.wear-card-section .wear-panel-inner {
+  gap: 10px;
+}
+
+.wear-card-section .wear-stat-label {
+  font-size: 0.7rem;
+}
+
+.wear-card-section .wear-stat-value {
+  font-size: 0.78rem;
+}
+/* /PLATFORM:mobile */
+
+/* PLATFORM:desktop */
+.wear-card-section {
+  display: none;
+}
+/* /PLATFORM:desktop */
+
 .column-manager {
   display: flex;
   flex-wrap: wrap;
