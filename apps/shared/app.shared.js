@@ -2590,6 +2590,7 @@ const applyMobileHeaderInlineLayout = () => {
     const copyShareButton = document.getElementById("copy-share-link");
     const syncNowButton = document.getElementById("sync-now");
     const authActionButton = document.getElementById("auth-action");
+    const statsBtn = document.getElementById("stats-button");
     const blankSlot = document.createElement("div");
     blankSlot.setAttribute("aria-hidden", "true");
 
@@ -2597,6 +2598,7 @@ const applyMobileHeaderInlineLayout = () => {
       [addColumnButton, editColumnsButton],
       [chooseColumnsButton, copyShareButton],
       [syncNowButton, authActionButton],
+      [statsBtn],
     ];
 
     rows.forEach((rowButtons) => {
@@ -2658,8 +2660,9 @@ const applyMobileHeaderInlineLayout = () => {
 
   const cells = inlineGrid.querySelectorAll(".mobile-action-inline-cell");
   cells.forEach((cell) => {
+    const isOnlyChild = cell.parentElement && cell.parentElement.querySelectorAll(".mobile-action-inline-cell").length === 1;
     cell.style.flex = "1 1 0";
-    cell.style.maxWidth = "50%";
+    cell.style.maxWidth = isOnlyChild ? "100%" : "50%";
     cell.style.display = "flex";
     cell.style.justifyContent = "center";
     cell.style.alignItems = "center";

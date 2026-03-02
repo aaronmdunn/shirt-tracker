@@ -2835,7 +2835,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 7:15:17 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 7:20:49 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3528,7 +3528,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T00:15:17.015Z";
+      const LAST_COMMIT_DATE = "2026-03-02T00:20:49.214Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -6213,6 +6213,7 @@
           const copyShareButton = document.getElementById("copy-share-link");
           const syncNowButton = document.getElementById("sync-now");
           const authActionButton = document.getElementById("auth-action");
+          const statsBtn = document.getElementById("stats-button");
           const blankSlot = document.createElement("div");
           blankSlot.setAttribute("aria-hidden", "true");
 
@@ -6220,6 +6221,7 @@
             [addColumnButton, editColumnsButton],
             [chooseColumnsButton, copyShareButton],
             [syncNowButton, authActionButton],
+            [statsBtn],
           ];
 
           rows.forEach((rowButtons) => {
@@ -6281,8 +6283,9 @@
 
         const cells = inlineGrid.querySelectorAll(".mobile-action-inline-cell");
         cells.forEach((cell) => {
+          const isOnlyChild = cell.parentElement && cell.parentElement.querySelectorAll(".mobile-action-inline-cell").length === 1;
           cell.style.flex = "1 1 0";
-          cell.style.maxWidth = "50%";
+          cell.style.maxWidth = isOnlyChild ? "100%" : "50%";
           cell.style.display = "flex";
           cell.style.justifyContent = "center";
           cell.style.alignItems = "center";
