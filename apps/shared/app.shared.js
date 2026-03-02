@@ -1636,13 +1636,18 @@ const saveShareColumnsSelection = () => {
 };
 
 const setAuthLoading = (isLoading) => {
-  if (publicShareToken) return;
+  if (publicShareToken) {
+    if (!isLoading && document.body) document.body.classList.add("ready");
+    return;
+  }
   if (!document.body) return;
   if (isLoading) {
     document.body.setAttribute("data-auth", "loading");
   } else if (document.body.getAttribute("data-auth") === "loading") {
     document.body.setAttribute("data-auth", "signed-out");
   }
+  // Reveal the page once auth state is determined (prevents flash of signed-out layout)
+  if (!isLoading) document.body.classList.add("ready");
   const signedOutLogin = document.querySelector(".signedout-login");
   if (signedOutLogin) {
     signedOutLogin.style.display = isLoading ? "none" : "";
