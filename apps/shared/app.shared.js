@@ -6490,7 +6490,8 @@ const renderRows = () => {
       wearTr.appendChild(wearTd);
       sheetBody.appendChild(wearTr);
 
-      wearToggle.addEventListener("click", () => {
+      wearToggle.addEventListener("click", (e) => {
+        e.stopPropagation();
         const isOpen = wearTr.classList.toggle("open");
         wearToggle.textContent = isOpen ? "\u25BC" : "\u25B6";
       });
