@@ -1577,6 +1577,7 @@ td[data-label="Preview"] {
 }
 
 .wear-date-input {
+  width: auto;
   padding: 2px 6px;
   font-size: 0.72rem;
   font-family: "Work Sans", "Trebuchet MS", sans-serif;

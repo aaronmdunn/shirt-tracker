@@ -1326,6 +1326,7 @@
       }
 
       .wear-date-input {
+        width: auto;
         padding: 2px 6px;
         font-size: 0.72rem;
         font-family: "Work Sans", "Trebuchet MS", sans-serif;
@@ -3058,7 +3059,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 12:50:33 PM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 12:54:26 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3750,7 +3751,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T17:50:33.489Z";
+      const LAST_COMMIT_DATE = "2026-03-02T17:54:26.420Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -10220,6 +10221,7 @@
             iconTd.appendChild(img);
           }
           tr.appendChild(iconTd);
+          let conditionTd = null;
           getVisibleColumns().forEach((column) => {
             const td = document.createElement("td");
             td.setAttribute("data-label", getColumnLabel(column));
@@ -10227,6 +10229,7 @@
             if (column.type === "photo" || labelLower === "price") {
               td.classList.add("print-hide");
             }
+            if (labelLower === "condition") conditionTd = td;
             const cellEl = createCellInput(row, column);
             if (isShirtNameColumn(column) && isForSale(row)) {
               const wrapper = document.createElement("div");
@@ -10382,13 +10385,6 @@
 
           // --- Wear tracking: desktop expandable sub-row ---
           if (PLATFORM === "desktop" && appMode === "inventory" && !state.readOnly) {
-            const wearToggle = document.createElement("button");
-            wearToggle.type = "button";
-            wearToggle.className = "wear-toggle";
-            wearToggle.textContent = "\u25B6";
-            wearToggle.setAttribute("aria-label", "Toggle wear details");
-            iconTd.appendChild(wearToggle);
-
             const wearTr = document.createElement("tr");
             wearTr.className = "wear-panel-row";
             const colSpan = getVisibleColumns().length + 2;
@@ -10398,6 +10394,15 @@
             wearTd.appendChild(buildWearControls(row));
             wearTr.appendChild(wearTd);
             sheetBody.appendChild(wearTr);
+
+            // Toggle below Condition column (falls back to icon cell if Condition is hidden)
+            const toggleParent = conditionTd || iconTd;
+            const wearToggle = document.createElement("button");
+            wearToggle.type = "button";
+            wearToggle.className = "wear-toggle";
+            wearToggle.textContent = "\u25B6";
+            wearToggle.setAttribute("aria-label", "Toggle wear details");
+            toggleParent.appendChild(wearToggle);
 
             wearToggle.addEventListener("click", (e) => {
               e.stopPropagation();

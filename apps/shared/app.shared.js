@@ -6359,6 +6359,7 @@ const renderRows = () => {
       iconTd.appendChild(img);
     }
     tr.appendChild(iconTd);
+    let conditionTd = null;
     getVisibleColumns().forEach((column) => {
       const td = document.createElement("td");
       td.setAttribute("data-label", getColumnLabel(column));
@@ -6366,6 +6367,7 @@ const renderRows = () => {
       if (column.type === "photo" || labelLower === "price") {
         td.classList.add("print-hide");
       }
+      if (labelLower === "condition") conditionTd = td;
       const cellEl = createCellInput(row, column);
       if (isShirtNameColumn(column) && isForSale(row)) {
         const wrapper = document.createElement("div");
@@ -6521,13 +6523,6 @@ const renderRows = () => {
 
     // --- Wear tracking: desktop expandable sub-row ---
     if (PLATFORM === "desktop" && appMode === "inventory" && !state.readOnly) {
-      const wearToggle = document.createElement("button");
-      wearToggle.type = "button";
-      wearToggle.className = "wear-toggle";
-      wearToggle.textContent = "\u25B6";
-      wearToggle.setAttribute("aria-label", "Toggle wear details");
-      iconTd.appendChild(wearToggle);
-
       const wearTr = document.createElement("tr");
       wearTr.className = "wear-panel-row";
       const colSpan = getVisibleColumns().length + 2;
@@ -6537,6 +6532,15 @@ const renderRows = () => {
       wearTd.appendChild(buildWearControls(row));
       wearTr.appendChild(wearTd);
       sheetBody.appendChild(wearTr);
+
+      // Toggle below Condition column (falls back to icon cell if Condition is hidden)
+      const toggleParent = conditionTd || iconTd;
+      const wearToggle = document.createElement("button");
+      wearToggle.type = "button";
+      wearToggle.className = "wear-toggle";
+      wearToggle.textContent = "\u25B6";
+      wearToggle.setAttribute("aria-label", "Toggle wear details");
+      toggleParent.appendChild(wearToggle);
 
       wearToggle.addEventListener("click", (e) => {
         e.stopPropagation();
