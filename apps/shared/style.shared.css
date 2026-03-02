@@ -1596,9 +1596,7 @@ input[type="date"].wear-date-input {
 }
 
 .wear-card-section .wear-panel-inner {
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  justify-content: center;
   gap: 10px;
 }
 
