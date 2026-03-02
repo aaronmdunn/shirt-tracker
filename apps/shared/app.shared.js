@@ -53,24 +53,12 @@ const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
-// --- Service Worker Registration ---
-// Registers sw.js for offline support and instant repeat loads.
-// Skipped in Tauri (native app doesn't use service workers).
+// --- Service Worker Cleanup ---
+// The service worker was removed in v2.0.11. Unregister any leftover SW
+// so returning users don't get stale cached pages.
 if ("serviceWorker" in navigator && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
-  navigator.serviceWorker.register("sw.js").then((reg) => {
-    // When a new SW is found (deploy happened), listen for it to activate
-    reg.addEventListener("updatefound", () => {
-      const newWorker = reg.installing;
-      if (!newWorker) return;
-      newWorker.addEventListener("statechange", () => {
-        if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
-          // A new version was installed & activated — the next reload will use it
-          console.log("[SW] New version installed. Refresh to update.");
-        }
-      });
-    });
-  }).catch((err) => {
-    console.warn("[SW] Registration failed:", err);
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) reg.unregister();
   });
 }
 
@@ -1648,13 +1636,18 @@ const saveShareColumnsSelection = () => {
 };
 
 const setAuthLoading = (isLoading) => {
-  if (publicShareToken) return;
+  if (publicShareToken) {
+    if (!isLoading && document.body) document.body.classList.add("ready");
+    return;
+  }
   if (!document.body) return;
   if (isLoading) {
     document.body.setAttribute("data-auth", "loading");
   } else if (document.body.getAttribute("data-auth") === "loading") {
     document.body.setAttribute("data-auth", "signed-out");
   }
+  // Reveal the page once auth state is determined (prevents flash of signed-out layout)
+  if (!isLoading) document.body.classList.add("ready");
   const signedOutLogin = document.querySelector(".signedout-login");
   if (signedOutLogin) {
     signedOutLogin.style.display = isLoading ? "none" : "";

@@ -99,6 +99,12 @@
         font-family: "Fraunces", "Garamond", "Georgia", serif;
         min-height: 100vh;
         overflow-x: hidden;
+        opacity: 0;
+      }
+
+      body.ready {
+        opacity: 1;
+        transition: opacity 0.15s ease;
       }
 
       html {
@@ -3059,7 +3065,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 1:20:20 PM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 1:38:33 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3751,7 +3757,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T18:20:20.583Z";
+      const LAST_COMMIT_DATE = "2026-03-02T18:38:33.227Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3931,24 +3937,12 @@
         }
       ];
 
-      // --- Service Worker Registration ---
-      // Registers sw.js for offline support and instant repeat loads.
-      // Skipped in Tauri (native app doesn't use service workers).
+      // --- Service Worker Cleanup ---
+      // The service worker was removed in v2.0.11. Unregister any leftover SW
+      // so returning users don't get stale cached pages.
       if ("serviceWorker" in navigator && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
-        navigator.serviceWorker.register("sw.js").then((reg) => {
-          // When a new SW is found (deploy happened), listen for it to activate
-          reg.addEventListener("updatefound", () => {
-            const newWorker = reg.installing;
-            if (!newWorker) return;
-            newWorker.addEventListener("statechange", () => {
-              if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
-                // A new version was installed & activated — the next reload will use it
-                console.log("[SW] New version installed. Refresh to update.");
-              }
-            });
-          });
-        }).catch((err) => {
-          console.warn("[SW] Registration failed:", err);
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+          for (const reg of regs) reg.unregister();
         });
       }
 
@@ -5526,13 +5520,18 @@
       };
 
       const setAuthLoading = (isLoading) => {
-        if (publicShareToken) return;
+        if (publicShareToken) {
+          if (!isLoading && document.body) document.body.classList.add("ready");
+          return;
+        }
         if (!document.body) return;
         if (isLoading) {
           document.body.setAttribute("data-auth", "loading");
         } else if (document.body.getAttribute("data-auth") === "loading") {
           document.body.setAttribute("data-auth", "signed-out");
         }
+        // Reveal the page once auth state is determined (prevents flash of signed-out layout)
+        if (!isLoading) document.body.classList.add("ready");
         const signedOutLogin = document.querySelector(".signedout-login");
         if (signedOutLogin) {
           signedOutLogin.style.display = isLoading ? "none" : "";
