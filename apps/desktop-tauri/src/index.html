@@ -1325,7 +1325,7 @@
         border-color: #ef5350;
       }
 
-      .wear-date-input {
+      input[type="date"].wear-date-input {
         width: auto;
         padding: 2px 6px;
         font-size: 0.72rem;
@@ -3059,7 +3059,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 12:54:26 PM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 12:56:41 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3751,7 +3751,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T17:54:26.420Z";
+      const LAST_COMMIT_DATE = "2026-03-02T17:56:41.989Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
