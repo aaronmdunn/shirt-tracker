@@ -1342,6 +1342,142 @@ td[data-label="Preview"] {
   border-color: #bbb;
 }
 
+.btn-icon.got-it {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+  color: #2e7d32;
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.btn-icon.got-it:hover {
+  background: #d0e8d2;
+  border-color: #4caf50;
+}
+
+.btn-icon.for-sale {
+  font-size: 0.72rem;
+}
+
+.btn-icon.for-sale.active {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+.btn-icon.for-sale.active:hover {
+  background: #d0e8d2;
+  border-color: #4caf50;
+}
+
+.btn-icon.has-tags {
+  background: #dbe9ff;
+  border-color: #8eb6ff;
+  color: #234aa3;
+  font-weight: 600;
+}
+
+.btn-icon.has-tags:hover {
+  background: #c8deff;
+  border-color: #6da0ff;
+}
+
+.btn-mode-switcher {
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  background: #fff;
+  color: #c62828;
+  transition: background 0.15s, color 0.15s;
+  outline: none;
+  letter-spacing: 0.03em;
+}
+
+.btn-mode-switcher:hover {
+  background: #f0f0f0;
+}
+
+.btn-mode-switcher.active {
+  font-weight: 700;
+  background: #c62828;
+  color: #fff;
+}
+
+.btn-mode-switcher.active:hover {
+  background: #a01e1e;
+}
+
+.btn-stats-inline {
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  color: #666;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-stats-inline:hover {
+  background: #e8e8e8;
+  border-color: #999;
+}
+
+.btn-move-confirm {
+  background: #2e7d32;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-move-confirm:hover {
+  background: #1b5e20;
+}
+
+.btn-delete-tag {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #c62828;
+  border-color: #c62828;
+}
+
+.btn-delete-tag:hover {
+  background: #fff0f0;
+}
+
+.help-button {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 9999;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #bbb;
+  background: #f5f5f5;
+  color: #888;
+  font-size: 16px;
+  font-family: "Work Sans", "Trebuchet MS", sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.help-button:hover {
+  background: #e8e8e8;
+  border-color: #999;
+  color: #555;
+}
+
 .btn-icon.trash {
   border-radius: 999px;
   padding: 6px 8px;
@@ -1354,6 +1490,106 @@ td[data-label="Preview"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* --- Wear tracking expandable panel --- */
+
+.wear-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  color: var(--muted);
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.wear-toggle:hover {
+  color: var(--text);
+}
+
+.wear-panel-row {
+  display: none;
+}
+
+.wear-panel-row.open {
+  display: table-row;
+}
+
+.wear-panel-cell {
+  padding: 8px 16px;
+  background: #f9f9f9;
+  border-bottom: 1px solid var(--line);
+  font-family: "Work Sans", "Trebuchet MS", sans-serif;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.wear-panel-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.wear-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wear-stat-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.wear-stat-value {
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+.btn-log-wear {
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid #66bb6a;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-log-wear:hover {
+  background: #d0e8d2;
+  border-color: #4caf50;
+}
+
+/* PLATFORM:mobile */
+.wear-card-section {
+  padding: 10px 0 4px;
+  border-top: 1px dashed var(--line);
+  margin-top: 4px;
+}
+
+.wear-card-section .wear-panel-inner {
+  gap: 10px;
+}
+
+.wear-card-section .wear-stat-label {
+  font-size: 0.7rem;
+}
+
+.wear-card-section .wear-stat-value {
+  font-size: 0.78rem;
+}
+/* /PLATFORM:mobile */
+
+/* PLATFORM:desktop */
+.wear-card-section {
+  display: none;
+}
+/* /PLATFORM:desktop */
 
 .column-manager {
   display: flex;
@@ -2990,7 +3226,7 @@ html[data-public-share="true"] #go-bottom {
   }
 
   .actions-cell {
-    text-align: left;
+    text-align: center;
   }
 
   .row-actions {
