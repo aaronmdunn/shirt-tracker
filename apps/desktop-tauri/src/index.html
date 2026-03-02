@@ -1913,6 +1913,13 @@
         margin-bottom: 6px;
       }
 
+      .stats-hint {
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.4;
+        margin-bottom: 8px;
+      }
+
       /* --- Expandable per-tab details --- */
       .stats-tab-details {
         margin-top: 2px;
@@ -2828,7 +2835,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 7:09:01 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 7:11:54 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3521,7 +3528,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T00:09:01.288Z";
+      const LAST_COMMIT_DATE = "2026-03-02T00:11:54.157Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -12120,6 +12127,7 @@
         // --- Collection diversity index ---
         if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
           let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
+          divBlock += `<div class="stats-hint">How evenly spread your collection is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
           if (s.typeDiversity > 0) {
             const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
             divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);

@@ -8504,6 +8504,7 @@ const openStatsDialog = () => {
   // --- Collection diversity index ---
   if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
     let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
+    divBlock += `<div class="stats-hint">How evenly spread your collection is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
     if (s.typeDiversity > 0) {
       const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
       divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);
