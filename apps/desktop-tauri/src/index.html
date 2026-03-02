@@ -2823,7 +2823,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 4:28:21 AM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 5:06:34 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -2945,7 +2945,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.9</div>
+        <div id="about-version">Shirt Tracker v2.0.10</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3513,11 +3513,11 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.9";
+      const APP_VERSION = "2.0.10";
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T09:28:21.206Z";
+      const LAST_COMMIT_DATE = "2026-03-02T10:06:34.470Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3534,6 +3534,23 @@
       const DELETED_ROWS_PURGE_DAYS = 30;
 
       const CHANGELOG = [
+        {
+          "version": "2.0.10",
+          "date": "2026-03-02",
+          "changes": [
+            "Lighthouse Performance score improved from 48 to 93",
+            "Converted fonts to WOFF2 and removed 5 unused font files (~950KB savings)",
+            "Converted logo to WebP with PNG fallback via <picture> element (84% smaller)",
+            "Created properly-sized 600px mobile logo (24KB WebP vs 317KB PNG)",
+            "Removed Google Analytics in favor of Plausible (~148KB savings)",
+            "Switched to mobile-first redirect routing to eliminate double-redirect penalty",
+            "Added image and font preloading for faster LCP",
+            "Eliminated all Cumulative Layout Shift with font-display: optional and aspect-ratio",
+            "Removed unused Supabase preconnect and tightened Content Security Policy",
+            "Fixed footer link touch targets to meet 48px minimum for accessibility",
+            "SEO score improved from 91 to 100 with legible font sizes and meta tags"
+          ]
+        },
         {
           "version": "2.0.9",
           "date": "2026-03-01",
@@ -6782,7 +6799,7 @@
           shirtUpdateDate: shirtUpdateTimestamp || null,
           publicShareId: getOrCreatePublicShareId(),
           publicShareVisibility,
-          version: "2.0.9",
+          version: "2.0.10",
           deletedRows: purgeExpiredDeletedRows(),
         };
         if (wishlistTabs.length > 0) {
