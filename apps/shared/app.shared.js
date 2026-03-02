@@ -3010,9 +3010,9 @@ const updateHeaderTitle = () => {
   if (!appTitleEl) return;
   const shortVersion = getShortVersion();
   if (PLATFORM === "mobile") {
-    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker-600.webp" type="image/webp"><img src="assets/shirt-tracker-600.png" alt="Shirt Tracker" width="600" height="173" style="max-width:min(500px, 90vw); width:100%; height:auto;"></picture>`;
   } else {
-    appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
+    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></picture>`;
   }
 };
 

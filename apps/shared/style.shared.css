@@ -1444,7 +1444,7 @@ td[data-label="Preview"] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .public-share-row label {
