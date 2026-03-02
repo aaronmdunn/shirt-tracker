@@ -6509,7 +6509,7 @@ const renderRows = () => {
     if (PLATFORM === "mobile" && appMode === "inventory" && !state.readOnly) {
       const wearTd = document.createElement("td");
       wearTd.className = "wear-card-section";
-      wearTd.setAttribute("data-label", "");
+      wearTd.setAttribute("data-label", "Wear Tracking");
       wearTd.appendChild(buildWearControls(row));
       const actionsCell = tr.querySelector(".actions-cell");
       if (actionsCell) {
