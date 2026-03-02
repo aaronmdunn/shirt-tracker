@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.10";
+const APP_VERSION = "2.0.11";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -6359,6 +6359,7 @@ const renderRows = () => {
       iconTd.appendChild(img);
     }
     tr.appendChild(iconTd);
+    let conditionTd = null;
     getVisibleColumns().forEach((column) => {
       const td = document.createElement("td");
       td.setAttribute("data-label", getColumnLabel(column));
@@ -6366,6 +6367,7 @@ const renderRows = () => {
       if (column.type === "photo" || labelLower === "price") {
         td.classList.add("print-hide");
       }
+      if (labelLower === "condition") conditionTd = td;
       const cellEl = createCellInput(row, column);
       if (isShirtNameColumn(column) && isForSale(row)) {
         const wrapper = document.createElement("div");
@@ -6441,36 +6443,74 @@ const renderRows = () => {
     tr.appendChild(actions);
   }
 
+    // --- Wear tracking: shared control builder ---
+    const buildWearControls = (targetRow) => {
+      const inner = document.createElement("div");
+      inner.className = "wear-panel-inner";
+      const wc = targetRow.wearCount || 0;
+      const lw = targetRow.lastWorn || null;
+
+      const countStat = document.createElement("span");
+      countStat.className = "wear-stat";
+      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wc}</span>`;
+      inner.appendChild(countStat);
+
+      const dateStat = document.createElement("span");
+      dateStat.className = "wear-stat";
+      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lw ? new Date(lw).toLocaleDateString() : "Never"}</span>`;
+      inner.appendChild(dateStat);
+
+      const dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.className = "wear-date-input";
+      dateInput.value = new Date().toISOString().slice(0, 10);
+      dateInput.max = new Date().toISOString().slice(0, 10);
+      inner.appendChild(dateInput);
+
+      const logBtn = document.createElement("button");
+      logBtn.type = "button";
+      logBtn.className = "btn-log-wear";
+      logBtn.textContent = "Log Wear";
+      let undoTimer = null;
+      logBtn.addEventListener("click", () => {
+        if (logBtn.classList.contains("undo")) {
+          // Undo: restore previous state
+          clearTimeout(undoTimer);
+          targetRow.wearCount = logBtn._prevCount;
+          targetRow.lastWorn = logBtn._prevLastWorn;
+          saveState();
+          renderRows();
+          return;
+        }
+        // Capture previous state for undo
+        logBtn._prevCount = targetRow.wearCount || 0;
+        logBtn._prevLastWorn = targetRow.lastWorn || null;
+        // Apply wear
+        const chosen = dateInput.value || new Date().toISOString().slice(0, 10);
+        const wornDate = new Date(chosen + "T12:00:00").toISOString();
+        targetRow.wearCount = (targetRow.wearCount || 0) + 1;
+        targetRow.lastWorn = wornDate;
+        saveState();
+        // Update display inline (avoid full re-render during undo window)
+        countStat.querySelector(".wear-stat-value").textContent = String(targetRow.wearCount);
+        dateStat.querySelector(".wear-stat-value").textContent = new Date(wornDate).toLocaleDateString();
+        logBtn.textContent = "Undo";
+        logBtn.classList.add("undo");
+        undoTimer = setTimeout(() => {
+          logBtn.textContent = "Log Wear";
+          logBtn.classList.remove("undo");
+        }, 5000);
+      });
+      inner.appendChild(logBtn);
+      return inner;
+    };
+
     // --- Wear tracking: mobile inline card section (before actions) ---
     if (PLATFORM === "mobile" && appMode === "inventory" && !state.readOnly) {
       const wearTd = document.createElement("td");
       wearTd.className = "wear-card-section";
-      wearTd.setAttribute("data-label", "");
-      const wearInner = document.createElement("div");
-      wearInner.className = "wear-panel-inner";
-      const wearCount = row.wearCount || 0;
-      const lastWorn = row.lastWorn || null;
-      const countStat = document.createElement("span");
-      countStat.className = "wear-stat";
-      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wearCount}</span>`;
-      wearInner.appendChild(countStat);
-      const dateStat = document.createElement("span");
-      dateStat.className = "wear-stat";
-      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lastWorn ? new Date(lastWorn).toLocaleDateString() : "Never"}</span>`;
-      wearInner.appendChild(dateStat);
-      const logBtn = document.createElement("button");
-      logBtn.type = "button";
-      logBtn.className = "btn-log-wear";
-      logBtn.textContent = "Wore it today";
-      logBtn.addEventListener("click", () => {
-        row.wearCount = (row.wearCount || 0) + 1;
-        row.lastWorn = new Date().toISOString();
-        saveState();
-        renderRows();
-      });
-      wearInner.appendChild(logBtn);
-      wearTd.appendChild(wearInner);
-      // Insert before actions cell (last child) so it sits below Notes
+      wearTd.setAttribute("data-label", "Wear Tracking");
+      wearTd.appendChild(buildWearControls(row));
       const actionsCell = tr.querySelector(".actions-cell");
       if (actionsCell) {
         tr.insertBefore(wearTd, actionsCell);
@@ -6483,50 +6523,24 @@ const renderRows = () => {
 
     // --- Wear tracking: desktop expandable sub-row ---
     if (PLATFORM === "desktop" && appMode === "inventory" && !state.readOnly) {
+      const wearTr = document.createElement("tr");
+      wearTr.className = "wear-panel-row";
+      const colSpan = getVisibleColumns().length + 2;
+      const wearTd = document.createElement("td");
+      wearTd.className = "wear-panel-cell";
+      wearTd.setAttribute("colspan", String(colSpan));
+      wearTd.appendChild(buildWearControls(row));
+      wearTr.appendChild(wearTd);
+      sheetBody.appendChild(wearTr);
+
+      // Toggle below Condition column (falls back to icon cell if Condition is hidden)
+      const toggleParent = conditionTd || iconTd;
       const wearToggle = document.createElement("button");
       wearToggle.type = "button";
       wearToggle.className = "wear-toggle";
       wearToggle.textContent = "\u25B6";
       wearToggle.setAttribute("aria-label", "Toggle wear details");
-      iconTd.appendChild(wearToggle);
-
-      const wearTr = document.createElement("tr");
-      wearTr.className = "wear-panel-row";
-      const colSpan = getVisibleColumns().length + 2; // icon + visible cols + actions
-      const wearTd = document.createElement("td");
-      wearTd.className = "wear-panel-cell";
-      wearTd.setAttribute("colspan", String(colSpan));
-      const wearInner = document.createElement("div");
-      wearInner.className = "wear-panel-inner";
-
-      const wearCount = row.wearCount || 0;
-      const lastWorn = row.lastWorn || null;
-
-      const countStat = document.createElement("span");
-      countStat.className = "wear-stat";
-      countStat.innerHTML = `<span class="wear-stat-label">Total wears:</span> <span class="wear-stat-value">${wearCount}</span>`;
-      wearInner.appendChild(countStat);
-
-      const dateStat = document.createElement("span");
-      dateStat.className = "wear-stat";
-      dateStat.innerHTML = `<span class="wear-stat-label">Last worn:</span> <span class="wear-stat-value">${lastWorn ? new Date(lastWorn).toLocaleDateString() : "Never"}</span>`;
-      wearInner.appendChild(dateStat);
-
-      const logBtn = document.createElement("button");
-      logBtn.type = "button";
-      logBtn.className = "btn-log-wear";
-      logBtn.textContent = "Wore it today";
-      logBtn.addEventListener("click", () => {
-        row.wearCount = (row.wearCount || 0) + 1;
-        row.lastWorn = new Date().toISOString();
-        saveState();
-        renderRows();
-      });
-      wearInner.appendChild(logBtn);
-
-      wearTd.appendChild(wearInner);
-      wearTr.appendChild(wearTd);
-      sheetBody.appendChild(wearTr);
+      toggleParent.appendChild(wearToggle);
 
       wearToggle.addEventListener("click", (e) => {
         e.stopPropagation();
