@@ -1576,7 +1576,7 @@ td[data-label="Preview"] {
   border-color: #ef5350;
 }
 
-.wear-date-input {
+input[type="date"].wear-date-input {
   width: auto;
   padding: 2px 6px;
   font-size: 0.72rem;
