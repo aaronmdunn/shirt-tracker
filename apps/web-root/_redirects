@@ -5,19 +5,15 @@
 /?type=signup /auth-redirect.html 200
 /?share=:share /auth-redirect.html 200
 
-# Device routing
-/ /m/ 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
-/ /d/ 302
+# Device routing — mobile-first default
+# Desktop UAs are explicitly matched; everything else (mobile, bots, crawlers) gets /m/.
+# Client-side UA script in each index.html handles edge cases (e.g. iPad in desktop mode).
+/ /d/ 302 User-Agent=Windows|Macintosh|X11
+/ /m/ 302
 
 # Clean /m and /d paths
 /m /m/ 301
 /d /d/ 301
-
-# Route /d to /m on mobile
-/d/* /m/:splat 302 User-Agent=Android|iPhone|iPad|iPod|Mobile
-
-# Route /m to /d on desktop
-/m/* /d/:splat 302 User-Agent=Windows|Macintosh|Linux|X11
 
 # SPA fallbacks
 /m/* /m/index.html 200

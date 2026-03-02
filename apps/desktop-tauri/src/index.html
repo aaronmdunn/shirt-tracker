@@ -11,15 +11,8 @@
     <link rel="apple-touch-icon" href="assets/icons/hawaiian-shirt.png">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="preconnect" href="https://jbmzsxbzqvgsasjhwuko.supabase.co" crossorigin>
+    <link rel="preload" href="assets/shirt-tracker.webp" as="image" type="image/webp">
     <link rel="preload" href="fonts/JMH%20Typewriter.woff2" as="font" type="font/woff2" crossorigin>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-T80L2765XZ"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-T80L2765XZ');
-    </script>
     <!-- Privacy-friendly analytics by Plausible -->
     <script async src="https://plausible.io/js/pa-kmjUIM6R3--66CzHID1k7.js"></script>
     <script>
@@ -2638,7 +2631,7 @@
       <div class="wrap">
           <div class="title-card">
             <div class="title-row">
-            <h1 id="app-title"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289"></h1>
+            <h1 id="app-title"><picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289"></picture></h1>
             <p id="app-subtitle">An open-source, fan-made clothing inventory system for hobbyists.</p>
             </div>
           </div>
@@ -2830,7 +2823,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 4:09:45 AM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 4:28:21 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3524,7 +3517,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T09:09:45.937Z";
+      const LAST_COMMIT_DATE = "2026-03-02T09:28:21.206Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
