@@ -1,5 +1,21 @@
 [
   {
+    "version": "2.0.11",
+    "date": "2026-03-02",
+    "changes": [
+      "Added wear tracking with Total Wears count, Last Worn date, and Log Wear button",
+      "Added date picker for wear logging (defaults to today, max capped at today)",
+      "Added 5-second undo for wear logging",
+      "Added wear statistics: Longest Unworn, Cost Per Wear, Top/Bottom 5 Most/Least Worn",
+      "Added Got It! timestamp and transfer logging for wishlist items moved to inventory",
+      "Added Top Tags 'Original' filter and wishlist stats overhaul (Items Obtained, Most Recent Got It)",
+      "Hidden columns now excluded from per-tab stats",
+      "Fixed button hover states on 8 button types (migrated inline JS styles to CSS classes)",
+      "Fixed Tauri admin panel CORS for desktop app (dynamic origin allowlist)",
+      "Centered mobile card Actions label and Wear Tracking section"
+    ]
+  },
+  {
     "version": "2.0.10",
     "date": "2026-03-02",
     "changes": [

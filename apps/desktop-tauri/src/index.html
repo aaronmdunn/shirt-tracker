@@ -3059,7 +3059,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 1:16:33 PM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 1:20:20 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3179,7 +3179,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.0.10</div>
+        <div id="about-version">Shirt Tracker v2.0.11</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -3747,11 +3747,11 @@
       const LAST_SYNC_KEY = "shirts-last-sync";
       const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
       const LAST_CHANGE_KEY = "shirts-last-change";
-      const APP_VERSION = "2.0.10";
+      const APP_VERSION = "2.0.11";
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T18:16:33.938Z";
+      const LAST_COMMIT_DATE = "2026-03-02T18:20:20.583Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3769,6 +3769,22 @@
       const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 
       const CHANGELOG = [
+        {
+          "version": "2.0.11",
+          "date": "2026-03-02",
+          "changes": [
+            "Added wear tracking with Total Wears count, Last Worn date, and Log Wear button",
+            "Added date picker for wear logging (defaults to today, max capped at today)",
+            "Added 5-second undo for wear logging",
+            "Added wear statistics: Longest Unworn, Cost Per Wear, Top/Bottom 5 Most/Least Worn",
+            "Added Got It! timestamp and transfer logging for wishlist items moved to inventory",
+            "Added Top Tags 'Original' filter and wishlist stats overhaul (Items Obtained, Most Recent Got It)",
+            "Hidden columns now excluded from per-tab stats",
+            "Fixed button hover states on 8 button types (migrated inline JS styles to CSS classes)",
+            "Fixed Tauri admin panel CORS for desktop app (dynamic origin allowlist)",
+            "Centered mobile card Actions label and Wear Tracking section"
+          ]
+        },
         {
           "version": "2.0.10",
           "date": "2026-03-02",
