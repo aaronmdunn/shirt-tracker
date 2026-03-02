@@ -64,8 +64,9 @@ if ("serviceWorker" in navigator && !(window.__TAURI__ || window.__TAURI_INTERNA
       if (!newWorker) return;
       newWorker.addEventListener("statechange", () => {
         if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
-          // A new version was installed & activated — the next reload will use it
-          console.log("[SW] New version installed. Refresh to update.");
+          // A new version was installed & activated — reload to use it immediately
+          console.log("[SW] New version installed. Reloading…");
+          window.location.reload();
         }
       });
     });

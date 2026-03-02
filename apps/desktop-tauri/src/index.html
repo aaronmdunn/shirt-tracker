@@ -3059,7 +3059,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 1:20:20 PM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 1:28:14 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3751,7 +3751,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T18:20:20.583Z";
+      const LAST_COMMIT_DATE = "2026-03-02T18:28:14.641Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3942,8 +3942,9 @@
             if (!newWorker) return;
             newWorker.addEventListener("statechange", () => {
               if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
-                // A new version was installed & activated — the next reload will use it
-                console.log("[SW] New version installed. Refresh to update.");
+                // A new version was installed & activated — reload to use it immediately
+                console.log("[SW] New version installed. Reloading…");
+                window.location.reload();
               }
             });
           });
