@@ -96,6 +96,7 @@ if (fs.existsSync(sourceAssets)) {
 }
 
 if (fs.existsSync(sourceFonts)) {
+  fs.rmSync(targetFonts, { recursive: true, force: true });
   fs.cpSync(sourceFonts, targetFonts, { recursive: true });
 }
 
