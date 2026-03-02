@@ -2350,6 +2350,13 @@ dialog {
   margin-bottom: 6px;
 }
 
+.stats-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
 /* --- Expandable per-tab details --- */
 .stats-tab-details {
   margin-top: 2px;
