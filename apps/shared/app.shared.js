@@ -8439,52 +8439,72 @@ const openStatsDialog = () => {
 
   let html = "";
 
-  // --- Item counts with per-tab expandable details ---
+  // --- Item counts ---
   let countBlock = row("Total items", s.totalItems);
-  if (s.perTab.length > 1) {
-    s.perTab.forEach((tab) => {
-      const tabStats = tab.stats;
-      let inner = "";
-      if (s.isInventory && tabStats.top5Expensive.length) {
-        inner += row("Value", formatCurrency(tabStats.totalCost));
-      }
-      inner += renderTallySection("Types", tabStats.typeTally, 5);
-      inner += renderTallySection("Fandoms", tabStats.fandomTally, 5);
-      inner += renderTallySection("Sizes", tabStats.sizeTally);
-      if (s.isInventory) inner += renderTallySection("Condition", tabStats.conditionTally);
-      if (tabStats.topTags.length) inner += renderTallySection("Tags", tabStats.topTags);
-      countBlock += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(tab.name)}</span><span class="stats-value">${tab.count}</span></summary><div class="stats-tab-body">${inner}</div></details>`;
-    });
-  } else if (s.perTab.length === 1) {
-    countBlock += sub(s.perTab[0].name, s.perTab[0].count);
+  if (PLATFORM === "desktop") {
+    // Desktop: expandable per-tab details with full breakdown
+    if (s.perTab.length > 1) {
+      s.perTab.forEach((tab) => {
+        const tabStats = tab.stats;
+        let inner = "";
+        if (s.isInventory && tabStats.top5Expensive.length) {
+          inner += row("Value", formatCurrency(tabStats.totalCost));
+        }
+        inner += renderTallySection("Types", tabStats.typeTally, 5);
+        inner += renderTallySection("Fandoms", tabStats.fandomTally, 5);
+        inner += renderTallySection("Sizes", tabStats.sizeTally);
+        if (s.isInventory) inner += renderTallySection("Condition", tabStats.conditionTally);
+        if (tabStats.topTags.length) inner += renderTallySection("Tags", tabStats.topTags);
+        countBlock += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(tab.name)}</span><span class="stats-value">${tab.count}</span></summary><div class="stats-tab-body">${inner}</div></details>`;
+      });
+    } else if (s.perTab.length === 1) {
+      countBlock += sub(s.perTab[0].name, s.perTab[0].count);
+    }
+  }
+  if (PLATFORM === "mobile") {
+    // Mobile: flat list of tab counts
+    s.perTab.forEach((tab) => { countBlock += sub(tab.name, tab.count); });
   }
   html += section(countBlock);
 
   // --- Pricing (Inventory) ---
-  html += renderPricing(s);
-
-  // --- Value per tab (Inventory) ---
-  if (s.isInventory && s.valuePerTab.length > 1) {
-    const totalVal = s.valuePerTab.reduce((sum, t) => sum + t.value, 0);
-    let block = `<div class="stats-section-title">Value by tab</div>`;
-    s.valuePerTab.forEach((tab) => {
-      const pct = totalVal > 0 ? Math.round((tab.value / totalVal) * 100) : 0;
-      block += sub(tab.name, `${formatCurrency(tab.value)} (${pct}%)`);
-    });
-    html += section(block);
+  if (PLATFORM === "desktop") {
+    html += renderPricing(s);
+  }
+  if (PLATFORM === "mobile") {
+    // Mobile: compact pricing — totals only, no top 5 lists or std dev
+    if (s.isInventory && s.top5Expensive.length) {
+      let block = row("Total value", formatCurrency(s.totalCost));
+      block += row("Mean price", formatCurrency(s.meanPrice));
+      block += row("Median price", formatCurrency(s.medianPrice));
+      html += section(block);
+    }
   }
 
-  // --- Price distribution histogram (Inventory) ---
-  if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
-    html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
-  }
+  if (PLATFORM === "desktop") {
+    // --- Value per tab (Inventory) ---
+    if (s.isInventory && s.valuePerTab.length > 1) {
+      const totalVal = s.valuePerTab.reduce((sum, t) => sum + t.value, 0);
+      let block = `<div class="stats-section-title">Value by tab</div>`;
+      s.valuePerTab.forEach((tab) => {
+        const pct = totalVal > 0 ? Math.round((tab.value / totalVal) * 100) : 0;
+        block += sub(tab.name, `${formatCurrency(tab.value)} (${pct}%)`);
+      });
+      html += section(block);
+    }
 
-  // --- Names ---
-  if (s.longestName.name || s.shortestName.name) {
-    let nameBlock = "";
-    if (s.longestName.name) nameBlock += row("Longest name", `${s.longestName.name} (${s.longestName.length})`);
-    if (s.shortestName.name) nameBlock += row("Shortest name", `${s.shortestName.name} (${s.shortestName.length})`);
-    html += section(nameBlock);
+    // --- Price distribution histogram (Inventory) ---
+    if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
+      html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
+    }
+
+    // --- Names ---
+    if (s.longestName.name || s.shortestName.name) {
+      let nameBlock = "";
+      if (s.longestName.name) nameBlock += row("Longest name", `${s.longestName.name} (${s.longestName.length})`);
+      if (s.shortestName.name) nameBlock += row("Shortest name", `${s.shortestName.name} (${s.shortestName.length})`);
+      html += section(nameBlock);
+    }
   }
 
   // --- Bar charts for aggregate tallies ---
@@ -8501,79 +8521,81 @@ const openStatsDialog = () => {
     html += section(tagBlock);
   }
 
-  // --- Collection diversity index ---
-  if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
-    let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
-    divBlock += `<div class="stats-hint">How evenly spread your collection is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
-    if (s.typeDiversity > 0) {
-      const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
-      divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);
-      divBlock += progressBar(s.typeDiversity, "");
-    }
-    if (s.fandomDiversity > 0) {
-      const fandomLabel = s.fandomDiversity >= 80 ? "Generalist" : s.fandomDiversity >= 50 ? "Balanced" : "Specialist";
-      divBlock += row("Fandoms", `${s.fandomDiversity}% \u2014 ${fandomLabel}`);
-      divBlock += progressBar(s.fandomDiversity, "");
-    }
-    html += section(divBlock);
-  }
-
-  // --- Rarity score ---
-  if (s.rareTypes.length || s.rareFandoms.length) {
-    const rarityList = (items) => {
-      let out = "";
-      items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
-      if (items.length > 5) {
-        const rest = items.slice(5);
-        out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
-        rest.forEach((name) => { out += sub(name, ""); });
-        out += `</div></details>`;
+  if (PLATFORM === "desktop") {
+    // --- Collection diversity index ---
+    if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
+      let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
+      divBlock += `<div class="stats-hint">How evenly spread your collection is. Low = you have a clear favorite. High = wide variety across the board.</div>`;
+      if (s.typeDiversity > 0) {
+        const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
+        divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);
+        divBlock += progressBar(s.typeDiversity, "");
       }
-      return out;
-    };
-    let rareBlock = `<div class="stats-section-title">Rarities</div>`;
-    if (s.rareTypes.length) {
-      rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
-      rareBlock += rarityList(s.rareTypes);
-    }
-    if (s.rareFandoms.length) {
-      rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
-      rareBlock += rarityList(s.rareFandoms);
-    }
-    html += section(rareBlock);
-  }
-
-  // --- Name word frequency ---
-  if (s.topWords.length) {
-    html += renderTallySection("Common words in names", s.topWords, 10);
-  }
-
-  // --- Items added per month ---
-  if (s.itemsPerMonth.length) {
-    let monthBlock = `<div class="stats-section-title">Items added per month</div>`;
-    monthBlock += bucketChart(s.itemsPerMonth.map((m) => ({ label: m.label, count: m.count })));
-    if (s.currentStreak > 0 || s.longestStreak > 0) {
-      monthBlock += `<div style="margin-top:8px"></div>`;
-      if (s.currentStreak > 0) {
-        monthBlock += row("Current streak", `${s.currentStreak} ${s.currentStreak === 1 ? "week" : "weeks"}`);
+      if (s.fandomDiversity > 0) {
+        const fandomLabel = s.fandomDiversity >= 80 ? "Generalist" : s.fandomDiversity >= 50 ? "Balanced" : "Specialist";
+        divBlock += row("Fandoms", `${s.fandomDiversity}% \u2014 ${fandomLabel}`);
+        divBlock += progressBar(s.fandomDiversity, "");
       }
-      if (s.longestStreak > 1) {
-        monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
-      }
+      html += section(divBlock);
     }
-    html += section(monthBlock);
-  }
 
-  // --- Storage estimate ---
-  if (s.photoCount > 0) {
-    let storageBlock = `<div class="stats-section-title">Storage</div>`;
-    storageBlock += row("Photos", String(s.photoCount));
-    if (s.supaPhotoCount > 0) storageBlock += sub("In cloud", String(s.supaPhotoCount));
-    if (s.supaLogoCount > 0) storageBlock += sub("Tab logos (cloud)", String(s.supaLogoCount));
-    if (s.supaPhotoCount > 0 || s.supaLogoCount > 0) {
-      storageBlock += row("Est. cloud storage", `~${s.estimatedStorageMB} MB`);
+    // --- Rarity score ---
+    if (s.rareTypes.length || s.rareFandoms.length) {
+      const rarityList = (items) => {
+        let out = "";
+        items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
+        if (items.length > 5) {
+          const rest = items.slice(5);
+          out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
+          rest.forEach((name) => { out += sub(name, ""); });
+          out += `</div></details>`;
+        }
+        return out;
+      };
+      let rareBlock = `<div class="stats-section-title">Rarities</div>`;
+      if (s.rareTypes.length) {
+        rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
+        rareBlock += rarityList(s.rareTypes);
+      }
+      if (s.rareFandoms.length) {
+        rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
+        rareBlock += rarityList(s.rareFandoms);
+      }
+      html += section(rareBlock);
     }
-    html += section(storageBlock);
+
+    // --- Name word frequency ---
+    if (s.topWords.length) {
+      html += renderTallySection("Common words in names", s.topWords, 10);
+    }
+
+    // --- Items added per month ---
+    if (s.itemsPerMonth.length) {
+      let monthBlock = `<div class="stats-section-title">Items added per month</div>`;
+      monthBlock += bucketChart(s.itemsPerMonth.map((m) => ({ label: m.label, count: m.count })));
+      if (s.currentStreak > 0 || s.longestStreak > 0) {
+        monthBlock += `<div style="margin-top:8px"></div>`;
+        if (s.currentStreak > 0) {
+          monthBlock += row("Current streak", `${s.currentStreak} ${s.currentStreak === 1 ? "week" : "weeks"}`);
+        }
+        if (s.longestStreak > 1) {
+          monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
+        }
+      }
+      html += section(monthBlock);
+    }
+
+    // --- Storage estimate ---
+    if (s.photoCount > 0) {
+      let storageBlock = `<div class="stats-section-title">Storage</div>`;
+      storageBlock += row("Photos", String(s.photoCount));
+      if (s.supaPhotoCount > 0) storageBlock += sub("In cloud", String(s.supaPhotoCount));
+      if (s.supaLogoCount > 0) storageBlock += sub("Tab logos (cloud)", String(s.supaLogoCount));
+      if (s.supaPhotoCount > 0 || s.supaLogoCount > 0) {
+        storageBlock += row("Est. cloud storage", `~${s.estimatedStorageMB} MB`);
+      }
+      html += section(storageBlock);
+    }
   }
 
   // --- Recently added ---
