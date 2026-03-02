@@ -4,8 +4,7 @@
  * Runs after `build-web-root.mjs` and `sync-tauri-html.mjs` to verify:
  *   1. All expected output files exist
  *   2. CSS and JS are properly inlined into each index.html
- *   3. Service worker files exist with correct version
- *   4. No $& / $' pattern corruption in minified output
+ *   3. No $& / $' pattern corruption in minified output
  *   5. CHANGELOG.json is valid and matches the current version
  *   6. Version strings are consistent across all source files
  *   7. _redirects file is generated correctly
@@ -87,14 +86,6 @@ test("web-root/m/index.html exists", () => {
   assert.ok(fileExists("apps/web-root/m/index.html"), "Missing mobile build output");
 });
 
-test("web-root/d/sw.js exists", () => {
-  assert.ok(fileExists("apps/web-root/d/sw.js"), "Missing desktop service worker");
-});
-
-test("web-root/m/sw.js exists", () => {
-  assert.ok(fileExists("apps/web-root/m/sw.js"), "Missing mobile service worker");
-});
-
 test("web-root/_redirects exists", () => {
   assert.ok(fileExists("apps/web-root/_redirects"), "Missing _redirects file");
 });
@@ -165,22 +156,6 @@ test("Tauri index.html contains inlined <script>", () => {
   assert.ok(!html.includes('src="app.js"'), "app.js still referenced as external script — not inlined");
 });
 
-console.log("\n--- Service Worker: Version Injection ---\n");
-
-test("Desktop sw.js contains versioned cache name (no placeholder)", () => {
-  const sw = readFile("apps/web-root/d/sw.js");
-  assert.ok(sw, "Could not read desktop sw.js");
-  assert.ok(!sw.includes("__SW_VERSION__"), "Version placeholder was not replaced");
-  assert.ok(sw.includes("shirt-tracker-v"), "Cache name prefix missing");
-});
-
-test("Mobile sw.js contains versioned cache name (no placeholder)", () => {
-  const sw = readFile("apps/web-root/m/sw.js");
-  assert.ok(sw, "Could not read mobile sw.js");
-  assert.ok(!sw.includes("__SW_VERSION__"), "Version placeholder was not replaced");
-  assert.ok(sw.includes("shirt-tracker-v"), "Cache name prefix missing");
-});
-
 console.log("\n--- Minification Integrity ---\n");
 
 test("Desktop: no $& pattern corruption in inlined JS", () => {
@@ -243,10 +218,6 @@ test("app.shared.js contains PLATFORM placeholder", () => {
 
 test("style.shared.css exists", () => {
   assert.ok(fileExists("apps/shared/style.shared.css"), "Missing shared CSS source");
-});
-
-test("sw.js shared source exists", () => {
-  assert.ok(fileExists("apps/shared/sw.js"), "Missing shared service worker source");
 });
 
 test("style.shared.css contains PLATFORM:desktop markers", () => {
