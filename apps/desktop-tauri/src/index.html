@@ -1193,7 +1193,7 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
-        margin-top: 6px;
+        margin-top: 2px;
       }
 
       .public-share-row label {
@@ -2823,7 +2823,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/2/2026, 5:06:34 AM" readonly>
+                <input type="text" id="app-update-date" value="3/2/2026, 5:17:57 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -2833,8 +2833,6 @@
               <button class="btn secondary" id="verify-backup" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Verify Cloud Status</button>
               <div class="backup-status" id="backup-status" style="text-align:center;">Cloud backup not checked yet.</div>
               <div class="unsaved-status" id="unsaved-status" style="text-align:center;"></div>
-              <div style="font-size:0.78rem; color:var(--muted); margin-top:6px; text-align:center;">
-              </div>
               <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
                 <div class="public-share-actions">
@@ -3517,7 +3515,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T10:06:34.470Z";
+      const LAST_COMMIT_DATE = "2026-03-02T10:17:57.906Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -3547,7 +3545,6 @@
             "Added image and font preloading for faster LCP",
             "Eliminated all Cumulative Layout Shift with font-display: optional and aspect-ratio",
             "Removed unused Supabase preconnect and tightened Content Security Policy",
-            "Fixed footer link touch targets to meet 48px minimum for accessibility",
             "SEO score improved from 91 to 100 with legible font sizes and meta tags"
           ]
         },
@@ -6639,9 +6636,9 @@
         if (!appTitleEl) return;
         const shortVersion = getShortVersion();
         if (PLATFORM === "mobile") {
-          appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); width:100%; height:auto;">`;
+          appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker-600.webp" type="image/webp"><img src="assets/shirt-tracker-600.png" alt="Shirt Tracker" width="600" height="173" style="max-width:min(500px, 90vw); width:100%; height:auto;"></picture>`;
         } else {
-          appTitleEl.innerHTML = `<img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;">`;
+          appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></picture>`;
         }
       };
 
