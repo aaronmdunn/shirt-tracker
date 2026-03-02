@@ -33,11 +33,6 @@
 
 # Long-lived cache for fonts (immutable — versioned via deploy)
 [[headers]]
-  for = "/*.ttf"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
-[[headers]]
   for = "/*.woff2"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
