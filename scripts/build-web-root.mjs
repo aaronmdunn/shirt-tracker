@@ -8,7 +8,6 @@ const desktopSrc = path.join(root, "apps", "web-desktop", "src");
 const mobileSrc = path.join(root, "apps", "web-mobile", "src");
 const sharedJs = path.join(root, "apps", "shared", "app.shared.js");
 const sharedCss = path.join(root, "apps", "shared", "style.shared.css");
-const sharedSw = path.join(root, "apps", "shared", "sw.js");
 const outDir = path.join(root, "apps", "web-root");
 const outDesktop = path.join(outDir, "d");
 const outMobile = path.join(outDir, "m");
@@ -168,22 +167,6 @@ for (const [dir, platform] of [[outDesktop, "desktop"], [outMobile, "mobile"]]) 
   fs.writeFileSync(jsPath, platformized, "utf8");
 }
 
-// Read APP_VERSION from the shared source so we can inject it into sw.js
-const appVersionMatch = sharedSource.match(/const APP_VERSION = "([^"]+)";/);
-const appVersion = appVersionMatch ? appVersionMatch[1] : "0.0.0";
-
-// Copy shared sw.js into each output dir, inject version, then minify later.
-// sw.js must stay as a separate file — browsers require service workers to be
-// fetched from a real URL, not inlined into HTML.
-if (!fs.existsSync(sharedSw)) {
-  throw new Error(`Shared SW not found: ${sharedSw}`);
-}
-const sharedSwSource = fs.readFileSync(sharedSw, "utf8");
-for (const dir of [outDesktop, outMobile]) {
-  const swPath = path.join(dir, "sw.js");
-  fs.writeFileSync(swPath, sharedSwSource.replace(/__SW_VERSION__/g, appVersion), "utf8");
-}
-
 // Inject CHANGELOG.json into app.js before inlining
 const changelogPath = path.join(root, "CHANGELOG.json");
 if (fs.existsSync(changelogPath)) {
@@ -220,7 +203,6 @@ const minifyFile = async (filePath, loader) => {
 for (const dir of [outDesktop, outMobile]) {
   await minifyFile(path.join(dir, "app.js"), "js");
   await minifyFile(path.join(dir, "style.css"), "css");
-  await minifyFile(path.join(dir, "sw.js"), "js");
 }
 
 // Inline CSS/JS back into single-file HTML for deployment
