@@ -8141,23 +8141,203 @@ const collectAllStats = () => {
   });
   if (shortestName.length === Infinity) shortestName = { name: "", length: 0 };
 
-  // --- Per-tab stats ---
+  // --- Per-tab stats (with value ranking) ---
   const perTab = perTabRows
     .sort((a, b) => b.count - a.count)
     .map((tab) => ({ name: tab.name, id: tab.id, count: tab.count, stats: buildStatsFor(tab.entries) }));
 
-  // --- Recently added (rows with createdAt) ---
-  const recentlyAdded = [];
+  // --- Value per tab (Inventory only — sorted by value descending) ---
+  const valuePerTab = [];
+  if (isInventory) {
+    perTabRows.forEach((tab) => {
+      let tabTotal = 0;
+      tab.entries.forEach((entry) => {
+        const parsed = parseCurrency(getCellValue(entry, "Price"));
+        if (parsed !== null && parsed > 0) tabTotal += parsed;
+      });
+      if (tabTotal > 0) valuePerTab.push({ name: tab.name, value: tabTotal });
+    });
+    valuePerTab.sort((a, b) => b.value - a.value);
+  }
+
+  // --- Tag coverage ---
+  let taggedCount = 0;
+  allRows.forEach((entry) => {
+    const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+    if (tags.some((t) => String(t || "").trim())) taggedCount++;
+  });
+  const tagCoverage = totalItems > 0 ? Math.round((taggedCount / totalItems) * 100) : 0;
+
+  // --- Price distribution histogram (Inventory only) ---
+  const priceBuckets = [
+    { label: "$0 \u2013 $10", min: 0, max: 10, count: 0 },
+    { label: "$10 \u2013 $25", min: 10, max: 25, count: 0 },
+    { label: "$25 \u2013 $50", min: 25, max: 50, count: 0 },
+    { label: "$50 \u2013 $100", min: 50, max: 100, count: 0 },
+    { label: "$100+", min: 100, max: Infinity, count: 0 },
+  ];
+  const allPrices = [];
+  if (isInventory) {
+    allRows.forEach((entry) => {
+      const parsed = parseCurrency(getCellValue(entry, "Price"));
+      if (parsed !== null && parsed > 0) {
+        allPrices.push(parsed);
+        for (const bucket of priceBuckets) {
+          if (parsed >= bucket.min && (parsed < bucket.max || (bucket.max === Infinity && parsed >= bucket.min))) {
+            bucket.count++;
+            break;
+          }
+        }
+      }
+    });
+  }
+
+  // --- Price standard deviation ---
+  let priceStdDev = 0;
+  if (allPrices.length > 1) {
+    const mean = allPrices.reduce((s, p) => s + p, 0) / allPrices.length;
+    const variance = allPrices.reduce((s, p) => s + (p - mean) * (p - mean), 0) / allPrices.length;
+    priceStdDev = Math.sqrt(variance);
+  }
+
+  // --- Items added per month (createdAt-based) ---
+  const monthlyAdds = {};
+  const allDatedItems = [];
   perTabRows.forEach((tab) => {
     tab.entries.forEach((entry) => {
       if (entry.row.createdAt) {
-        const name = getCellValue(entry, "Name") || "Unnamed";
-        recentlyAdded.push({ name, tab: tab.name, createdAt: entry.row.createdAt });
+        const d = new Date(entry.row.createdAt);
+        if (!Number.isNaN(d.getTime())) {
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
+          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed" });
+        }
       }
     });
   });
-  recentlyAdded.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const top5RecentlyAdded = recentlyAdded.slice(0, 5);
+  const itemsPerMonth = Object.entries(monthlyAdds)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, count]) => {
+      const [y, m] = month.split("-");
+      const label = new Date(Number(y), Number(m) - 1).toLocaleDateString(undefined, { year: "numeric", month: "short" });
+      return { label, count };
+    });
+
+  // --- Streak tracker (consecutive weeks with at least one add) ---
+  let currentStreak = 0;
+  let longestStreak = 0;
+  if (allDatedItems.length) {
+    const weekSet = new Set();
+    allDatedItems.forEach(({ date }) => {
+      const jan1 = new Date(date.getFullYear(), 0, 1);
+      const weekNum = Math.ceil(((date - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+      weekSet.add(`${date.getFullYear()}-W${String(weekNum).padStart(2, "0")}`);
+    });
+    const now = new Date();
+    const jan1Now = new Date(now.getFullYear(), 0, 1);
+    const currentWeekNum = Math.ceil(((now - jan1Now) / 86400000 + jan1Now.getDay() + 1) / 7);
+    let checkDate = new Date(now);
+    let streak = 0;
+    for (let i = 0; i < 200; i++) {
+      const jan1Check = new Date(checkDate.getFullYear(), 0, 1);
+      const wn = Math.ceil(((checkDate - jan1Check) / 86400000 + jan1Check.getDay() + 1) / 7);
+      const weekKey = `${checkDate.getFullYear()}-W${String(wn).padStart(2, "0")}`;
+      if (weekSet.has(weekKey)) {
+        streak++;
+        checkDate = new Date(checkDate.getTime() - 7 * 86400000);
+      } else if (i === 0) {
+        // Current week has no adds yet — check if last week continues the streak
+        checkDate = new Date(checkDate.getTime() - 7 * 86400000);
+      } else {
+        break;
+      }
+    }
+    currentStreak = streak;
+    // Longest streak
+    const sortedWeeks = Array.from(weekSet).sort();
+    let run = 1;
+    let best = 1;
+    for (let i = 1; i < sortedWeeks.length; i++) {
+      const prev = sortedWeeks[i - 1];
+      const curr = sortedWeeks[i];
+      const [py, pw] = prev.split("-W").map(Number);
+      const [cy, cw] = curr.split("-W").map(Number);
+      const prevDate = new Date(py, 0, 1 + (pw - 1) * 7);
+      const currDate = new Date(cy, 0, 1 + (cw - 1) * 7);
+      const diffDays = Math.round((currDate - prevDate) / 86400000);
+      if (diffDays >= 5 && diffDays <= 9) {
+        run++;
+      } else {
+        run = 1;
+      }
+      if (run > best) best = run;
+    }
+    longestStreak = sortedWeeks.length > 0 ? best : 0;
+  }
+
+  // --- Collection diversity index (Shannon entropy on types + fandoms) ---
+  const shannonEntropy = (tally) => {
+    const total = tally.reduce((s, [, c]) => s + c, 0);
+    if (total === 0) return 0;
+    let entropy = 0;
+    tally.forEach(([, count]) => {
+      const p = count / total;
+      if (p > 0) entropy -= p * Math.log2(p);
+    });
+    return entropy;
+  };
+  const fullTypeTally = tallyFrom(allRows, "Type");
+  const fullFandomTally = tallyFrom(allRows, "Fandom");
+  const typeEntropy = shannonEntropy(fullTypeTally);
+  const fandomEntropy = shannonEntropy(fullFandomTally);
+  const maxTypeEntropy = fullTypeTally.length > 1 ? Math.log2(fullTypeTally.length) : 1;
+  const maxFandomEntropy = fullFandomTally.length > 1 ? Math.log2(fullFandomTally.length) : 1;
+  const typeDiversity = maxTypeEntropy > 0 ? Math.round((typeEntropy / maxTypeEntropy) * 100) : 0;
+  const fandomDiversity = maxFandomEntropy > 0 ? Math.round((fandomEntropy / maxFandomEntropy) * 100) : 0;
+
+  // --- Storage estimate ---
+  let photoCount = 0;
+  let supaPhotoCount = 0;
+  perTabRows.forEach(({ entries }) => {
+    entries.forEach(({ row, columns }) => {
+      const photoCols = columns.filter((c) => c.type === "photo");
+      photoCols.forEach((col) => {
+        const val = row.cells ? (row.cells[col.id] || "") : "";
+        if (!val) return;
+        photoCount++;
+        if (val.startsWith("supa:")) supaPhotoCount++;
+      });
+    });
+  });
+  const logoMap = loadLogoMap();
+  const supaLogoCount = Object.values(logoMap).filter((v) => v && String(v).startsWith("supa:")).length;
+  const estimatedStorageMB = ((supaPhotoCount * 200 + supaLogoCount * 50) / 1024).toFixed(1);
+
+  // --- Rarity score (types/fandoms that appear only once) ---
+  const rareTypes = fullTypeTally.filter(([, c]) => c === 1).map(([name]) => name);
+  const rareFandoms = fullFandomTally.filter(([, c]) => c === 1).map(([name]) => name);
+
+  // --- Name word frequency ---
+  const wordCounts = {};
+  const stopWords = new Set(["the", "a", "an", "and", "or", "of", "in", "on", "for", "to", "with", "is", "at", "by", "from", "it", "its", "no", "not", "but", "be", "as", "do", "my", "so"]);
+  allRows.forEach((entry) => {
+    const name = getCellValue(entry, "Name");
+    if (!name) return;
+    name.split(/[\s\-\/\(\)\[\]:,]+/).forEach((word) => {
+      const w = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (w.length < 2 || stopWords.has(w)) return;
+      wordCounts[w] = (wordCounts[w] || 0) + 1;
+    });
+  });
+  const topWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  // --- Recently added (rows with createdAt) ---
+  allDatedItems.sort((a, b) => b.date - a.date);
+  const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
+    name: item.name,
+    tab: item.tab,
+    createdAt: item.date.toISOString(),
+  }));
 
   // --- Recently deleted ---
   const deletedEntries = loadDeletedRows();
@@ -8175,6 +8355,23 @@ const collectAllStats = () => {
     longestName,
     shortestName,
     perTab,
+    valuePerTab,
+    tagCoverage,
+    taggedCount,
+    priceBuckets,
+    priceStdDev,
+    itemsPerMonth,
+    currentStreak,
+    longestStreak,
+    typeDiversity,
+    fandomDiversity,
+    photoCount,
+    supaPhotoCount,
+    supaLogoCount,
+    estimatedStorageMB,
+    rareTypes,
+    rareFandoms,
+    topWords,
     recentlyAdded: top5RecentlyAdded,
     recentlyDeleted,
   };
@@ -8201,9 +8398,22 @@ const openStatsDialog = () => {
     }).join("")}</div>`;
   };
 
+  const bucketChart = (buckets) => {
+    const maxCount = Math.max(...buckets.map((b) => b.count));
+    if (maxCount === 0) return "";
+    return `<div class="stats-bar-chart">${buckets.map((b) => {
+      const pct = maxCount > 0 ? Math.round((b.count / maxCount) * 100) : 0;
+      return `<div class="stats-bar-row"><span class="stats-bar-label">${esc(b.label)}</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${pct}%"></div></div><span class="stats-bar-count">${b.count}</span></div>`;
+    }).join("")}</div>`;
+  };
+
   const renderTallySection = (title, tally, maxItems) => {
     if (!tally.length) return "";
     return section(`<div class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
+  };
+
+  const progressBar = (pct, label) => {
+    return `<div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${Math.min(pct, 100)}%"></div></div><span class="stats-progress-label">${esc(label)}</span></div>`;
   };
 
   const renderPricing = (stats) => {
@@ -8211,6 +8421,9 @@ const openStatsDialog = () => {
     let block = row("Total value", formatCurrency(stats.totalCost));
     block += row("Mean price", formatCurrency(stats.meanPrice));
     block += row("Median price", formatCurrency(stats.medianPrice));
+    if (s.priceStdDev > 0) {
+      block += row("Std deviation", formatCurrency(s.priceStdDev));
+    }
     block += `<div class="stats-section-title" style="margin-top:8px">Most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
       block += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
@@ -8250,6 +8463,22 @@ const openStatsDialog = () => {
   // --- Pricing (Inventory) ---
   html += renderPricing(s);
 
+  // --- Value per tab (Inventory) ---
+  if (s.isInventory && s.valuePerTab.length > 1) {
+    const totalVal = s.valuePerTab.reduce((sum, t) => sum + t.value, 0);
+    let block = `<div class="stats-section-title">Value by tab</div>`;
+    s.valuePerTab.forEach((tab) => {
+      const pct = totalVal > 0 ? Math.round((tab.value / totalVal) * 100) : 0;
+      block += sub(tab.name, `${formatCurrency(tab.value)} (${pct}%)`);
+    });
+    html += section(block);
+  }
+
+  // --- Price distribution histogram (Inventory) ---
+  if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
+    html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
+  }
+
   // --- Names ---
   if (s.longestName.name || s.shortestName.name) {
     let nameBlock = "";
@@ -8264,6 +8493,78 @@ const openStatsDialog = () => {
   html += renderTallySection("Top fandoms", s.fandomTally, 5);
   html += renderTallySection("Size breakdown", s.sizeTally);
   if (s.topTags.length) html += renderTallySection("Top tags", s.topTags);
+
+  // --- Tag coverage ---
+  if (s.totalItems > 0) {
+    let tagBlock = row("Items tagged", `${s.taggedCount} / ${s.totalItems}`);
+    tagBlock += progressBar(s.tagCoverage, `${s.tagCoverage}% coverage`);
+    html += section(tagBlock);
+  }
+
+  // --- Collection diversity index ---
+  if (s.typeDiversity > 0 || s.fandomDiversity > 0) {
+    let divBlock = `<div class="stats-section-title">Collection diversity</div>`;
+    if (s.typeDiversity > 0) {
+      const typeLabel = s.typeDiversity >= 80 ? "Generalist" : s.typeDiversity >= 50 ? "Balanced" : "Specialist";
+      divBlock += row("Types", `${s.typeDiversity}% \u2014 ${typeLabel}`);
+      divBlock += progressBar(s.typeDiversity, "");
+    }
+    if (s.fandomDiversity > 0) {
+      const fandomLabel = s.fandomDiversity >= 80 ? "Generalist" : s.fandomDiversity >= 50 ? "Balanced" : "Specialist";
+      divBlock += row("Fandoms", `${s.fandomDiversity}% \u2014 ${fandomLabel}`);
+      divBlock += progressBar(s.fandomDiversity, "");
+    }
+    html += section(divBlock);
+  }
+
+  // --- Rarity score ---
+  if (s.rareTypes.length || s.rareFandoms.length) {
+    let rareBlock = `<div class="stats-section-title">Rarities</div>`;
+    if (s.rareTypes.length) {
+      rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
+      s.rareTypes.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
+      if (s.rareTypes.length > 5) rareBlock += sub(`+${s.rareTypes.length - 5} more`, "");
+    }
+    if (s.rareFandoms.length) {
+      rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
+      s.rareFandoms.slice(0, 5).forEach((name) => { rareBlock += sub(name, ""); });
+      if (s.rareFandoms.length > 5) rareBlock += sub(`+${s.rareFandoms.length - 5} more`, "");
+    }
+    html += section(rareBlock);
+  }
+
+  // --- Name word frequency ---
+  if (s.topWords.length) {
+    html += renderTallySection("Common words in names", s.topWords, 10);
+  }
+
+  // --- Items added per month ---
+  if (s.itemsPerMonth.length) {
+    let monthBlock = `<div class="stats-section-title">Items added per month</div>`;
+    monthBlock += bucketChart(s.itemsPerMonth.map((m) => ({ label: m.label, count: m.count })));
+    if (s.currentStreak > 0 || s.longestStreak > 0) {
+      monthBlock += `<div style="margin-top:8px"></div>`;
+      if (s.currentStreak > 0) {
+        monthBlock += row("Current streak", `${s.currentStreak} ${s.currentStreak === 1 ? "week" : "weeks"}`);
+      }
+      if (s.longestStreak > 1) {
+        monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
+      }
+    }
+    html += section(monthBlock);
+  }
+
+  // --- Storage estimate ---
+  if (s.photoCount > 0) {
+    let storageBlock = `<div class="stats-section-title">Storage</div>`;
+    storageBlock += row("Photos", String(s.photoCount));
+    if (s.supaPhotoCount > 0) storageBlock += sub("In cloud", String(s.supaPhotoCount));
+    if (s.supaLogoCount > 0) storageBlock += sub("Tab logos (cloud)", String(s.supaLogoCount));
+    if (s.supaPhotoCount > 0 || s.supaLogoCount > 0) {
+      storageBlock += row("Est. cloud storage", `~${s.estimatedStorageMB} MB`);
+    }
+    html += section(storageBlock);
+  }
 
   // --- Recently added ---
   if (s.recentlyAdded.length) {
