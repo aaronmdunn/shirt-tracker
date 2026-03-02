@@ -1845,19 +1845,15 @@
         margin-bottom: 8px;
       }
 
-      #stats-dialog[open] {
+      #stats-dialog {
         max-width: 440px;
         width: 90vw;
-        max-height: 80vh;
-        display: flex;
-        flex-direction: column;
       }
 
       #stats-dialog .dialog-body {
         padding: 20px 24px 12px;
         overflow-y: auto;
-        flex: 1;
-        min-height: 0;
+        max-height: 70vh;
       }
 
       #stats-dialog .dialog-actions {
@@ -2835,7 +2831,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/1/2026, 7:20:49 PM" readonly>
+                <input type="text" id="app-update-date" value="3/1/2026, 7:23:16 PM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3528,7 +3524,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-02T00:20:49.214Z";
+      const LAST_COMMIT_DATE = "2026-03-02T00:23:16.416Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
