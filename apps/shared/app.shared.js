@@ -53,25 +53,12 @@ const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
-// --- Service Worker Registration ---
-// Registers sw.js for offline support and instant repeat loads.
-// Skipped in Tauri (native app doesn't use service workers).
+// --- Service Worker Cleanup ---
+// The service worker was removed in v2.0.11. Unregister any leftover SW
+// so returning users don't get stale cached pages.
 if ("serviceWorker" in navigator && !(window.__TAURI__ || window.__TAURI_INTERNALS__)) {
-  navigator.serviceWorker.register("sw.js").then((reg) => {
-    // When a new SW is found (deploy happened), listen for it to activate
-    reg.addEventListener("updatefound", () => {
-      const newWorker = reg.installing;
-      if (!newWorker) return;
-      newWorker.addEventListener("statechange", () => {
-        if (newWorker.state === "activated" && navigator.serviceWorker.controller) {
-          // A new version was installed & activated — reload to use it immediately
-          console.log("[SW] New version installed. Reloading…");
-          window.location.reload();
-        }
-      });
-    });
-  }).catch((err) => {
-    console.warn("[SW] Registration failed:", err);
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const reg of regs) reg.unregister();
   });
 }
 

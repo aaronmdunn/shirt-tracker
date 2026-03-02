@@ -28,8 +28,7 @@
     # - font-src: self (fonts are self-hosted)
     # - frame-ancestors 'none': prevents clickjacking from any origin
     # - form-action 'self': prevents form submissions to external sites
-    # worker-src 'self': allows same-origin service worker registration (sw.js)
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://plausible.io; worker-src 'self'; connect-src 'self' https://*.supabase.co https://plausible.io; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://plausible.io; connect-src 'self' https://*.supabase.co https://plausible.io; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-ancestors 'none'; form-action 'self';"
 
 # Long-lived cache for fonts (immutable — versioned via deploy)
 [[headers]]
@@ -43,8 +42,3 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Service worker — always revalidate
-[[headers]]
-  for = "/*/sw.js"
-  [headers.values]
-    Cache-Control = "no-cache"
