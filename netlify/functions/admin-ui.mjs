@@ -13,10 +13,21 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "https://shirt-tracker.com",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+const ALLOWED_ORIGINS = [
+  "https://shirt-tracker.com",
+  "tauri://localhost",
+  "https://tauri.localhost",
+];
+
+const getCorsHeaders = (requestOrigin) => {
+  const origin = ALLOWED_ORIGINS.includes(requestOrigin)
+    ? requestOrigin
+    : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
 };
 
 /**
@@ -281,14 +292,17 @@ const adminUiScript = `
 `;
 
 export const handler = async (event) => {
+  const origin = event.headers.origin || event.headers.Origin || "";
+  const cors = getCorsHeaders(origin);
+
   if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 204, headers: corsHeaders, body: "" };
+    return { statusCode: 204, headers: cors, body: "" };
   }
 
   if (event.httpMethod !== "GET") {
     return {
       statusCode: 405,
-      headers: corsHeaders,
+      headers: cors,
       body: JSON.stringify({ error: "Method not allowed" }),
     };
   }
@@ -296,7 +310,7 @@ export const handler = async (event) => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ADMIN_USER_ID) {
     return {
       statusCode: 500,
-      headers: corsHeaders,
+      headers: cors,
       body: JSON.stringify({ error: "Server configuration error" }),
     };
   }
@@ -307,7 +321,7 @@ export const handler = async (event) => {
   if (!admin) {
     return {
       statusCode: 403,
-      headers: corsHeaders,
+      headers: cors,
       body: JSON.stringify({ error: "Forbidden" }),
     };
   }
@@ -315,7 +329,7 @@ export const handler = async (event) => {
   return {
     statusCode: 200,
     headers: {
-      ...corsHeaders,
+      ...cors,
       "Content-Type": "text/javascript; charset=utf-8",
       "Cache-Control": "no-store",
     },
