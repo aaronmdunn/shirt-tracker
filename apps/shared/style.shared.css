@@ -1565,14 +1565,39 @@ td[data-label="Preview"] {
   border-color: #4caf50;
 }
 
+.btn-log-wear.undo {
+  border-color: #e57373;
+  background: #ffebee;
+  color: #c62828;
+}
+
+.btn-log-wear.undo:hover {
+  background: #ffcdd2;
+  border-color: #ef5350;
+}
+
+input[type="date"].wear-date-input {
+  width: auto;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-family: "Work Sans", "Trebuchet MS", sans-serif;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
 /* PLATFORM:mobile */
 .wear-card-section {
   padding: 10px 0 4px;
   border-top: 1px dashed var(--line);
   margin-top: 4px;
+  text-align: center;
 }
 
 .wear-card-section .wear-panel-inner {
+  justify-content: center;
   gap: 10px;
 }
 
