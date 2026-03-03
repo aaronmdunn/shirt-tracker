@@ -3068,7 +3068,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/3/2026, 9:36:55 AM" readonly>
+                <input type="text" id="app-update-date" value="3/3/2026, 9:43:26 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3760,7 +3760,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-03T14:36:55.397Z";
+      const LAST_COMMIT_DATE = "2026-03-03T14:43:26.421Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -12595,12 +12595,10 @@
                 monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
               }
             }
-            if (s.noBuyCurrentDays > 0 || s.noBuyLongestDays > 0) {
-              monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
-              monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
-              if (s.noBuyLongestDays > 0) {
-                monthBlock += row("Longest no-buy streak", `${s.noBuyLongestDays} ${s.noBuyLongestDays === 1 ? "day" : "days"}`);
-              }
+            monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
+            monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
+            if (s.noBuyLongestDays > 0) {
+              monthBlock += row("Longest no-buy streak", `${s.noBuyLongestDays} ${s.noBuyLongestDays === 1 ? "day" : "days"}`);
             }
             html += section(monthBlock);
           }
