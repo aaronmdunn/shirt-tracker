@@ -2962,7 +2962,9 @@ const updateHeaderTitle = () => {
   if (PLATFORM === "mobile") {
     appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker-600.webp" type="image/webp"><img src="assets/shirt-tracker-600.png" alt="Shirt Tracker" width="600" height="173" style="max-width:min(500px, 90vw); width:100%; height:auto;"></picture>`;
   } else {
-    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto;"></picture>`;
+    appTitleEl.innerHTML = `<picture><source srcset="assets/shirt-tracker.webp" type="image/webp"><img src="assets/shirt-tracker.png" alt="Shirt Tracker" width="1000" height="289" style="max-width:min(500px, 90vw); height:auto; display:block; margin:0 auto; cursor:pointer;" title="Click to reload"></picture>`;
+    appTitleEl.style.cursor = "pointer";
+    appTitleEl.addEventListener("click", () => { location.reload(); });
   }
 };
 
@@ -3120,7 +3122,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.10",
+    version: "2.0.11",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -4441,6 +4443,14 @@ const moveRowToInventory = async (rowId) => {
       toTab: chosenTab ? chosenTab.name : "Inventory",
       date: new Date().toISOString(),
     });
+    // Prune to 500 entries max, tracking trimmed count for lifetime total
+    const GOT_IT_CAP = 500;
+    if (gotItLog.length > GOT_IT_CAP) {
+      const overflow = gotItLog.length - GOT_IT_CAP;
+      gotItLog.splice(0, overflow);
+      const prevTrimmed = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
+      localStorage.setItem(GOT_IT_LOG_KEY + ":trimmed", String(prevTrimmed + overflow));
+    }
     localStorage.setItem(GOT_IT_LOG_KEY, JSON.stringify(gotItLog));
   } catch (error) { /* ignore */ }
   state.rows = state.rows.filter((r) => r.id !== rowId);
@@ -8240,7 +8250,7 @@ const collectAllStats = () => {
         if (!Number.isNaN(d.getTime())) {
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
-          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed" });
+          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed", type: getCellValue(entry, "Type") || "" });
         }
       }
     });
@@ -8252,6 +8262,33 @@ const collectAllStats = () => {
       const label = new Date(Number(y), Number(m) - 1).toLocaleDateString(undefined, { year: "numeric", month: "short" });
       return { label, count };
     });
+
+  // --- Days without purchase (no-buy streak) ---
+  let noBuyCurrentDays = 0;
+  let noBuyLongestDays = 0;
+  if (allDatedItems.length) {
+    // Get unique calendar dates (YYYY-MM-DD) when items were added, sorted ascending
+    const addDateSet = new Set();
+    allDatedItems.forEach(({ date }) => {
+      addDateSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
+    });
+    const sortedAddDates = Array.from(addDateSet).sort();
+
+    // Current streak: days from today backward to the last add date
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+    const lastAddDate = sortedAddDates[sortedAddDates.length - 1];
+    if (lastAddDate < todayStr) {
+      noBuyCurrentDays = Math.floor((new Date(todayStr + "T00:00:00") - new Date(lastAddDate + "T00:00:00")) / 86400000);
+    }
+
+    // Longest streak: largest gap between consecutive add dates (and from last add to today)
+    for (let i = 1; i < sortedAddDates.length; i++) {
+      const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000) - 1;
+      if (gap > noBuyLongestDays) noBuyLongestDays = gap;
+    }
+    // Also check gap from last add date to today
+    if (noBuyCurrentDays > noBuyLongestDays) noBuyLongestDays = noBuyCurrentDays;
+  }
 
   // --- Streak tracker (consecutive weeks with at least one add) ---
   let currentStreak = 0;
@@ -8366,6 +8403,7 @@ const collectAllStats = () => {
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
     name: item.name,
     tab: item.tab,
+    type: item.type,
     createdAt: item.date.toISOString(),
   }));
 
@@ -8375,7 +8413,10 @@ const collectAllStats = () => {
     const name = getRowNameFromEntry(entry);
     const date = entry.deletedAt ? new Date(entry.deletedAt).toLocaleDateString() : "";
     const tab = entry.fromTabName || "";
-    return { name, date, tab };
+    const cols = Array.isArray(entry.columns) ? entry.columns : [];
+    const typeCol = cols.find((c) => c.name === "Type");
+    const type = (typeCol && entry.row && entry.row.cells) ? String(entry.row.cells[typeCol.id] || "").trim() : "";
+    return { name, date, tab, type };
   });
 
   // --- Wear-based stats (Inventory only) ---
@@ -8418,6 +8459,12 @@ const collectAllStats = () => {
   const top5MostWorn = wornItems.slice().sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
   // Bottom 5 least worn (wearable items only, wearCount >= 1)
   const bottom5LeastWorn = wearableWornItems.slice().sort((a, b) => a.wearCount - b.wearCount).slice(0, 5);
+  // Last 5 worn: items worn within the past 5 calendar days, sorted most-recent-first
+  const fiveDaysAgo = Date.now() - 5 * 86400000;
+  const last5Worn = wornItems
+    .filter((i) => i.lastWorn && new Date(i.lastWorn).getTime() >= fiveDaysAgo)
+    .sort((a, b) => new Date(b.lastWorn) - new Date(a.lastWorn))
+    .slice(0, 5);
 
   return {
     totalItems,
@@ -8434,6 +8481,8 @@ const collectAllStats = () => {
     itemsPerMonth,
     currentStreak,
     longestStreak,
+    noBuyCurrentDays,
+    noBuyLongestDays,
     typeDiversity,
     fandomDiversity,
     photoCount,
@@ -8449,6 +8498,7 @@ const collectAllStats = () => {
     costPerWear,
     top5MostWorn,
     bottom5LeastWorn,
+    last5Worn,
   };
 };
 
@@ -8640,13 +8690,13 @@ const openStatsDialog = () => {
       html += section(rareBlock);
     }
 
-    // --- Name word frequency ---
-    if (s.topWords.length) {
+    // --- Name word frequency (Inventory only) ---
+    if (s.isInventory && s.topWords.length) {
       html += renderTallySection("Common words in names", s.topWords, 10);
     }
 
-    // --- Items added per month ---
-    if (s.itemsPerMonth.length) {
+    // --- Items added per month (Inventory only) ---
+    if (s.isInventory && s.itemsPerMonth.length) {
       let monthBlock = `<div class="stats-section-title">Items added per month</div>`;
       monthBlock += bucketChart(s.itemsPerMonth.map((m) => ({ label: m.label, count: m.count })));
       if (s.currentStreak > 0 || s.longestStreak > 0) {
@@ -8656,6 +8706,13 @@ const openStatsDialog = () => {
         }
         if (s.longestStreak > 1) {
           monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
+        }
+      }
+      if (s.noBuyCurrentDays > 0 || s.noBuyLongestDays > 0) {
+        monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
+        monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
+        if (s.noBuyLongestDays > 0) {
+          monthBlock += row("Longest no-buy streak", `${s.noBuyLongestDays} ${s.noBuyLongestDays === 1 ? "day" : "days"}`);
         }
       }
       html += section(monthBlock);
@@ -8675,7 +8732,7 @@ const openStatsDialog = () => {
   }
 
   // --- Wear tracking stats (Inventory only) ---
-  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn)) {
+  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     if (s.longestUnworn) {
       wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${s.longestUnworn.daysSince} days)`);
@@ -8684,6 +8741,13 @@ const openStatsDialog = () => {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
       s.top5MostWorn.forEach((item, i) => {
         wearBlock += sub(`${i + 1}. ${item.name}`, `${item.wearCount} wears`);
+      });
+    }
+    if (s.last5Worn.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Last 5 worn</div>`;
+      s.last5Worn.forEach((item, i) => {
+        const date = new Date(item.lastWorn).toLocaleDateString();
+        wearBlock += sub(`${i + 1}. ${item.name}`, date);
       });
     }
     if (s.bottom5LeastWorn.length) {
@@ -8706,16 +8770,18 @@ const openStatsDialog = () => {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
-      addedBlock += sub(item.name, `${item.tab} \u00B7 ${date}`);
+      const label = item.type ? `${item.name} (${item.type})` : item.name;
+      addedBlock += sub(label, `${item.tab} \u00B7 ${date}`);
     });
     html += section(addedBlock);
   }
 
-  // --- Recently deleted ---
-  if (s.recentlyDeleted.length) {
+  // --- Recently deleted (Inventory only) ---
+  if (s.isInventory && s.recentlyDeleted.length) {
     let delBlock = `<div class="stats-section-title">Recently deleted</div>`;
     s.recentlyDeleted.forEach((item) => {
-      delBlock += sub(item.name, `${item.tab} \u00B7 ${item.date}`);
+      const label = item.type ? `${item.name} (${item.type})` : item.name;
+      delBlock += sub(label, `${item.tab} \u00B7 ${item.date}`);
     });
     html += section(delBlock);
   }
@@ -8726,8 +8792,10 @@ const openStatsDialog = () => {
     try {
       gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
     } catch (error) { /* ignore */ }
+    const trimmedCount = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
+    const lifetimeTotal = gotItLog.length + trimmedCount;
     let wishBlock = "";
-    wishBlock += row("Items obtained", String(gotItLog.length));
+    wishBlock += row("Items obtained", String(lifetimeTotal));
     if (gotItLog.length > 0) {
       const last = gotItLog[gotItLog.length - 1];
       const lastDate = last.date ? new Date(last.date).toLocaleDateString() : "";
