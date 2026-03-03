@@ -3068,7 +3068,7 @@
               </div>
               <div class="update-row">
                 <label for="app-update-date">App Last Updated</label>
-                <input type="text" id="app-update-date" value="3/3/2026, 9:43:26 AM" readonly>
+                <input type="text" id="app-update-date" value="3/3/2026, 9:45:07 AM" readonly>
               </div>
               <div class="event-log-link"><a href="#" id="event-log-link">Event Log</a></div>
               <div class="event-log-link"><a href="#" id="changelog-link">Changelog</a></div>
@@ -3760,7 +3760,7 @@
       const IS_WEB_BUILD = true;
       const PLATFORM = "desktop"; // replaced at build time with "desktop" or "mobile"
       const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
-      const LAST_COMMIT_DATE = "2026-03-03T14:43:26.421Z";
+      const LAST_COMMIT_DATE = "2026-03-03T14:45:07.902Z";
       const APP_VERSION_KEY = "shirts-app-version";
       const APP_UPDATE_KEY = "shirts-app-update-date";
 
@@ -12150,7 +12150,9 @@
             return { label, count };
           });
 
-        // --- Days without purchase (no-buy streak) ---
+        // --- Purchase streak and no-buy streak (both day-based) ---
+        let currentStreak = 0;
+        let longestStreak = 0;
         let noBuyCurrentDays = 0;
         let noBuyLongestDays = 0;
         if (allDatedItems.length) {
@@ -12160,73 +12162,51 @@
             addDateSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
           });
           const sortedAddDates = Array.from(addDateSet).sort();
+          const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          const todayStr = toDateStr(new Date());
 
-          // Current streak: days from today backward to the last add date
-          const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
-          const lastAddDate = sortedAddDates[sortedAddDates.length - 1];
-          if (lastAddDate < todayStr) {
-            noBuyCurrentDays = Math.floor((new Date(todayStr + "T00:00:00") - new Date(lastAddDate + "T00:00:00")) / 86400000);
-          }
-
-          // Longest streak: largest gap between consecutive add dates (and from last add to today)
-          for (let i = 1; i < sortedAddDates.length; i++) {
-            const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000) - 1;
-            if (gap > noBuyLongestDays) noBuyLongestDays = gap;
-          }
-          // Also check gap from last add date to today
-          if (noBuyCurrentDays > noBuyLongestDays) noBuyLongestDays = noBuyCurrentDays;
-        }
-
-        // --- Streak tracker (consecutive weeks with at least one add) ---
-        let currentStreak = 0;
-        let longestStreak = 0;
-        if (allDatedItems.length) {
-          const weekSet = new Set();
-          allDatedItems.forEach(({ date }) => {
-            const jan1 = new Date(date.getFullYear(), 0, 1);
-            const weekNum = Math.ceil(((date - jan1) / 86400000 + jan1.getDay() + 1) / 7);
-            weekSet.add(`${date.getFullYear()}-W${String(weekNum).padStart(2, "0")}`);
-          });
-          const now = new Date();
-          const jan1Now = new Date(now.getFullYear(), 0, 1);
-          const currentWeekNum = Math.ceil(((now - jan1Now) / 86400000 + jan1Now.getDay() + 1) / 7);
-          let checkDate = new Date(now);
-          let streak = 0;
-          for (let i = 0; i < 200; i++) {
-            const jan1Check = new Date(checkDate.getFullYear(), 0, 1);
-            const wn = Math.ceil(((checkDate - jan1Check) / 86400000 + jan1Check.getDay() + 1) / 7);
-            const weekKey = `${checkDate.getFullYear()}-W${String(wn).padStart(2, "0")}`;
-            if (weekSet.has(weekKey)) {
-              streak++;
-              checkDate = new Date(checkDate.getTime() - 7 * 86400000);
+          // --- Current purchase streak: consecutive days with adds, counting backward from today ---
+          let pStreak = 0;
+          const checkDate = new Date();
+          for (let i = 0; i < 3650; i++) {
+            if (addDateSet.has(toDateStr(checkDate))) {
+              pStreak++;
+              checkDate.setDate(checkDate.getDate() - 1);
             } else if (i === 0) {
-              // Current week has no adds yet — check if last week continues the streak
-              checkDate = new Date(checkDate.getTime() - 7 * 86400000);
+              // Today has no adds — check if yesterday continues
+              checkDate.setDate(checkDate.getDate() - 1);
             } else {
               break;
             }
           }
-          currentStreak = streak;
-          // Longest streak
-          const sortedWeeks = Array.from(weekSet).sort();
+          currentStreak = pStreak;
+
+          // --- Longest purchase streak: longest run of consecutive add-dates ---
           let run = 1;
           let best = 1;
-          for (let i = 1; i < sortedWeeks.length; i++) {
-            const prev = sortedWeeks[i - 1];
-            const curr = sortedWeeks[i];
-            const [py, pw] = prev.split("-W").map(Number);
-            const [cy, cw] = curr.split("-W").map(Number);
-            const prevDate = new Date(py, 0, 1 + (pw - 1) * 7);
-            const currDate = new Date(cy, 0, 1 + (cw - 1) * 7);
-            const diffDays = Math.round((currDate - prevDate) / 86400000);
-            if (diffDays >= 5 && diffDays <= 9) {
+          for (let i = 1; i < sortedAddDates.length; i++) {
+            const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000);
+            if (gap === 1) {
               run++;
             } else {
               run = 1;
             }
             if (run > best) best = run;
           }
-          longestStreak = sortedWeeks.length > 0 ? best : 0;
+          longestStreak = sortedAddDates.length > 0 ? best : 0;
+
+          // --- No-buy streak: days since last add ---
+          const lastAddDate = sortedAddDates[sortedAddDates.length - 1];
+          if (lastAddDate < todayStr) {
+            noBuyCurrentDays = Math.floor((new Date(todayStr + "T00:00:00") - new Date(lastAddDate + "T00:00:00")) / 86400000);
+          }
+
+          // --- Longest no-buy streak: largest gap between consecutive add dates ---
+          for (let i = 1; i < sortedAddDates.length; i++) {
+            const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000) - 1;
+            if (gap > noBuyLongestDays) noBuyLongestDays = gap;
+          }
+          if (noBuyCurrentDays > noBuyLongestDays) noBuyLongestDays = noBuyCurrentDays;
         }
 
         // --- Collection diversity index (Shannon entropy on types + fandoms) ---
@@ -12586,14 +12566,10 @@
           if (s.isInventory && s.itemsPerMonth.length) {
             let monthBlock = `<div class="stats-section-title">Items added per month</div>`;
             monthBlock += bucketChart(s.itemsPerMonth.map((m) => ({ label: m.label, count: m.count })));
-            if (s.currentStreak > 0 || s.longestStreak > 0) {
-              monthBlock += `<div style="margin-top:8px"></div>`;
-              if (s.currentStreak > 0) {
-                monthBlock += row("Current streak", `${s.currentStreak} ${s.currentStreak === 1 ? "week" : "weeks"}`);
-              }
-              if (s.longestStreak > 1) {
-                monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
-              }
+            monthBlock += `<div class="stats-section-title" style="margin-top:8px">Purchase streaks</div>`;
+            monthBlock += row("Current streak", `${s.currentStreak} ${s.currentStreak === 1 ? "day" : "days"}`);
+            if (s.longestStreak > 0) {
+              monthBlock += row("Longest streak", `${s.longestStreak} ${s.longestStreak === 1 ? "day" : "days"}`);
             }
             monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
             monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
