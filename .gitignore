@@ -32,8 +32,5 @@ deno.lock
 # macOS app bundles
 *.app
 
-# Continuation prompt (local only)
-PROMPT.md
-
 # macOS copy artifacts
 * 2/
