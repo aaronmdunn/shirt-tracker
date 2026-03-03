@@ -8708,12 +8708,10 @@ const openStatsDialog = () => {
           monthBlock += row("Longest streak", `${s.longestStreak} weeks`);
         }
       }
-      if (s.noBuyCurrentDays > 0 || s.noBuyLongestDays > 0) {
-        monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
-        monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
-        if (s.noBuyLongestDays > 0) {
-          monthBlock += row("Longest no-buy streak", `${s.noBuyLongestDays} ${s.noBuyLongestDays === 1 ? "day" : "days"}`);
-        }
+      monthBlock += `<div class="stats-section-title" style="margin-top:8px">Days without purchase</div>`;
+      monthBlock += row("Current no-buy streak", `${s.noBuyCurrentDays} ${s.noBuyCurrentDays === 1 ? "day" : "days"}`);
+      if (s.noBuyLongestDays > 0) {
+        monthBlock += row("Longest no-buy streak", `${s.noBuyLongestDays} ${s.noBuyLongestDays === 1 ? "day" : "days"}`);
       }
       html += section(monthBlock);
     }
