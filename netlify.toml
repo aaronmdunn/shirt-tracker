@@ -1,3 +1,7 @@
+[build]
+  command = "npm install && node scripts/build-web-root.mjs"
+  publish = "apps/web-root"
+
 [functions]
   directory = "netlify/functions"
 
