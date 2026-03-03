@@ -2151,9 +2151,21 @@ const renderRecycleBin = () => {
     permDeleteBtn.className = "btn danger-btn";
     permDeleteBtn.textContent = "Delete Forever";
     permDeleteBtn.style.cssText = "padding:4px 10px; font-size:0.75rem;";
+    let deleteArmed = false;
+    let deleteTimer = null;
     permDeleteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      permanentlyDeleteRow(idx);
+      if (deleteArmed) {
+        clearTimeout(deleteTimer);
+        permanentlyDeleteRow(idx);
+        return;
+      }
+      deleteArmed = true;
+      permDeleteBtn.textContent = "Are you sure?";
+      deleteTimer = setTimeout(() => {
+        deleteArmed = false;
+        permDeleteBtn.textContent = "Delete Forever";
+      }, 3000);
     });
     actions.appendChild(restoreBtn);
     actions.appendChild(permDeleteBtn);
@@ -2249,7 +2261,6 @@ const getRowNameFromEntry = (entry) => {
 const permanentlyDeleteRow = (idx) => {
   const entries = loadDeletedRows();
   if (idx < 0 || idx >= entries.length) return;
-  if (!confirm("Permanently delete this item? This cannot be undone.")) return;
   const entry = entries[idx];
   addEventLog("Permanently deleted from recycle bin", getRowNameFromEntry(entry), null);
   entries.splice(idx, 1);
@@ -2261,7 +2272,6 @@ const permanentlyDeleteRow = (idx) => {
 const emptyRecycleBin = () => {
   const entries = loadDeletedRows();
   if (!entries.length) return;
-  if (!confirm(`Permanently delete all ${entries.length} item${entries.length !== 1 ? "s" : ""} in the recycle bin? This cannot be undone.`)) return;
   addEventLog("Emptied recycle bin", `${entries.length} item${entries.length !== 1 ? "s" : ""} removed`, null);
   saveDeletedRows([]);
   scheduleSync();
@@ -6481,6 +6491,7 @@ const renderRows = () => {
           clearTimeout(undoTimer);
           targetRow.wearCount = logBtn._prevCount;
           targetRow.lastWorn = logBtn._prevLastWorn;
+          targetRow.wearLog = logBtn._prevWearLog;
           saveState();
           renderRows();
           return;
@@ -6488,11 +6499,17 @@ const renderRows = () => {
         // Capture previous state for undo
         logBtn._prevCount = targetRow.wearCount || 0;
         logBtn._prevLastWorn = targetRow.lastWorn || null;
+        logBtn._prevWearLog = targetRow.wearLog ? targetRow.wearLog.slice() : [];
         // Apply wear
         const chosen = dateInput.value || new Date().toISOString().slice(0, 10);
         const wornDate = new Date(chosen + "T12:00:00").toISOString();
         targetRow.wearCount = (targetRow.wearCount || 0) + 1;
         targetRow.lastWorn = wornDate;
+        // Append to wearLog and trim entries older than 365 days
+        if (!targetRow.wearLog) targetRow.wearLog = [];
+        targetRow.wearLog.push(wornDate);
+        const cutoff = Date.now() - 365 * 86400000;
+        targetRow.wearLog = targetRow.wearLog.filter((d) => new Date(d).getTime() >= cutoff);
         saveState();
         // Update display inline (avoid full re-render during undo window)
         countStat.querySelector(".wear-stat-value").textContent = String(targetRow.wearCount);
@@ -8052,8 +8069,23 @@ if (recycleBinCloseButton) {
   });
 }
 if (recycleBinEmptyAllButton) {
+  let emptyAllArmed = false;
+  let emptyAllTimer = null;
+  const emptyAllOriginalText = recycleBinEmptyAllButton.textContent;
   recycleBinEmptyAllButton.addEventListener("click", () => {
-    emptyRecycleBin();
+    if (emptyAllArmed) {
+      clearTimeout(emptyAllTimer);
+      emptyAllArmed = false;
+      recycleBinEmptyAllButton.textContent = emptyAllOriginalText;
+      emptyRecycleBin();
+      return;
+    }
+    emptyAllArmed = true;
+    recycleBinEmptyAllButton.textContent = "Are you sure?";
+    emptyAllTimer = setTimeout(() => {
+      emptyAllArmed = false;
+      recycleBinEmptyAllButton.textContent = emptyAllOriginalText;
+    }, 3000);
   });
 }
 if (recycleBinLink) {
@@ -8084,7 +8116,7 @@ const collectAllStats = () => {
         return;
       }
     }
-    const entries = rows.map((row) => ({ row, columns: cols }));
+    const entries = rows.map((row) => ({ row, columns: cols, tabName: tab.name }));
     perTabRows.push({ name: tab.name, id: tab.id, count: rows.length, entries });
     entries.forEach((e) => allRows.push(e));
   });
@@ -8119,7 +8151,7 @@ const collectAllStats = () => {
         if (parsed !== null && parsed > 0) {
           const name = getCellValue(entry, "Name") || "Unnamed";
           prices.push(parsed);
-          priceItems.push({ name, price: parsed });
+          priceItems.push({ name, tab: entry.tabName || "", price: parsed });
         }
       });
       priceItems.sort((a, b) => b.price - a.price);
@@ -8181,7 +8213,7 @@ const collectAllStats = () => {
       const hiddenIds = columnOverrides.hiddenColumnsByTab[tab.id];
       const hidden = new Set(Array.isArray(hiddenIds) ? hiddenIds : []);
       const filtered = hidden.size > 0
-        ? tab.entries.map((e) => ({ row: e.row, columns: e.columns.filter((c) => !hidden.has(c.id)) }))
+        ? tab.entries.map((e) => ({ row: e.row, columns: e.columns.filter((c) => !hidden.has(c.id)), tabName: e.tabName }))
         : tab.entries;
       return { name: tab.name, id: tab.id, count: tab.count, stats: buildStatsFor(filtered) };
     });
@@ -8363,6 +8395,17 @@ const collectAllStats = () => {
   // --- Rarity score (types/fandoms that appear only once) ---
   const rareTypes = fullTypeTally.filter(([, c]) => c === 1).map(([name]) => name);
   const rareFandoms = fullFandomTally.filter(([, c]) => c === 1).map(([name]) => name);
+  // --- Whale-tagged items ---
+  const whaleItems = [];
+  perTabRows.forEach((tab) => {
+    tab.entries.forEach((entry) => {
+      const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+      if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
+        const name = getCellValue(entry, "Name") || "Unnamed";
+        whaleItems.push({ name, tab: tab.name });
+      }
+    });
+  });
 
   // --- Name word frequency ---
   const wordCounts = {};
@@ -8404,18 +8447,22 @@ const collectAllStats = () => {
   const wornItems = [];
   const wearableWornItems = [];
   if (isInventory) {
-    allRows.forEach((entry) => {
-      const wc = entry.row.wearCount || 0;
-      const lw = entry.row.lastWorn || null;
-      const name = getCellValue(entry, "Name") || "Unnamed";
-      const typeVal = getCellValue(entry, "Type");
-      const priceRaw = getCellValue(entry, "Price");
-      const price = parseCurrency(priceRaw);
-      if (wc >= 1) {
-        const item = { name, wearCount: wc, lastWorn: lw, type: typeVal, price };
-        wornItems.push(item);
-        if (!nonWearableTypes.has(typeVal)) wearableWornItems.push(item);
-      }
+    perTabRows.forEach((tab) => {
+      tab.entries.forEach((entry) => {
+        const wc = entry.row.wearCount || 0;
+        const lw = entry.row.lastWorn || null;
+        const name = getCellValue(entry, "Name") || "Unnamed";
+        const typeVal = getCellValue(entry, "Type");
+        const priceRaw = getCellValue(entry, "Price");
+        const price = parseCurrency(priceRaw);
+        if (wc >= 1) {
+          // Migrate: seed wearLog from lastWorn if log doesn't exist yet
+          const log = entry.row.wearLog && entry.row.wearLog.length ? entry.row.wearLog : (lw ? [lw] : []);
+          const item = { name, tab: tab.name, wearCount: wc, lastWorn: lw, type: typeVal, price, wearLog: log };
+          wornItems.push(item);
+          if (!nonWearableTypes.has(typeVal)) wearableWornItems.push(item);
+        }
+      });
     });
   }
   // Longest unworn: item with oldest lastWorn date
@@ -8426,13 +8473,13 @@ const collectAllStats = () => {
       withDate.sort((a, b) => new Date(a.lastWorn) - new Date(b.lastWorn));
       const oldest = withDate[0];
       const daysSince = Math.floor((Date.now() - new Date(oldest.lastWorn).getTime()) / 86400000);
-      longestUnworn = { name: oldest.name, daysSince, lastWorn: oldest.lastWorn };
+      longestUnworn = { name: oldest.name, tab: oldest.tab, daysSince, lastWorn: oldest.lastWorn };
     }
   }
   // Cost per wear: Price / wearCount, sorted ascending (best value first)
   const costPerWear = wornItems
     .filter((i) => i.price !== null && i.price > 0)
-    .map((i) => ({ name: i.name, cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
+    .map((i) => ({ name: i.name, tab: i.tab, cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
     .sort((a, b) => a.cpw - b.cpw)
     .slice(0, 5);
   // Top 5 most worn
@@ -8445,6 +8492,24 @@ const collectAllStats = () => {
     .filter((i) => i.lastWorn && new Date(i.lastWorn).getTime() >= fiveDaysAgo)
     .sort((a, b) => new Date(b.lastWorn) - new Date(a.lastWorn))
     .slice(0, 5);
+  // Most worn brand by day of week (from wearLog data, last 365 days)
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const brandByDay = Array.from({ length: 7 }, () => ({})); // [{ brand: count }, ...]
+  const logCutoff = Date.now() - 365 * 86400000;
+  wornItems.forEach((item) => {
+    item.wearLog.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      if (d.getTime() >= logCutoff) {
+        const day = d.getDay(); // 0=Sun .. 6=Sat
+        brandByDay[day][item.tab] = (brandByDay[day][item.tab] || 0) + 1;
+      }
+    });
+  });
+  const brandByDayOfWeek = dayNames.map((name, i) => {
+    const counts = brandByDay[i];
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return { day: name, brand: entries.length ? entries[0][0] : null, count: entries.length ? entries[0][1] : 0 };
+  });
 
   return {
     totalItems,
@@ -8471,6 +8536,7 @@ const collectAllStats = () => {
     estimatedStorageMB,
     rareTypes,
     rareFandoms,
+    whaleItems,
     topWords,
     recentlyAdded: top5RecentlyAdded,
     recentlyDeleted,
@@ -8479,6 +8545,7 @@ const collectAllStats = () => {
     top5MostWorn,
     bottom5LeastWorn,
     last5Worn,
+    brandByDayOfWeek,
   };
 };
 
@@ -8531,12 +8598,14 @@ const openStatsDialog = () => {
     }
     block += `<div class="stats-section-title" style="margin-top:8px">Most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
-      block += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+      const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+      block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
       block += `<div class="stats-section-title" style="margin-top:8px">Cheapest</div>`;
       stats.top5Cheapest.forEach((item, i) => {
-        block += sub(`${i + 1}. ${item.name}`, formatCurrency(item.price));
+        const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+        block += sub(label, formatCurrency(item.price));
       });
     }
     return section(block);
@@ -8646,7 +8715,7 @@ const openStatsDialog = () => {
     }
 
     // --- Rarity score ---
-    if (s.rareTypes.length || s.rareFandoms.length) {
+    if (s.rareTypes.length || s.rareFandoms.length || s.whaleItems.length) {
       const rarityList = (items) => {
         let out = "";
         items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
@@ -8666,6 +8735,13 @@ const openStatsDialog = () => {
       if (s.rareFandoms.length) {
         rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
         rareBlock += rarityList(s.rareFandoms);
+      }
+      if (s.whaleItems.length) {
+        rareBlock += `<div class="stats-section-title" style="margin-top:8px">Whales</div>`;
+        rareBlock += row("Total whales", String(s.whaleItems.length));
+        s.whaleItems.forEach((item) => {
+          rareBlock += sub(`${item.name} (${item.tab})`, "");
+        });
       }
       html += section(rareBlock);
     }
@@ -8709,32 +8785,47 @@ const openStatsDialog = () => {
   if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     if (s.longestUnworn) {
-      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${s.longestUnworn.daysSince} days)`);
+      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)}) — ${s.longestUnworn.daysSince} days`);
     }
     if (s.top5MostWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
       s.top5MostWorn.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name}`, `${item.wearCount} wears`);
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.wearCount} wears`);
       });
     }
     if (s.last5Worn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Last 5 worn</div>`;
       s.last5Worn.forEach((item, i) => {
         const date = new Date(item.lastWorn).toLocaleDateString();
-        wearBlock += sub(`${i + 1}. ${item.name}`, date);
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, date);
       });
     }
     if (s.bottom5LeastWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Bottom 5 least worn</div>`;
       s.bottom5LeastWorn.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name}`, `${item.wearCount} ${item.wearCount === 1 ? "wear" : "wears"}`);
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.wearCount} ${item.wearCount === 1 ? "wear" : "wears"}`);
       });
     }
     if (s.costPerWear.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Best cost per wear</div>`;
       s.costPerWear.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name}`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
       });
+    }
+    // Most worn brand by day of week
+    const hasAnyBrand = s.brandByDayOfWeek.some((d) => d.brand);
+    if (hasAnyBrand) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top brand by day of week</div>`;
+      const maxCount = Math.max(...s.brandByDayOfWeek.map((d) => d.count));
+      // Reorder to start on Monday: Mon(1) Tue(2) Wed(3) Thu(4) Fri(5) Sat(6) Sun(0)
+      const ordered = [1, 2, 3, 4, 5, 6, 0].map((i) => s.brandByDayOfWeek[i]);
+      wearBlock += `<div class="stats-bar-chart">`;
+      ordered.forEach((d) => {
+        const pct = d.count && maxCount ? Math.round((d.count / maxCount) * 100) : 0;
+        const label = d.brand ? `${d.brand} (${d.count})` : "—";
+        wearBlock += `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:36px">${d.day}</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${pct}%"></div></div><span class="stats-bar-value">${label}</span></div>`;
+      });
+      wearBlock += `</div>`;
     }
     html += section(wearBlock);
   }
