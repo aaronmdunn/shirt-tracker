@@ -1,5 +1,26 @@
 [
   {
+    "version": "2.0.12",
+    "date": "2026-03-03",
+    "changes": [
+      "Added brand name (tab) in parentheses next to all wear tracking stat items",
+      "Added brand name (tab) in parentheses next to most/least expensive items",
+      "Added wearLog array for per-wear date tracking (capped at 365 days, with undo support)",
+      "Added 'Top brand by day of week' bar chart in Wear Tracking stats",
+      "Added 'Whales' section under Rarities listing all items tagged as Whale",
+      "Fixed Tauri 'Delete Forever' button in recycle bin (replaced native confirm with inline confirmation)",
+      "Applied same inline confirm fix to 'Empty All' recycle bin button",
+      "Version bump script expanded to 10 locations across 8 files",
+      "Added 'Last 5 Worn' stat (items worn within last 5 days)",
+      "Added purchase streaks (current and longest consecutive days with adds)",
+      "Added no-buy streaks (current and longest days without purchase)",
+      "Logo click now refreshes page on desktop (web + Tauri)",
+      "Got It! log capped at 500 entries with trimmed count for lifetime accuracy",
+      "Recently Added and Recently Deleted now show Type in parentheses",
+      "Stats dialog widened to 620px with improved text wrapping"
+    ]
+  },
+  {
     "version": "2.0.11",
     "date": "2026-03-02",
     "changes": [
