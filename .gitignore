@@ -34,3 +34,6 @@ deno.lock
 
 # macOS copy artifacts
 * 2/
+
+# Session prompt (local only)
+PROMPT.md
