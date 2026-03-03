@@ -33,7 +33,7 @@ deno.lock
 *.app
 
 # Continuation prompt (local only)
-CLAUDE-PROMPT.md
+PROMPT.md
 
 # macOS copy artifacts
 * 2/
