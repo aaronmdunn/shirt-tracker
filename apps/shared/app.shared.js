@@ -3144,6 +3144,13 @@ const buildCloudPayload = () => {
       globalColumns: wishlistGlobCols,
     };
   }
+  // Include Got It log in cloud payload so it survives device/browser switches
+  try {
+    const gotItRaw = localStorage.getItem(GOT_IT_LOG_KEY);
+    if (gotItRaw) result.gotItLog = JSON.parse(gotItRaw);
+    const gotItTrimmed = localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed");
+    if (gotItTrimmed) result.gotItLogTrimmed = parseInt(gotItTrimmed, 10);
+  } catch (e) { /* ignore */ }
   return result;
 };
 
@@ -3207,6 +3214,24 @@ const applyCloudPayload = (payload) => {
   }
   if (payload.publicShareId) {
     savePublicShareId(payload.publicShareId);
+  }
+  // Restore Got It log from cloud payload
+  if (Array.isArray(payload.gotItLog)) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
+      // Merge: cloud wins if local is empty, otherwise keep the longer log
+      if (!existing.length || payload.gotItLog.length >= existing.length) {
+        localStorage.setItem(GOT_IT_LOG_KEY, JSON.stringify(payload.gotItLog));
+      }
+    } catch (e) {
+      localStorage.setItem(GOT_IT_LOG_KEY, JSON.stringify(payload.gotItLog));
+    }
+  }
+  if (typeof payload.gotItLogTrimmed === "number" && payload.gotItLogTrimmed > 0) {
+    const localTrimmed = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
+    if (payload.gotItLogTrimmed >= localTrimmed) {
+      localStorage.setItem(GOT_IT_LOG_KEY + ":trimmed", String(payload.gotItLogTrimmed));
+    }
   }
   if (payload.publicShareVisibility) {
     publicShareVisibility = normalizePublicShareVisibility(payload.publicShareVisibility);
@@ -6505,11 +6530,9 @@ const renderRows = () => {
         const wornDate = new Date(chosen + "T12:00:00").toISOString();
         targetRow.wearCount = (targetRow.wearCount || 0) + 1;
         targetRow.lastWorn = wornDate;
-        // Append to wearLog and trim entries older than 365 days
+        // Append to wearLog (lifetime — no trim)
         if (!targetRow.wearLog) targetRow.wearLog = [];
         targetRow.wearLog.push(wornDate);
-        const cutoff = Date.now() - 365 * 86400000;
-        targetRow.wearLog = targetRow.wearLog.filter((d) => new Date(d).getTime() >= cutoff);
         saveState();
         // Update display inline (avoid full re-render during undo window)
         countStat.querySelector(".wear-stat-value").textContent = String(targetRow.wearCount);
@@ -7115,8 +7138,10 @@ window.setInterval(() => {
 
 const executeClearAll = () => {
   lastClearSnapshot = state.rows.map((row) => ({
-    id: row.id,
+    ...row,
     cells: { ...(row.cells || {}) },
+    tags: row.tags ? row.tags.slice() : [],
+    wearLog: row.wearLog ? row.wearLog.slice() : [],
   }));
   undoClearButton.disabled = false;
   state.rows = [defaultRow()];
@@ -7137,8 +7162,10 @@ clearAllButton.addEventListener("click", () => {
 undoClearButton.addEventListener("click", () => {
   if (!lastClearSnapshot || lastClearSnapshot.length === 0) return;
   state.rows = lastClearSnapshot.map((row) => ({
-    id: row.id,
+    ...row,
     cells: { ...(row.cells || {}) },
+    tags: row.tags ? row.tags.slice() : [],
+    wearLog: row.wearLog ? row.wearLog.slice() : [],
   }));
   ensureRowCells();
   addEventLog("Undid clear");
@@ -8282,7 +8309,7 @@ const collectAllStats = () => {
         if (!Number.isNaN(d.getTime())) {
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
-          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed", type: getCellValue(entry, "Type") || "" });
+          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed", type: getCellValue(entry, "Type") || "", brand: getCellValue(entry, "Brand") || "" });
         }
       }
     });
@@ -8427,6 +8454,7 @@ const collectAllStats = () => {
     name: item.name,
     tab: item.tab,
     type: item.type,
+    brand: item.brand,
     createdAt: item.date.toISOString(),
   }));
 
@@ -8486,23 +8514,19 @@ const collectAllStats = () => {
   const top5MostWorn = wornItems.slice().sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
   // Bottom 5 least worn (wearable items only, wearCount >= 1)
   const bottom5LeastWorn = wearableWornItems.slice().sort((a, b) => a.wearCount - b.wearCount).slice(0, 5);
-  // Last 5 worn: items worn within the past 5 calendar days, sorted most-recent-first
-  const fiveDaysAgo = Date.now() - 5 * 86400000;
+  // Last 5 worn: the 5 most recently worn items, sorted most-recent-first
   const last5Worn = wornItems
-    .filter((i) => i.lastWorn && new Date(i.lastWorn).getTime() >= fiveDaysAgo)
+    .filter((i) => i.lastWorn)
     .sort((a, b) => new Date(b.lastWorn) - new Date(a.lastWorn))
     .slice(0, 5);
-  // Most worn brand by day of week (from wearLog data, last 365 days)
+  // Most worn brand by day of week (from wearLog data, lifetime)
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const brandByDay = Array.from({ length: 7 }, () => ({})); // [{ brand: count }, ...]
-  const logCutoff = Date.now() - 365 * 86400000;
   wornItems.forEach((item) => {
     item.wearLog.forEach((dateStr) => {
       const d = new Date(dateStr);
-      if (d.getTime() >= logCutoff) {
-        const day = d.getDay(); // 0=Sun .. 6=Sat
-        brandByDay[day][item.tab] = (brandByDay[day][item.tab] || 0) + 1;
-      }
+      const day = d.getDay(); // 0=Sun .. 6=Sat
+      brandByDay[day][item.tab] = (brandByDay[day][item.tab] || 0) + 1;
     });
   });
   const brandByDayOfWeek = dayNames.map((name, i) => {
@@ -8593,8 +8617,8 @@ const openStatsDialog = () => {
     let block = row("Total value", formatCurrency(stats.totalCost));
     block += row("Mean price", formatCurrency(stats.meanPrice));
     block += row("Median price", formatCurrency(stats.medianPrice));
-    if (s.priceStdDev > 0) {
-      block += row("Std deviation", formatCurrency(s.priceStdDev));
+    if (stats.priceStdDev > 0) {
+      block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
     block += `<div class="stats-section-title" style="margin-top:8px">Most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
@@ -8836,7 +8860,10 @@ const openStatsDialog = () => {
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
       const label = item.type ? `${item.name} (${item.type})` : item.name;
-      addedBlock += sub(label, `${item.tab} \u00B7 ${date}`);
+      // Wishlist: show Brand column value; Inventory: show tab name (which IS the brand)
+      const brandLabel = !s.isInventory ? (item.brand || "") : item.tab;
+      const right = brandLabel ? `${brandLabel} - ${date}` : date;
+      addedBlock += sub(label, right);
     });
     html += section(addedBlock);
   }
