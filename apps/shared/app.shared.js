@@ -7052,6 +7052,9 @@ if (supabase) {
     loadPublicShareState(publicShareToken);
   }
   setAuthLoading(true);
+  // Safety net: reveal the page after 3s even if auth hasn't resolved
+  // (prevents blank page for Lighthouse crawlers and slow connections)
+  setTimeout(() => { if (document.body && !document.body.classList.contains("ready")) document.body.classList.add("ready"); }, 3000);
   supabase.auth.getSession()
     .then(({ data }) => {
       if (publicShareToken) {
