@@ -27,6 +27,10 @@
   box-sizing: border-box;
 }
 
+@keyframes body-reveal {
+  to { opacity: 1; }
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -35,10 +39,12 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   opacity: 0;
+  animation: body-reveal 0.15s ease 2s forwards;
 }
 
 body.ready {
   opacity: 1;
+  animation: none;
   transition: opacity 0.15s ease;
 }
 
