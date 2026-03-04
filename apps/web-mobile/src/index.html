@@ -66,6 +66,7 @@
     <link rel="stylesheet" href="style.css">
   </head>
   <body data-auth="signed-out" data-viewer="false">
+    <script>setTimeout(function(){if(!document.body.classList.contains("ready"))document.body.classList.add("ready")},800)</script>
     <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" style="display:none;">
       <input type="hidden" name="form-name" value="contact">
       <input type="text" name="bot-field">
