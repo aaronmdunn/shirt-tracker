@@ -1309,6 +1309,7 @@ td[data-label="Preview"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: #ffffff;
 }
 
 .row-actions {
@@ -3097,6 +3098,7 @@ html[data-public-share="true"] #go-bottom {
   object-fit: contain;
   display: block;
   margin: auto;
+  background: #ffffff;
 }
 
 @media print {
