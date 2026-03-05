@@ -3408,6 +3408,16 @@ const loadRemoteState = async () => {
     }
     return;
   }
+  /* ── Part 1: Flush pending local changes before pulling ──
+     If the user changed a cell (e.g. Condition dropdown) and the 1200ms
+     sync debounce hasn't fired yet, push those changes NOW so the cloud
+     has the latest data before we pull. Prevents the pull from blindly
+     overwriting unsaved local edits. */
+  if (syncTimer) {
+    window.clearTimeout(syncTimer);
+    syncTimer = null;
+    await syncToSupabase();
+  }
   const { data, error } = await supabase
     .from("shirt_state")
     .select("data, updated_at, user_id")
@@ -3425,6 +3435,20 @@ const loadRemoteState = async () => {
     }
     positionAuthAction();
     positionTotalCount();
+    /* ── Part 2: Timestamp guard — skip cloud overwrite if local is newer ──
+       If our last successful push is more recent than the cloud row's
+       updated_at, the local data is already ahead. Applying the cloud
+       payload would revert recent edits (e.g. a Condition change that was
+       pushed but hasn't round-tripped through this pull yet). Viewer
+       sessions always apply the cloud data (it's someone else's data). */
+    if (!isViewerSession && data.updated_at) {
+      const cloudTime = Date.parse(data.updated_at);
+      const lastSyncTime = getBackupTimestamp(LAST_SYNC_KEY);
+      if (lastSyncTime && !Number.isNaN(cloudTime) && cloudTime <= lastSyncTime) {
+        setBackupTimestamp(LAST_CLOUD_UPDATE_KEY, cloudTime);
+        return;
+      }
+    }
     if (data.updated_at) {
       const parsed = Date.parse(data.updated_at);
       if (!Number.isNaN(parsed)) {

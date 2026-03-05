@@ -43,5 +43,8 @@ apps/web-root/_redirects
 apps/web-root/auth-redirect.html
 apps/desktop-tauri/src/index.html
 
+# Release notes (redundant — CHANGELOG.json is the in-app source)
+release-notes/
+
 # Session prompt (local only)
 PROMPT.md
