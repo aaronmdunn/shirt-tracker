@@ -1766,6 +1766,17 @@ const setAuthStatus = () => {
     updatePublicShareLink();
     updatePublicShareSummary();
     maybePromptProfileName();
+    /* Ensure the mode switcher + Stats button are in the DOM.
+       renderModeSwitcher() on desktop physically moves #stats-button into
+       a dynamic #mode-switcher-inline div. If the user was previously
+       signed out (or the page idled past inactivity), that div was
+       destroyed and the Stats button left detached. Calling here
+       guarantees the UI is rebuilt as soon as auth is confirmed,
+       regardless of whether loadRemoteState() later skips
+       applyCloudPayload() (timestamp guard, network error, etc.).
+       The function is idempotent — safe to call twice if
+       applyCloudPayload() also triggers it. */
+    renderModeSwitcher();
   } else {
     document.body.setAttribute("data-auth", "signed-out");
     document.body.setAttribute("data-viewer", "false");
