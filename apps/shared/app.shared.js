@@ -2472,8 +2472,10 @@ const positionAuthAction = () => {
     }
   } else {
     const inlineCell = document.getElementById("auth-action-inline-cell");
-    if (inlineCell && authActionButton.parentElement !== inlineCell) {
-      inlineCell.appendChild(authActionButton);
+    if (inlineCell) {
+      if (authActionButton.parentElement !== inlineCell) {
+        inlineCell.appendChild(authActionButton);
+      }
       applyDesktopAuthButtonSizing();
       return;
     }
