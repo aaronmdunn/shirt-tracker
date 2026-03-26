@@ -8574,6 +8574,22 @@ const collectAllStats = () => {
     return { day: name, brand: entries.length ? entries[0][0] : null, count: entries.length ? entries[0][1] : 0 };
   });
 
+  // Most worn brand by month (from wearLog data, lifetime)
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const brandByMo = Array.from({ length: 12 }, () => ({}));
+  wornItems.forEach((item) => {
+    item.wearLog.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      const mo = d.getMonth(); // 0=Jan .. 11=Dec
+      brandByMo[mo][item.tab] = (brandByMo[mo][item.tab] || 0) + 1;
+    });
+  });
+  const brandByMonth = monthNames.map((name, i) => {
+    const counts = brandByMo[i];
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return { month: name, brand: entries.length ? entries[0][0] : null, count: entries.length ? entries[0][1] : 0 };
+  });
+
   return {
     totalItems,
     isInventory,
@@ -8609,6 +8625,7 @@ const collectAllStats = () => {
     bottom5LeastWorn,
     last5Worn,
     brandByDayOfWeek,
+    brandByMonth,
   };
 };
 
@@ -8887,6 +8904,19 @@ const openStatsDialog = () => {
         const pct = d.count && maxCount ? Math.round((d.count / maxCount) * 100) : 0;
         const label = d.brand ? `${d.brand} (${d.count})` : "—";
         wearBlock += `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:36px">${d.day}</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${pct}%"></div></div><span class="stats-bar-value">${label}</span></div>`;
+      });
+      wearBlock += `</div>`;
+    }
+    // Most worn brand by month
+    const hasAnyMonthBrand = s.brandByMonth.some((d) => d.brand);
+    if (hasAnyMonthBrand) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top brand by month</div>`;
+      const maxMonthCount = Math.max(...s.brandByMonth.map((d) => d.count));
+      wearBlock += `<div class="stats-bar-chart">`;
+      s.brandByMonth.forEach((d) => {
+        const pct = d.count && maxMonthCount ? Math.round((d.count / maxMonthCount) * 100) : 0;
+        const label = d.brand ? `${d.brand} (${d.count})` : "—";
+        wearBlock += `<div class="stats-bar-row"><span class="stats-bar-label" style="min-width:36px">${d.month}</span><div class="stats-bar-track"><div class="stats-bar-fill" style="width:${pct}%"></div></div><span class="stats-bar-value">${label}</span></div>`;
       });
       wearBlock += `</div>`;
     }
