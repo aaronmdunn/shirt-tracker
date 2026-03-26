@@ -8440,24 +8440,6 @@ const collectAllStats = () => {
   const typeDiversity = maxTypeEntropy > 0 ? Math.round((typeEntropy / maxTypeEntropy) * 100) : 0;
   const fandomDiversity = maxFandomEntropy > 0 ? Math.round((fandomEntropy / maxFandomEntropy) * 100) : 0;
 
-  // --- Storage estimate ---
-  let photoCount = 0;
-  let supaPhotoCount = 0;
-  perTabRows.forEach(({ entries }) => {
-    entries.forEach(({ row, columns }) => {
-      const photoCols = columns.filter((c) => c.type === "photo");
-      photoCols.forEach((col) => {
-        const val = row.cells ? (row.cells[col.id] || "") : "";
-        if (!val) return;
-        photoCount++;
-        if (val.startsWith("supa:")) supaPhotoCount++;
-      });
-    });
-  });
-  const logoMap = loadLogoMap();
-  const supaLogoCount = Object.values(logoMap).filter((v) => v && String(v).startsWith("supa:")).length;
-  const estimatedStorageMB = ((supaPhotoCount * 200 + supaLogoCount * 50) / 1024).toFixed(1);
-
   // --- Rarity score (types/fandoms that appear only once) ---
   const rareTypes = fullTypeTally.filter(([, c]) => c === 1).map(([name]) => name);
   const rareFandoms = fullFandomTally.filter(([, c]) => c === 1).map(([name]) => name);
@@ -8609,10 +8591,6 @@ const collectAllStats = () => {
     noBuyLongestDays,
     typeDiversity,
     fandomDiversity,
-    photoCount,
-    supaPhotoCount,
-    supaLogoCount,
-    estimatedStorageMB,
     rareTypes,
     rareFandoms,
     whaleItems,
@@ -8848,17 +8826,6 @@ const openStatsDialog = () => {
       html += section(monthBlock);
     }
 
-    // --- Storage estimate ---
-    if (s.photoCount > 0) {
-      let storageBlock = `<div class="stats-section-title">Storage</div>`;
-      storageBlock += row("Photos", String(s.photoCount));
-      if (s.supaPhotoCount > 0) storageBlock += sub("In cloud", String(s.supaPhotoCount));
-      if (s.supaLogoCount > 0) storageBlock += sub("Tab logos (cloud)", String(s.supaLogoCount));
-      if (s.supaPhotoCount > 0 || s.supaLogoCount > 0) {
-        storageBlock += row("Est. cloud storage", `~${s.estimatedStorageMB} MB`);
-      }
-      html += section(storageBlock);
-    }
   }
 
   // --- Wear tracking stats (Inventory only) ---
