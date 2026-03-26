@@ -1,11 +1,29 @@
 [
   {
+    "version": "2.0.13",
+    "date": "2026-03-26",
+    "changes": [
+      "Got It! log now syncs to Supabase (survives browser clears and device switches)",
+      "Clear All undo now preserves full row data (wearCount, wearLog, tags, createdAt)",
+      "'Last 5 Worn' now shows 5 most recently worn items (not just last 5 days)",
+      "Wear log is now lifetime (365-day cap removed)",
+      "Wishlist 'Recently Added' now shows Brand column instead of tab name",
+      "Added Cloudflare Web Analytics alongside Plausible for comparison",
+      "Added 800ms page reveal fallback for slow connections (Lighthouse fix)",
+      "Added password manager support via autocomplete attributes on auth form",
+      "Fixed dropdown values (Condition, Size, etc.) reverting after cloud sync",
+      "Fixed Stats button and mode toggle disappearing after idle timeout or cached reload",
+      "Fixed Sign Out button disappearing after cloud sync on desktop",
+      "Fixed transparent image backgrounds rendering black in compressed uploads"
+    ]
+  },
+  {
     "version": "2.0.12",
     "date": "2026-03-03",
     "changes": [
       "Added brand name (tab) in parentheses next to all wear tracking stat items",
       "Added brand name (tab) in parentheses next to most/least expensive items",
-      "Added wearLog array for per-wear date tracking (capped at 365 days, with undo support)",
+      "Added wearLog array for per-wear date tracking with undo support",
       "Added 'Top brand by day of week' bar chart in Wear Tracking stats",
       "Added 'Whales' section under Rarities listing all items tagged as Whale",
       "Fixed Tauri 'Delete Forever' button in recycle bin (replaced native confirm with inline confirmation)",
