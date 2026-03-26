@@ -14,7 +14,8 @@
       "Fixed dropdown values (Condition, Size, etc.) reverting after cloud sync",
       "Fixed Stats button and mode toggle disappearing after idle timeout or cached reload",
       "Fixed Sign Out button disappearing after cloud sync on desktop",
-      "Fixed transparent image backgrounds rendering black in compressed uploads"
+      "Fixed transparent image backgrounds rendering black in compressed uploads",
+      "Updated flannel icon with new plaid shirt design"
     ]
   },
   {
