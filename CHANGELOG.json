@@ -8,7 +8,7 @@
       "'Last 5 Worn' now shows 5 most recently worn items (not just last 5 days)",
       "Wear log is now lifetime (365-day cap removed)",
       "Wishlist 'Recently Added' now shows Brand column instead of tab name",
-      "Added Cloudflare Web Analytics alongside Plausible for comparison",
+      "Added Cloudflare Web Analytics as sole analytics provider (Plausible removed)",
       "Added 800ms page reveal fallback for slow connections (Lighthouse fix)",
       "Added password manager support via autocomplete attributes on auth form",
       "Fixed dropdown values (Condition, Size, etc.) reverting after cloud sync",

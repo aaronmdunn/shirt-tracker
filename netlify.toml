@@ -33,7 +33,7 @@
     # - frame-src: Netlify CDP iframe (auto-injected by Netlify)
     # - frame-ancestors 'none': prevents clickjacking from any origin
     # - form-action 'self': prevents form submissions to external sites
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://plausible.io https://static.cloudflareinsights.com; connect-src 'self' https://*.supabase.co https://plausible.io https://cloudflareinsights.com https://*.nsvcs.net; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src https://app.netlify.com; frame-ancestors 'none'; form-action 'self';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; connect-src 'self' https://*.supabase.co https://cloudflareinsights.com https://*.nsvcs.net; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src https://app.netlify.com; frame-ancestors 'none'; form-action 'self';"
 
 # Long-lived cache for fonts (immutable — versioned via deploy)
 [[headers]]

@@ -46,5 +46,6 @@ apps/desktop-tauri/src/index.html
 # Release notes (redundant — CHANGELOG.json is the in-app source)
 release-notes/
 
-# Session prompt (local only)
+# Session prompts (local only)
 PROMPT.md
+OFFLINE.md
