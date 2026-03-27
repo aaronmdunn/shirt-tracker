@@ -1698,6 +1698,16 @@ input[type="date"].wear-date-input {
   text-align: center;
 }
 
+.backup-diagnostics-link {
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.backup-diagnostics-link a {
+  color: #111111;
+  text-decoration: underline;
+}
+
 .unsaved-status.ok {
   font-weight: 700;
   color: #1f7a1f;
@@ -3111,6 +3121,19 @@ html[data-public-share="true"] #go-bottom {
   justify-content: flex-end;
   gap: 10px;
   padding: 0 20px 20px;
+}
+
+.sync-diagnostics-content {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8f8f8;
+  font-family: "IBM Plex Mono", "SFMono-Regular", "Consolas", monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .contact-dialog .dialog-body {
