@@ -10005,13 +10005,17 @@ const openStatsDialog = () => {
     }
     block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
-      const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+      const brand = item.tab || "Unknown";
+      const type = item.type || "Unknown";
+      const label = `${i + 1}. ${item.name} (${brand}) - ${type}`;
       block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
       block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest (excluding Socks, Boxer Briefs, Hat, Misc)</div>`;
       stats.top5Cheapest.forEach((item, i) => {
-        const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+        const brand = item.tab || "Unknown";
+        const type = item.type || "Unknown";
+        const label = `${i + 1}. ${item.name} (${brand}) - ${type}`;
         block += sub(label, formatCurrency(item.price));
       });
     }
