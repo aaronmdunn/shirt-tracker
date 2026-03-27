@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.13";
+const APP_VERSION = "2.0.14";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -3145,7 +3145,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.13",
+    version: "2.0.14",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -8675,15 +8675,15 @@ const collectAllStats = () => {
   }
 
   const nowMs = Date.now();
-  const wearGapRisk = wearableUniverse
+  const wearGapRiskAll = wearableUniverse
     .map((item) => {
       const lwMs = item.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
       const daysSince = Number.isNaN(lwMs) ? null : Math.floor((nowMs - lwMs) / 86400000);
       const score = (daysSince === null ? 300 : Math.min(daysSince, 365)) + Math.max(0, 8 - item.wearCount) * 15;
       return { ...item, daysSince, score };
     })
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-    .slice(0, 12);
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  const wearGapRisk = wearGapRiskAll.slice(0, 12);
 
   const adoptionDays = [];
   const neverWornSinceAdded = [];
@@ -8913,6 +8913,7 @@ const collectAllStats = () => {
   ));
   const advanced = {
     wearGapRisk,
+    wearGapRiskAll,
     newItemAdoption,
     monthlySpendVsWear,
     brandUtilization,
@@ -9182,6 +9183,73 @@ const openAllAddedDialog = (addedItems, isInventoryMode) => {
   resetDialogScroll(dialog);
 };
 
+const openWearGapRiskDialog = (items) => {
+  const listItems = Array.isArray(items) ? items.slice() : [];
+
+  let dialog = document.getElementById("wear-gap-risk-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "wear-gap-risk-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Wear Gap Risk (All Shirts)</h3>
+        <div id="wear-gap-risk-summary" class="stats-hint"></div>
+        <div id="wear-gap-risk-list" class="wear-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="wear-gap-risk-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#wear-gap-risk-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#wear-gap-risk-summary");
+  const list = dialog.querySelector("#wear-gap-risk-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (!listItems.length) {
+    if (summary) summary.textContent = "No wearable shirts found.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No wear-risk data available.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) summary.textContent = `${listItems.length} ${listItems.length === 1 ? "shirt" : "shirts"}`;
+
+  listItems.forEach((item, index) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "wear-history-item";
+
+    const left = document.createElement("span");
+    left.className = "wear-history-name";
+    left.textContent = `${index + 1}. ${item.name} (${item.tab}) - ${item.type}`;
+
+    const right = document.createElement("span");
+    right.className = "wear-history-date";
+    const age = item.daysSince === null ? "Never" : `${item.daysSince}d ago`;
+    right.textContent = `Risk ${item.score} | ${age} | ${item.wearCount} wears`;
+
+    rowEl.appendChild(left);
+    rowEl.appendChild(right);
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const openAdvancedStatsDialog = (stats) => {
   let dialog = document.getElementById("advanced-stats-dialog");
   if (!dialog) {
@@ -9245,6 +9313,9 @@ const openAdvancedStatsDialog = (stats) => {
       const age = item.daysSince === null ? "Never" : `${item.daysSince}d ago`;
       body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${age} | ${item.wearCount} wears | risk ${item.score}`);
     });
+    if (Array.isArray(adv.wearGapRiskAll) && adv.wearGapRiskAll.length > adv.wearGapRisk.length) {
+      body += `<button type="button" id="advanced-wear-gap-link" class="stats-link-button">View full wear gap list</button>`;
+    }
     html += section("Wear gap risk", body);
   }
 
@@ -9336,6 +9407,13 @@ const openAdvancedStatsDialog = (stats) => {
   }
 
   content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
+
+  const wearGapLink = content.querySelector("#advanced-wear-gap-link");
+  if (wearGapLink) {
+    wearGapLink.addEventListener("click", () => {
+      openWearGapRiskDialog(adv.wearGapRiskAll || adv.wearGapRisk || []);
+    });
+  }
 
   openDialog(dialog);
   resetDialogScroll(dialog);
