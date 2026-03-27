@@ -9135,9 +9135,9 @@ const openStatsDialog = () => {
 
       const grouped = {};
       matches.forEach((event) => {
-        const key = `${event.name}||${event.tab}`;
+        const key = `${event.name}||${event.tab}||${event.type || ""}`;
         const ts = new Date(event.wornAt).getTime();
-        if (!grouped[key]) grouped[key] = { name: event.name, tab: event.tab, count: 0, latest: ts };
+        if (!grouped[key]) grouped[key] = { name: event.name, tab: event.tab, type: event.type || "", count: 0, latest: ts };
         grouped[key].count += 1;
         if (ts > grouped[key].latest) grouped[key].latest = ts;
       });
@@ -9146,7 +9146,8 @@ const openStatsDialog = () => {
         .sort((a, b) => b.latest - a.latest || a.name.localeCompare(b.name));
       let out = row("Shirts worn", String(ranked.length));
       ranked.forEach((item, i) => {
-        out += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.count} ${item.count === 1 ? "wear" : "wears"}`);
+        const label = `${i + 1}. ${item.name} (${item.tab})${item.type ? ` - ${item.type}` : ""}`;
+        out += sub(label, `${item.count} ${item.count === 1 ? "wear" : "wears"}`);
       });
       wornDateResults.innerHTML = out;
     };
