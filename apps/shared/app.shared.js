@@ -6990,7 +6990,8 @@ const exportStatsCsv = (stats) => {
   addEventLog("Exported stats CSV");
 };
 
-const exportStatsPdf = (stats) => {
+const exportStatsPdf = (stats, options = {}) => {
+  const isFullExport = !!options.full;
   const modeLabel = stats.isInventory ? "Inventory" : "Wishlist";
   const generatedAt = new Date();
   const adv = stats.advanced || {};
@@ -7012,7 +7013,8 @@ const exportStatsPdf = (stats) => {
 
   const tallyLine = (pairs) => {
     if (!Array.isArray(pairs) || !pairs.length) return "No data yet.";
-    return pairs.slice(0, 10).map(([label, count]) => `${label} (${count})`).join(", ");
+    const maxItems = isFullExport ? pairs.length : 10;
+    return pairs.slice(0, maxItems).map(([label, count]) => `${label} (${count})`).join(", ");
   };
 
   const summaryRows = [
@@ -7041,20 +7043,91 @@ const exportStatsPdf = (stats) => {
     String(item.wearCount || 0),
   ]);
 
-  const wearGapRows = (adv.wearGapRiskAll || []).slice(0, 15).map((item, index) => [
+  const wearGapRows = (adv.wearGapRiskAll || []).slice(0, isFullExport ? (adv.wearGapRiskAll || []).length : 15).map((item, index) => [
     String(index + 1),
     `${item.name || "Unnamed"} (${item.tab || ""})`,
     String(item.daysSince === null ? "Never" : item.daysSince),
     String(item.score || 0),
   ]);
 
-  const recentRows = (stats.allRecentlyAdded || []).slice(0, 25).map((item) => [
+  const recentRows = (stats.allRecentlyAdded || []).slice(0, isFullExport ? (stats.allRecentlyAdded || []).length : 25).map((item) => [
     item.name || "Unnamed",
     item.tab || "",
     item.type || "",
     item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
     item.price !== null && item.price !== undefined && item.price > 0 ? formatCurrency(item.price) : "",
   ]);
+
+  const unwornRows = (stats.unwornOverSixMonths || []).slice(0, isFullExport ? (stats.unwornOverSixMonths || []).length : 40).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})${item.type ? ` - ${item.type}` : ""}`,
+    String(item.daysSince === null ? "Never" : item.daysSince),
+  ]);
+
+  const wearEventRows = (stats.wearEvents || []).slice(0, isFullExport ? (stats.wearEvents || []).length : 100).map((event, index) => [
+    String(index + 1),
+    event.name || "Unnamed",
+    event.tab || "",
+    event.type || "",
+    event.wornAt ? new Date(event.wornAt).toLocaleString() : "",
+  ]);
+
+  const brandUtilRows = (adv.brandUtilization || []).slice(0, isFullExport ? (adv.brandUtilization || []).length : 40).map((item) => [
+    item.brand || "",
+    String(item.inventory || 0),
+    String(item.wornLast90 || 0),
+    `${item.utilizationPct || 0}%`,
+    item.avgCpw === null || item.avgCpw === undefined ? "n/a" : formatCurrency(item.avgCpw),
+  ]);
+
+  const spendWearRows = (adv.monthlySpendVsWear || []).slice(0, isFullExport ? (adv.monthlySpendVsWear || []).length : 24).map((item) => [
+    item.label || "",
+    String(item.added || 0),
+    formatCurrency(item.spend || 0),
+    String(item.wears || 0),
+    item.spendPerWear === null || item.spendPerWear === undefined ? "n/a" : formatCurrency(item.spendPerWear),
+  ]);
+
+  const typeRotationRows = (adv.typeRotationBalance || []).slice(0, isFullExport ? (adv.typeRotationBalance || []).length : 30).map((item) => [
+    item.type || "",
+    String(item.inventoryCount || 0),
+    String(item.wearCount || 0),
+    `${(item.inventoryPct || 0).toFixed(1)}%`,
+    `${(item.wearPct || 0).toFixed(1)}%`,
+    `${(item.deltaPct || 0).toFixed(1)}%`,
+  ]);
+
+  const seasonalityRows = (adv.seasonalityByMonth || []).map((item) => [
+    item.month || "",
+    item.type || "-",
+    String(item.count || 0),
+  ]);
+
+  const tagPerformanceRows = (adv.tagPerformance || []).slice(0, isFullExport ? (adv.tagPerformance || []).length : 40).map((item) => [
+    item.tag || "",
+    String(item.samples || 0),
+    (item.avgWears || 0).toFixed(1),
+    item.avgCpw === null || item.avgCpw === undefined ? "n/a" : formatCurrency(item.avgCpw),
+  ]);
+
+  const topBrandStreakRows = ((adv.repeatWearStreaks && adv.repeatWearStreaks.topBrandStreaks) || []).map((item, index) => [
+    String(index + 1),
+    item.label || "",
+    `${item.streak || 0} days`,
+  ]);
+
+  const topTypeStreakRows = ((adv.repeatWearStreaks && adv.repeatWearStreaks.topTypeStreaks) || []).map((item, index) => [
+    String(index + 1),
+    item.label || "",
+    `${item.streak || 0} days`,
+  ]);
+
+  const fullPayload = {
+    generatedAt: generatedAt.toISOString(),
+    version: APP_VERSION,
+    mode: modeLabel.toLowerCase(),
+    stats,
+  };
 
   const section = (title, body) => `<section class="report-section"><h2>${escapeHtml(title)}</h2>${body}</section>`;
 
@@ -7076,6 +7149,7 @@ const exportStatsPdf = (stats) => {
     .inline-note { margin: 0; font-size: 12px; }
     .empty-note { font-size: 12px; color: #666; }
     .footer-note { margin-top: 18px; font-size: 11px; color: #666; }
+    pre.json-appendix { white-space: pre-wrap; word-break: break-word; font-size: 10px; border: 1px solid #cfcfcf; padding: 8px; background: #fafafa; }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
@@ -7095,9 +7169,19 @@ const exportStatsPdf = (stats) => {
     { label: "Longest unworn", value: stats.longestUnworn ? `${stats.longestUnworn.name} (${stats.longestUnworn.tab}) - ${stats.longestUnworn.daysSince} days` : "No data" },
     { label: "Unworn over 6 months", value: String((stats.unwornOverSixMonths || []).length) },
   ])}`) : ""}
-  ${stats.isInventory ? section("Advanced Wear Gap Risk (Top 15)", renderSimpleTable(["#", "Shirt", "Days Since", "Risk Score"], wearGapRows)) : ""}
-  ${section("Recently Added (Latest 25)", renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
-  <div class="footer-note">Need the complete underlying stats object? Use Stats -> Export -> JSON.</div>
+  ${stats.isInventory ? section(`Advanced Wear Gap Risk (${isFullExport ? "All" : "Top 15"})`, renderSimpleTable(["#", "Shirt", "Days Since", "Risk Score"], wearGapRows)) : ""}
+  ${stats.isInventory ? section(`Unworn Over 6 Months (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["#", "Shirt", "Days Since"], unwornRows)) : ""}
+  ${stats.isInventory ? section(`Wear Events (${isFullExport ? "All" : "Latest 100"})`, renderSimpleTable(["#", "Name", "Brand", "Type", "Worn At"], wearEventRows)) : ""}
+  ${stats.isInventory ? section(`Brand Utilization (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Brand", "Inventory", "Worn 90d", "Utilization", "Avg CPW"], brandUtilRows)) : ""}
+  ${stats.isInventory ? section(`Monthly Spend vs Wear (${isFullExport ? "All" : "Latest 24"})`, renderSimpleTable(["Month", "Added", "Spend", "Wears", "Spend/Wear"], spendWearRows)) : ""}
+  ${stats.isInventory ? section(`Type Rotation Balance (${isFullExport ? "All" : "Top 30 by delta"})`, renderSimpleTable(["Type", "Inventory", "Wears", "Inv %", "Wear %", "Delta"], typeRotationRows)) : ""}
+  ${stats.isInventory ? section("Seasonality by Month", renderSimpleTable(["Month", "Top Type", "Count"], seasonalityRows)) : ""}
+  ${stats.isInventory ? section(`Tag Performance (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Tag", "Samples", "Avg Wears", "Avg CPW"], tagPerformanceRows)) : ""}
+  ${stats.isInventory ? section("Repeat Wear Streaks (Brands)", renderSimpleTable(["#", "Brand", "Streak"], topBrandStreakRows)) : ""}
+  ${stats.isInventory ? section("Repeat Wear Streaks (Types)", renderSimpleTable(["#", "Type", "Streak"], topTypeStreakRows)) : ""}
+  ${section(`Recently Added (${isFullExport ? "All" : "Latest 25"})`, renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
+  ${isFullExport ? section("Full Stats JSON Appendix", `<pre class="json-appendix">${escapeHtml(JSON.stringify(fullPayload, null, 2))}</pre>`) : ""}
+  <div class="footer-note">${isFullExport ? "Full export includes every available stats entry plus a JSON appendix." : "Need every field and row? Use Export PDF (full, all stats) or Export JSON."}</div>
 </body>
 </html>`;
 
@@ -7133,7 +7217,7 @@ const exportStatsPdf = (stats) => {
       didPrint = true;
       frameWindow.focus();
       frameWindow.print();
-      addEventLog("Opened stats PDF print dialog");
+      addEventLog(isFullExport ? "Opened full stats PDF print dialog" : "Opened stats PDF print dialog");
     } catch (error) {
       alert("Unable to open print dialog for PDF export.");
     } finally {
@@ -7155,11 +7239,12 @@ const openStatsExportDialog = (stats) => {
       <div class="dialog-body">
         <h3>Export Stats</h3>
         <div class="stats-export-options">
-          <button type="button" class="btn" id="stats-export-pdf">Export PDF (full report)</button>
+          <button type="button" class="btn" id="stats-export-pdf">Export PDF (summary)</button>
+          <button type="button" class="btn secondary" id="stats-export-pdf-full">Export PDF (full, all stats)</button>
           <button type="button" class="btn secondary" id="stats-export-csv">Export CSV (tabular)</button>
           <button type="button" class="btn secondary" id="stats-export-json">Export JSON (complete)</button>
         </div>
-        <div class="stats-export-note">PDF includes the full raw stats payload. JSON is the lossless machine-readable export.</div>
+        <div class="stats-export-note">Summary PDF is concise. Full PDF includes all available stats sections plus JSON appendix (can be very large).</div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="stats-export-close">Close</button>
@@ -7169,6 +7254,7 @@ const openStatsExportDialog = (stats) => {
 
     const closeButton = dialog.querySelector("#stats-export-close");
     const pdfButton = dialog.querySelector("#stats-export-pdf");
+    const fullPdfButton = dialog.querySelector("#stats-export-pdf-full");
     const csvButton = dialog.querySelector("#stats-export-csv");
     const jsonButton = dialog.querySelector("#stats-export-json");
     if (closeButton) {
@@ -7177,7 +7263,13 @@ const openStatsExportDialog = (stats) => {
     if (pdfButton) {
       pdfButton.addEventListener("click", () => {
         if (!latestStatsSnapshot) return;
-        exportStatsPdf(latestStatsSnapshot);
+        exportStatsPdf(latestStatsSnapshot, { full: false });
+      });
+    }
+    if (fullPdfButton) {
+      fullPdfButton.addEventListener("click", () => {
+        if (!latestStatsSnapshot) return;
+        exportStatsPdf(latestStatsSnapshot, { full: true });
       });
     }
     if (csvButton) {
