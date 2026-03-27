@@ -174,6 +174,7 @@ let publicShareLoaded = false;
 let publicShareVisibility = { mode: "auto", columnIds: [] };
 let isViewerSession = false;
 let syncTimer = null;
+let syncRetryTimer = null;
 let isSyncing = false;
 const FORCE_FRESH_START = (() => {
   try {
@@ -3365,10 +3366,47 @@ const applyCloudPayload = (payload) => {
   prefetchPhotoSources();
 };
 
+const SYNC_DEBOUNCE_MS = 1200;
+const SYNC_RETRY_MS = 6000;
+
 const scheduleSync = () => {
   if (!supabase || !currentUser) return;
+  if (syncRetryTimer) {
+    window.clearTimeout(syncRetryTimer);
+    syncRetryTimer = null;
+  }
   window.clearTimeout(syncTimer);
-  syncTimer = window.setTimeout(syncToSupabase, 1200);
+  syncTimer = window.setTimeout(syncToSupabase, SYNC_DEBOUNCE_MS);
+};
+
+const scheduleSyncRetry = () => {
+  if (!supabase || !currentUser || isViewerSession) return;
+  if (syncRetryTimer) return;
+  syncRetryTimer = window.setTimeout(() => {
+    syncRetryTimer = null;
+    syncToSupabase();
+  }, SYNC_RETRY_MS);
+};
+
+const hasUnsyncedLocalChanges = () => {
+  const lastChange = getBackupTimestamp(LAST_CHANGE_KEY);
+  const lastSync = getBackupTimestamp(LAST_SYNC_KEY);
+  if (!lastChange) return false;
+  if (!lastSync) return true;
+  return lastChange > lastSync + 1000;
+};
+
+const flushPendingSyncIfNeeded = async () => {
+  if (!supabase || !currentUser || isViewerSession) return;
+  if (syncTimer) {
+    window.clearTimeout(syncTimer);
+    syncTimer = null;
+    await syncToSupabase();
+    return;
+  }
+  if (hasUnsyncedLocalChanges()) {
+    await syncToSupabase();
+  }
 };
 
 const syncToSupabase = async () => {
@@ -3389,7 +3427,12 @@ const syncToSupabase = async () => {
     if (upsertError) {
       console.warn("Cloud sync failed", upsertError);
       setUnsavedStatus("Cloud sync failed. Data is safe locally — will retry. If it persists, sign out and back in.", "alert");
+      scheduleSyncRetry();
       return;
+    }
+    if (syncRetryTimer) {
+      window.clearTimeout(syncRetryTimer);
+      syncRetryTimer = null;
     }
     const parsedUpdatedAt = Date.parse(updatedAt);
     setBackupTimestamp(LAST_SYNC_KEY, Number.isNaN(parsedUpdatedAt) ? Date.now() : parsedUpdatedAt);
@@ -3397,6 +3440,7 @@ const syncToSupabase = async () => {
     updateUnsavedStatus();
   } catch (error) {
     console.warn("Sync failed", error);
+    scheduleSyncRetry();
   } finally {
     isSyncing = false;
   }
@@ -7165,6 +7209,14 @@ if (supabase) {
     updateLastActivity();
   }, { passive: true });
 });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    flushPendingSyncIfNeeded();
+  }
+});
+window.addEventListener("pagehide", () => {
+  flushPendingSyncIfNeeded();
+});
 if (PLATFORM === "desktop") {
   window.addEventListener("resize", () => {
     syncTableScrollSizing();
@@ -7550,8 +7602,9 @@ if (resetFreshButton) {
   });
 }
 
-authActionButton.addEventListener("click", () => {
+authActionButton.addEventListener("click", async () => {
   if (currentUser) {
+    await flushPendingSyncIfNeeded();
     supabase.auth.signOut();
   } else {
     authMessage.textContent = supabase
