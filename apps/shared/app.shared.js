@@ -9272,7 +9272,7 @@ const collectAllStats = () => {
     });
   });
   firstWearLagAll.sort((a, b) => b.firstWearLagDays - a.firstWearLagDays || a.name.localeCompare(b.name));
-  const firstWearLag = firstWearLagAll.slice(0, 12);
+  const firstWearLag = firstWearLagAll.slice(0, 10);
 
   const newItemAdoption = {
     itemsWithCreatedAt,
