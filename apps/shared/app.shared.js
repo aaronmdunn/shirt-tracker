@@ -10256,10 +10256,11 @@ const openStatsDialog = () => {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
-      const label = item.type ? `${item.name} (${item.type})` : item.name;
       // Wishlist: show Brand column value; Inventory: show tab name (which IS the brand)
-      const brandLabel = !s.isInventory ? (item.brand || "") : item.tab;
-      const right = brandLabel ? `${brandLabel} - ${date}` : date;
+      const brandLabel = !s.isInventory ? (item.brand || "Unknown") : (item.tab || "Unknown");
+      const typeLabel = item.type || "Unknown";
+      const label = `${item.name} (${brandLabel}) - ${typeLabel}`;
+      const right = date;
       addedBlock += sub(label, right);
     });
     addedBlock += `<button type="button" id="stats-all-added-link" class="stats-link-button">View all added shirts</button>`;
@@ -10270,8 +10271,10 @@ const openStatsDialog = () => {
   if (s.isInventory && s.recentlyDeleted.length) {
     let delBlock = `<div class="stats-section-title">Recently deleted</div>`;
     s.recentlyDeleted.forEach((item) => {
-      const label = item.type ? `${item.name} (${item.type})` : item.name;
-      delBlock += sub(label, `${item.tab} \u00B7 ${item.date}`);
+      const brand = item.tab || "Unknown";
+      const type = item.type || "Unknown";
+      const label = `${item.name} (${brand}) - ${type}`;
+      delBlock += sub(label, item.date);
     });
     html += section(delBlock);
   }
