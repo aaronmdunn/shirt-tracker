@@ -9105,13 +9105,13 @@ const collectAllStats = () => {
       withDate.sort((a, b) => new Date(a.lastWorn) - new Date(b.lastWorn));
       const oldest = withDate[0];
       const daysSince = Math.floor((Date.now() - new Date(oldest.lastWorn).getTime()) / 86400000);
-      longestUnworn = { name: oldest.name, tab: oldest.tab, daysSince, lastWorn: oldest.lastWorn };
+      longestUnworn = { name: oldest.name, tab: oldest.tab, type: oldest.type || "", daysSince, lastWorn: oldest.lastWorn };
     }
   }
   // Cost per wear: Price / wearCount, sorted ascending (best value first)
   const costPerWear = wornItems
     .filter((i) => i.price !== null && i.price > 0)
-    .map((i) => ({ name: i.name, tab: i.tab, cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
+    .map((i) => ({ name: i.name, tab: i.tab, type: i.type || "", cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
     .sort((a, b) => a.cpw - b.cpw)
     .slice(0, 5);
   // Top 5 most worn
@@ -10186,12 +10186,14 @@ const openStatsDialog = () => {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
-      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)}) — ${s.longestUnworn.daysSince} days`);
+      const longestType = s.longestUnworn.type ? ` - ${esc(s.longestUnworn.type)}` : "";
+      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)})${longestType} — ${s.longestUnworn.daysSince} days`);
     }
     if (s.top5MostWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
       s.top5MostWorn.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.wearCount} wears`);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, `${item.wearCount} wears`);
       });
     }
     if (s.last5Worn.length) {
@@ -10211,7 +10213,8 @@ const openStatsDialog = () => {
     if (s.costPerWear.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Best cost per wear</div>`;
       s.costPerWear.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
       });
     }
     // Most worn brand by day of week
