@@ -634,6 +634,7 @@ const statsDialog = document.getElementById("stats-dialog");
 const statsContent = document.getElementById("stats-content");
 const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
+const statsAdvancedButton = document.getElementById("stats-advanced");
 const statsExportButton = document.getElementById("stats-export");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
@@ -10336,8 +10337,6 @@ const openStatsDialog = () => {
     html += section(wishBlock);
   }
 
-  html += section(`<button type="button" id="stats-advanced-link" class="stats-link-button">Advanced Stats</button>`);
-
   statsContent.innerHTML = html;
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
@@ -10345,7 +10344,6 @@ const openStatsDialog = () => {
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
   const allAddedLink = statsContent.querySelector("#stats-all-added-link");
-  const advancedStatsLink = statsContent.querySelector("#stats-advanced-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -10397,10 +10395,10 @@ const openStatsDialog = () => {
       openAllAddedDialog(s.allRecentlyAdded, s.isInventory);
     });
   }
-  if (advancedStatsLink) {
-    advancedStatsLink.addEventListener("click", () => {
+  if (statsAdvancedButton) {
+    statsAdvancedButton.onclick = () => {
       openAdvancedStatsDialog(s);
-    });
+    };
   }
   if (statsExportButton) {
     statsExportButton.onclick = () => {
