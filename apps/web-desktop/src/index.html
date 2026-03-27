@@ -274,6 +274,7 @@
               <button class="btn secondary" id="verify-backup" style="padding:6px 10px; font-size:0.78rem; width:fit-content; max-width:100%; display:block; margin:0 auto;">Verify Cloud Status</button>
               <div class="backup-status" id="backup-status" style="text-align:center;">Cloud backup not checked yet.</div>
               <div class="unsaved-status" id="unsaved-status" style="text-align:center;"></div>
+              <div class="backup-diagnostics-link"><a href="#" id="advanced-diagnostics-link">Advanced Diagnostics</a></div>
               <div class="public-share-row">
                 <label for="edit-profile-name">Profile</label>
                 <div class="public-share-actions">
@@ -427,6 +428,7 @@
 
         <div style="margin-top:8px; padding:4px 0; border-bottom:1px solid #ddd; font-size:0.82rem; letter-spacing:0.06em; text-transform:uppercase; color:#666;"><strong>Cloud Backup</strong></div>
         <div><strong>Verify Cloud Status</strong> &mdash; Check if your local data matches what&rsquo;s saved in the cloud.</div>
+        <div><strong>Advanced Diagnostics</strong> &mdash; Opens sync internals (timers, retry count, last edit/push times, and recent error details).</div>
         <div><strong>Edit Profile Name</strong> &mdash; Change your display name.</div>
         <div><strong>Export CSV</strong> &mdash; Download the current tab&rsquo;s data as a CSV spreadsheet.</div>
         <div><strong>Import CSV</strong> &mdash; Upload a CSV file to add rows to the current tab.</div>
@@ -445,6 +447,17 @@
         <button type="button" class="btn" id="help-close">Close</button>
       </div>
     </dialog>
+
+    <dialog id="sync-diagnostics-dialog" class="privacy-dialog">
+      <div class="dialog-body">
+        <h3>Advanced Diagnostics</h3>
+        <pre id="sync-diagnostics-content" class="sync-diagnostics-content">Loading diagnostics...</pre>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="sync-diagnostics-close">Close</button>
+      </div>
+    </dialog>
+
     <dialog id="icon-credits-dialog" class="privacy-dialog">
         <div class="dialog-body">
           <h3>Credits &amp; Acknowledgements</h3>

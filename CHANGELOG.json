@@ -10,7 +10,9 @@
       "Added 'View all added shirts' dialog from Recently Added with name, brand, type, date added, and price",
       "Added 'Advanced Stats' link and dialog with wear risk, adoption, utilization, streak, seasonality, and tag-performance analytics",
       "Excluded non-wear types (Chinos, Boxer Briefs, Socks, Hat, Shorts, Hybrid Shorts, Joggers, Misc, Outerwear, Bamboo Shorts) from wear-based stats while keeping them in inventory/value stats",
-      "Updated Wear Gap Risk so Advanced Stats stays compact and links to a dedicated full-list dialog"
+      "Updated Wear Gap Risk so Advanced Stats stays compact and links to a dedicated full-list dialog",
+      "Hardened cloud sync durability: auto-retry failed sync writes, flush pending edits on hide/page-exit, and flush before sign-out to reduce cross-device reverts",
+      "Added 'Advanced Diagnostics' link in Cloud Backup with a detailed sync-status dialog (timers, retry count, sync lag, last edit/push times, and latest sync error)"
     ]
   },
   {

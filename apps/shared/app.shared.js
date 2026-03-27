@@ -176,6 +176,9 @@ let isViewerSession = false;
 let syncTimer = null;
 let syncRetryTimer = null;
 let isSyncing = false;
+let syncRetryCount = 0;
+let lastSyncErrorAt = 0;
+let lastSyncErrorMessage = "";
 const FORCE_FRESH_START = (() => {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -457,6 +460,10 @@ const exportCsvButton = document.getElementById("export-csv");
 const importCsvButton = document.getElementById("import-csv");
 const backupStatusText = document.getElementById("backup-status");
 const unsavedStatusText = document.getElementById("unsaved-status");
+const advancedDiagnosticsLink = document.getElementById("advanced-diagnostics-link");
+const syncDiagnosticsDialog = document.getElementById("sync-diagnostics-dialog");
+const syncDiagnosticsCloseButton = document.getElementById("sync-diagnostics-close");
+const syncDiagnosticsContent = document.getElementById("sync-diagnostics-content");
 const publicShareLinkInput = document.getElementById("public-share-link");
 const copyShareLinkButton = document.getElementById("copy-share-link");
 const bulkTagsButton = document.getElementById("bulk-tags");
@@ -2846,6 +2853,44 @@ const updateBackupStatusFromStorage = () => {
   updateUnsavedStatus();
 };
 
+const formatDiagnosticsTimestamp = (value) => {
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return `${date.toLocaleString()} (${date.toISOString()})`;
+};
+
+const getSyncLagMs = (lastChange, lastSync) => {
+  if (!lastChange || !lastSync) return null;
+  return Math.max(0, lastChange - lastSync);
+};
+
+const renderSyncDiagnostics = () => {
+  if (!syncDiagnosticsContent) return;
+  const lastChange = getBackupTimestamp(LAST_CHANGE_KEY);
+  const lastSync = getBackupTimestamp(LAST_SYNC_KEY);
+  const lastCloud = getBackupTimestamp(LAST_CLOUD_UPDATE_KEY);
+  const lagMs = getSyncLagMs(lastChange, lastSync);
+  const lagText = lagMs === null ? "unknown" : `${Math.round(lagMs / 1000)}s`;
+  const unsynced = lastChange && (!lastSync || lastChange > lastSync + 1000);
+  const lines = [
+    `Signed in: ${currentUser ? "yes" : "no"}`,
+    `Viewer session: ${isViewerSession ? "yes" : "no"}`,
+    `Sync in progress: ${isSyncing ? "yes" : "no"}`,
+    `Debounce timer active: ${syncTimer ? "yes" : "no"}`,
+    `Retry timer active: ${syncRetryTimer ? "yes" : "no"}`,
+    `Pending unsynced edits: ${unsynced ? "yes" : "no"}`,
+    `Retry attempts (since last success): ${syncRetryCount}`,
+    `Sync lag: ${lagText}`,
+    `Last local edit: ${formatDiagnosticsTimestamp(lastChange)}`,
+    `Last successful cloud push: ${formatDiagnosticsTimestamp(lastSync)}`,
+    `Last observed cloud update: ${formatDiagnosticsTimestamp(lastCloud)}`,
+    `Last sync error: ${lastSyncErrorMessage || "none"}`,
+    `Last sync error time: ${formatDiagnosticsTimestamp(lastSyncErrorAt)}`,
+  ];
+  syncDiagnosticsContent.textContent = lines.join("\n");
+};
+
 const updateAppUpdateDate = () => {
   if (!appUpdateDateInput) return;
   const parsed = new Date(LAST_COMMIT_DATE);
@@ -3382,10 +3427,12 @@ const scheduleSync = () => {
 const scheduleSyncRetry = () => {
   if (!supabase || !currentUser || isViewerSession) return;
   if (syncRetryTimer) return;
+  syncRetryCount += 1;
   syncRetryTimer = window.setTimeout(() => {
     syncRetryTimer = null;
     syncToSupabase();
   }, SYNC_RETRY_MS);
+  renderSyncDiagnostics();
 };
 
 const hasUnsyncedLocalChanges = () => {
@@ -3412,6 +3459,7 @@ const flushPendingSyncIfNeeded = async () => {
 const syncToSupabase = async () => {
   if (!supabase || !currentUser || isSyncing || isViewerSession) return;
   isSyncing = true;
+  renderSyncDiagnostics();
   try {
     if (!photoMigrationDone) {
       await migrateLocalPhotosToSupabase();
@@ -3426,23 +3474,34 @@ const syncToSupabase = async () => {
     });
     if (upsertError) {
       console.warn("Cloud sync failed", upsertError);
+      lastSyncErrorAt = Date.now();
+      lastSyncErrorMessage = upsertError.message || "Unknown upsert error";
       setUnsavedStatus("Cloud sync failed. Data is safe locally — will retry. If it persists, sign out and back in.", "alert");
       scheduleSyncRetry();
+      renderSyncDiagnostics();
       return;
     }
     if (syncRetryTimer) {
       window.clearTimeout(syncRetryTimer);
       syncRetryTimer = null;
     }
+    syncRetryCount = 0;
+    lastSyncErrorAt = 0;
+    lastSyncErrorMessage = "";
     const parsedUpdatedAt = Date.parse(updatedAt);
     setBackupTimestamp(LAST_SYNC_KEY, Number.isNaN(parsedUpdatedAt) ? Date.now() : parsedUpdatedAt);
     setBackupTimestamp(LAST_CLOUD_UPDATE_KEY, parsedUpdatedAt);
     updateUnsavedStatus();
+    renderSyncDiagnostics();
   } catch (error) {
     console.warn("Sync failed", error);
+    lastSyncErrorAt = Date.now();
+    lastSyncErrorMessage = error && error.message ? error.message : String(error || "Unknown sync error");
     scheduleSyncRetry();
+    renderSyncDiagnostics();
   } finally {
     isSyncing = false;
+    renderSyncDiagnostics();
   }
 };
 
@@ -7631,6 +7690,7 @@ syncNowButton.addEventListener("click", async () => {
 verifyBackupButton.addEventListener("click", async () => {
   if (!supabase || !currentUser) {
     setBackupStatus("Sign in to check cloud backup.");
+    renderSyncDiagnostics();
     return;
   }
   const originalLabel = verifyBackupButton.textContent;
@@ -7659,11 +7719,27 @@ verifyBackupButton.addEventListener("click", async () => {
     } else {
       setBackupStatus(`Local changes not in cloud yet. Last cloud update: ${cloudText}`);
     }
+    renderSyncDiagnostics();
   } finally {
     verifyBackupButton.textContent = originalLabel;
     verifyBackupButton.disabled = false;
   }
 });
+
+if (advancedDiagnosticsLink) {
+  advancedDiagnosticsLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    renderSyncDiagnostics();
+    openDialog(syncDiagnosticsDialog);
+    resetDialogScroll(syncDiagnosticsDialog);
+  });
+}
+
+if (syncDiagnosticsCloseButton) {
+  syncDiagnosticsCloseButton.addEventListener("click", () => {
+    closeDialog(syncDiagnosticsDialog);
+  });
+}
 
 if (exportCsvButton) exportCsvButton.addEventListener("click", () => exportCsv());
 if (importCsvButton) importCsvButton.addEventListener("click", () => importCsv());
