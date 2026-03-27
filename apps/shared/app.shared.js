@@ -8496,14 +8496,18 @@ const collectAllStats = () => {
   // --- Wear-based stats (Inventory only) ---
   const nonWearableTypes = new Set(["Misc", "Boxer Briefs", "Socks", "Hat"]);
   const wornItems = [];
-  const wearableWornItems = [];
+  const unwornOverSixMonths = [];
   if (isInventory) {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 6);
+    const cutoffMs = cutoffDate.getTime();
     perTabRows.forEach((tab) => {
       tab.entries.forEach((entry) => {
         const wc = entry.row.wearCount || 0;
         const lw = entry.row.lastWorn || null;
         const name = getCellValue(entry, "Name") || "Unnamed";
         const typeVal = getCellValue(entry, "Type");
+        const isWearable = !nonWearableTypes.has(typeVal);
         const priceRaw = getCellValue(entry, "Price");
         const price = parseCurrency(priceRaw);
         if (wc >= 1) {
@@ -8511,7 +8515,19 @@ const collectAllStats = () => {
           const log = entry.row.wearLog && entry.row.wearLog.length ? entry.row.wearLog : (lw ? [lw] : []);
           const item = { name, tab: tab.name, wearCount: wc, lastWorn: lw, type: typeVal, price, wearLog: log };
           wornItems.push(item);
-          if (!nonWearableTypes.has(typeVal)) wearableWornItems.push(item);
+        }
+        if (isWearable) {
+          const lwDate = lw ? new Date(lw) : null;
+          const lwMs = lwDate ? lwDate.getTime() : NaN;
+          if (!lw || Number.isNaN(lwMs) || lwMs < cutoffMs) {
+            const daysSince = !lw || Number.isNaN(lwMs) ? null : Math.floor((Date.now() - lwMs) / 86400000);
+            unwornOverSixMonths.push({
+              name,
+              tab: tab.name,
+              lastWorn: lw,
+              daysSince,
+            });
+          }
         }
       });
     });
@@ -8535,8 +8551,12 @@ const collectAllStats = () => {
     .slice(0, 5);
   // Top 5 most worn
   const top5MostWorn = wornItems.slice().sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
-  // Bottom 5 least worn (wearable items only, wearCount >= 1)
-  const bottom5LeastWorn = wearableWornItems.slice().sort((a, b) => a.wearCount - b.wearCount).slice(0, 5);
+  unwornOverSixMonths.sort((a, b) => {
+    if (a.daysSince === null && b.daysSince === null) return a.name.localeCompare(b.name);
+    if (a.daysSince === null) return -1;
+    if (b.daysSince === null) return 1;
+    return b.daysSince - a.daysSince || a.name.localeCompare(b.name);
+  });
   // Last 5 worn: the 5 most recently worn items, sorted most-recent-first
   const last5Worn = wornItems
     .filter((i) => i.lastWorn)
@@ -8617,7 +8637,7 @@ const collectAllStats = () => {
     longestUnworn,
     costPerWear,
     top5MostWorn,
-    bottom5LeastWorn,
+    unwornOverSixMonths,
     last5Worn,
     wearEvents,
     brandByDayOfWeek,
@@ -8688,6 +8708,76 @@ const openWearHistoryDialog = (wearEvents) => {
     item.appendChild(left);
     item.appendChild(right);
     list.appendChild(item);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openUnwornSixMonthsDialog = (items) => {
+  const listItems = Array.isArray(items) ? items.slice() : [];
+
+  let dialog = document.getElementById("unworn-six-months-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "unworn-six-months-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Not Worn In Past 6 Months</h3>
+        <div id="unworn-six-months-summary" class="stats-hint"></div>
+        <div id="unworn-six-months-list" class="wear-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="unworn-six-months-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#unworn-six-months-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#unworn-six-months-summary");
+  const list = dialog.querySelector("#unworn-six-months-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (listItems.length === 0) {
+    if (summary) summary.textContent = "Everything has been worn in the past 6 months.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No shirts to show.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) {
+    summary.textContent = `${listItems.length} ${listItems.length === 1 ? "shirt" : "shirts"}`;
+  }
+
+  listItems.forEach((item, index) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "wear-history-item";
+
+    const left = document.createElement("span");
+    left.className = "wear-history-name";
+    left.textContent = `${index + 1}. ${item.name} (${item.tab})`;
+
+    const right = document.createElement("span");
+    right.className = "wear-history-date";
+    right.textContent = item.lastWorn
+      ? `${item.daysSince} ${item.daysSince === 1 ? "day" : "days"} ago`
+      : "Never";
+
+    rowEl.appendChild(left);
+    rowEl.appendChild(right);
+    list.appendChild(rowEl);
   });
 
   openDialog(dialog);
@@ -8917,7 +9007,7 @@ const openStatsDialog = () => {
   }
 
   // --- Wear tracking stats (Inventory only) ---
-  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length)) {
+  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length || s.unwornOverSixMonths.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
@@ -8940,11 +9030,8 @@ const openStatsDialog = () => {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Worn on date</div>`;
       wearBlock += `<div class="stats-date-lookup"><input id="stats-worn-date-input" class="stats-date-input" type="date" value="${todayKey}" max="${todayKey}"><div id="stats-worn-date-results" class="stats-date-results"></div><button type="button" id="stats-wear-history-link" class="stats-link-button">View full wear history</button></div>`;
     }
-    if (s.bottom5LeastWorn.length) {
-      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Bottom 5 least worn</div>`;
-      s.bottom5LeastWorn.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.wearCount} ${item.wearCount === 1 ? "wear" : "wears"}`);
-      });
+    if (s.unwornOverSixMonths.length) {
+      wearBlock += `<button type="button" id="stats-unworn-six-months-link" class="stats-link-button">View shirts not worn in past 6 months</button>`;
     }
     if (s.costPerWear.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Best cost per wear</div>`;
@@ -9030,6 +9117,7 @@ const openStatsDialog = () => {
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
+  const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -9068,6 +9156,11 @@ const openStatsDialog = () => {
   if (wearHistoryLink) {
     wearHistoryLink.addEventListener("click", () => {
       openWearHistoryDialog(s.wearEvents);
+    });
+  }
+  if (unwornSixMonthsLink) {
+    unwornSixMonthsLink.addEventListener("click", () => {
+      openUnwornSixMonthsDialog(s.unwornOverSixMonths);
     });
   }
 

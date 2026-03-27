@@ -2784,18 +2784,21 @@ input[type="date"].stats-date-input {
   cursor: pointer;
 }
 
-#wear-history-dialog {
+#wear-history-dialog,
+#unworn-six-months-dialog {
   max-width: 620px;
   width: 90vw;
 }
 
-#wear-history-dialog .dialog-body {
+#wear-history-dialog .dialog-body,
+#unworn-six-months-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
 }
 
-#wear-history-dialog .dialog-actions {
+#wear-history-dialog .dialog-actions,
+#unworn-six-months-dialog .dialog-actions {
   justify-content: center;
 }
 
