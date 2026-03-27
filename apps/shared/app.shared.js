@@ -6992,39 +6992,112 @@ const exportStatsCsv = (stats) => {
 
 const exportStatsPdf = (stats) => {
   const modeLabel = stats.isInventory ? "Inventory" : "Wishlist";
-  const jsonPayload = {
-    generatedAt: new Date().toISOString(),
-    version: APP_VERSION,
-    mode: modeLabel.toLowerCase(),
-    stats,
+  const generatedAt = new Date();
+  const adv = stats.advanced || {};
+
+  const renderKvTable = (rows) => {
+    if (!rows.length) return "";
+    return `<table class="kv-table"><tbody>${rows.map((item) => `<tr><th>${escapeHtml(item.label)}</th><td>${escapeHtml(item.value)}</td></tr>`).join("")}</tbody></table>`;
   };
+
+  const renderSimpleTable = (headers, rows) => {
+    if (!rows.length) return `<div class="empty-note">No data yet.</div>`;
+    return `
+      <table class="data-table">
+        <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((cols) => `<tr>${cols.map((col) => `<td>${escapeHtml(col)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>
+    `;
+  };
+
+  const tallyLine = (pairs) => {
+    if (!Array.isArray(pairs) || !pairs.length) return "No data yet.";
+    return pairs.slice(0, 10).map(([label, count]) => `${label} (${count})`).join(", ");
+  };
+
+  const summaryRows = [
+    { label: "Mode", value: modeLabel },
+    { label: "Generated", value: generatedAt.toLocaleString() },
+    { label: "App version", value: APP_VERSION },
+    { label: "Total items", value: String(stats.totalItems || 0) },
+  ];
+  if (stats.isInventory) {
+    summaryRows.push({ label: "Total value", value: formatCurrency(stats.totalCost || 0) });
+    summaryRows.push({ label: "Mean price", value: formatCurrency(stats.meanPrice || 0) });
+    summaryRows.push({ label: "Median price", value: formatCurrency(stats.medianPrice || 0) });
+    if (adv.closetHealth) {
+      summaryRows.push({ label: "Closet health score", value: String(adv.closetHealth.score || 0) });
+    }
+  }
+
+  const tabRows = (stats.perTab || []).map((tab) => {
+    const value = stats.isInventory && tab.stats ? formatCurrency(tab.stats.totalCost || 0) : "-";
+    return [tab.name || "Unnamed", String(tab.count || 0), value];
+  });
+
+  const topWornRows = (stats.top5MostWorn || []).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})`,
+    String(item.wearCount || 0),
+  ]);
+
+  const wearGapRows = (adv.wearGapRiskAll || []).slice(0, 15).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})`,
+    String(item.daysSince === null ? "Never" : item.daysSince),
+    String(item.score || 0),
+  ]);
+
+  const recentRows = (stats.allRecentlyAdded || []).slice(0, 25).map((item) => [
+    item.name || "Unnamed",
+    item.tab || "",
+    item.type || "",
+    item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
+    item.price !== null && item.price !== undefined && item.price > 0 ? formatCurrency(item.price) : "",
+  ]);
+
+  const section = (title, body) => `<section class="report-section"><h2>${escapeHtml(title)}</h2>${body}</section>`;
+
   const printable = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</title>
   <style>
-    body { font-family: "Times New Roman", serif; margin: 24px; color: #111; }
-    h1, h2 { margin: 0 0 10px 0; }
-    .meta { margin: 0 0 18px 0; font-size: 13px; color: #444; }
-    .summary { margin: 0 0 18px 0; }
-    .summary li { margin: 0 0 6px 0; }
-    pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; border: 1px solid #ccc; padding: 12px; }
+    body { font-family: "Georgia", "Times New Roman", serif; margin: 24px; color: #141414; line-height: 1.4; }
+    h1 { margin: 0 0 8px 0; font-size: 24px; }
+    h2 { margin: 0 0 10px 0; font-size: 16px; }
+    .meta { margin: 0 0 16px 0; font-size: 12px; color: #555; }
+    .report-section { margin: 0 0 18px 0; page-break-inside: avoid; }
+    .kv-table, .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .kv-table th, .kv-table td, .data-table th, .data-table td { border: 1px solid #cfcfcf; padding: 6px 8px; text-align: left; vertical-align: top; }
+    .kv-table th { width: 28%; background: #f5f5f5; }
+    .data-table thead th { background: #f5f5f5; }
+    .inline-note { margin: 0; font-size: 12px; }
+    .empty-note { font-size: 12px; color: #666; }
+    .footer-note { margin-top: 18px; font-size: 11px; color: #666; }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
 <body>
   <h1>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</h1>
-  <div class="meta">Generated ${escapeHtml(new Date().toLocaleString())} | Version ${escapeHtml(APP_VERSION)}</div>
-  <h2>Summary</h2>
-  <ul class="summary">
-    <li>Total items: ${escapeHtml(stats.totalItems)}</li>
-    ${stats.isInventory ? `<li>Total value: ${escapeHtml(formatCurrency(stats.totalCost || 0))}</li>` : ""}
-    ${stats.isInventory ? `<li>Closet health score: ${escapeHtml((stats.advanced && stats.advanced.closetHealth ? stats.advanced.closetHealth.score : 0))}</li>` : ""}
-    <li>This PDF includes the full raw stats payload below.</li>
-  </ul>
-  <h2>Full Stats Payload (JSON)</h2>
-  <pre>${escapeHtml(JSON.stringify(jsonPayload, null, 2))}</pre>
+  <div class="meta">Generated ${escapeHtml(generatedAt.toLocaleString())} | Version ${escapeHtml(APP_VERSION)}</div>
+  ${section("Summary", renderKvTable(summaryRows))}
+  ${section("Top Tallies", `${renderKvTable([
+    { label: "Top types", value: tallyLine(stats.typeTally) },
+    { label: "Top fandoms", value: tallyLine(stats.fandomTally) },
+    { label: "Size breakdown", value: tallyLine(stats.sizeTally) },
+    { label: "Condition breakdown", value: stats.isInventory ? tallyLine(stats.conditionTally) : "Wishlist mode" },
+    { label: "Top tags", value: tallyLine(stats.topTags) },
+  ])}<p class="inline-note">This report shows key highlights. Use JSON export for a full machine-readable payload.</p>`)}
+  ${section("Tab Breakdown", renderSimpleTable(["Tab", "Items", "Value"], tabRows))}
+  ${stats.isInventory ? section("Wear Highlights", `${renderSimpleTable(["#", "Shirt", "Wear Count"], topWornRows)}${renderKvTable([
+    { label: "Longest unworn", value: stats.longestUnworn ? `${stats.longestUnworn.name} (${stats.longestUnworn.tab}) - ${stats.longestUnworn.daysSince} days` : "No data" },
+    { label: "Unworn over 6 months", value: String((stats.unwornOverSixMonths || []).length) },
+  ])}`) : ""}
+  ${stats.isInventory ? section("Advanced Wear Gap Risk (Top 15)", renderSimpleTable(["#", "Shirt", "Days Since", "Risk Score"], wearGapRows)) : ""}
+  ${section("Recently Added (Latest 25)", renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
+  <div class="footer-note">Need the complete underlying stats object? Use Stats -> Export -> JSON.</div>
 </body>
 </html>`;
 
