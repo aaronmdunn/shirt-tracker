@@ -17,7 +17,11 @@
       "Fixed transparent image backgrounds rendering black in compressed uploads",
       "Updated flannel icon with new plaid shirt design",
       "Added 'Top brand by month' bar chart to stats dialog",
-      "Removed Storage section from stats dialog"
+      "Removed Storage section from stats dialog",
+      "Added 'Worn on date' selector in Wear Tracking stats to show all shirts worn on any selected date",
+      "Added full Wear History dialog link from stats with shirt name, brand, type, and wear date",
+      "Replaced 'Bottom 5 least worn' with a dialog link listing shirts not worn in the past 6 months",
+      "Added Type to 'Shirts worn on date' results and grouped matches by name + brand + type"
     ]
   },
   {
