@@ -2787,7 +2787,8 @@ input[type="date"].stats-date-input {
 #wear-history-dialog,
 #unworn-six-months-dialog,
 #all-added-dialog,
-#advanced-stats-dialog {
+#advanced-stats-dialog,
+#wear-gap-risk-dialog {
   max-width: 620px;
   width: 90vw;
 }
@@ -2795,7 +2796,8 @@ input[type="date"].stats-date-input {
 #wear-history-dialog .dialog-body,
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
-#advanced-stats-dialog .dialog-body {
+#advanced-stats-dialog .dialog-body,
+#wear-gap-risk-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
@@ -2804,7 +2806,8 @@ input[type="date"].stats-date-input {
 #wear-history-dialog .dialog-actions,
 #unworn-six-months-dialog .dialog-actions,
 #all-added-dialog .dialog-actions,
-#advanced-stats-dialog .dialog-actions {
+#advanced-stats-dialog .dialog-actions,
+#wear-gap-risk-dialog .dialog-actions {
   justify-content: center;
 }
 
