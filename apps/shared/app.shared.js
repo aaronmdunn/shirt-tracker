@@ -6991,11 +6991,6 @@ const exportStatsCsv = (stats) => {
 };
 
 const exportStatsPdf = (stats) => {
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) {
-    alert("Popup blocked. Please allow popups to export PDF.");
-    return;
-  }
   const modeLabel = stats.isInventory ? "Inventory" : "Wishlist";
   const jsonPayload = {
     generatedAt: new Date().toISOString(),
@@ -7032,14 +7027,49 @@ const exportStatsPdf = (stats) => {
   <pre>${escapeHtml(JSON.stringify(jsonPayload, null, 2))}</pre>
 </body>
 </html>`;
-  win.document.open();
-  win.document.write(printable);
-  win.document.close();
-  window.setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 250);
-  addEventLog("Opened stats PDF export view");
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  iframe.style.border = "0";
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1000);
+  };
+
+  iframe.onload = () => {
+    try {
+      const frameWindow = iframe.contentWindow;
+      if (!frameWindow) {
+        cleanup();
+        return;
+      }
+      frameWindow.focus();
+      frameWindow.print();
+      addEventLog("Opened stats PDF print dialog");
+    } catch (error) {
+      alert("Unable to open print dialog for PDF export.");
+    } finally {
+      cleanup();
+    }
+  };
+
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    cleanup();
+    alert("Unable to create PDF export preview.");
+    return;
+  }
+  doc.open();
+  doc.write(printable);
+  doc.close();
 };
 
 const openStatsExportDialog = (stats) => {
