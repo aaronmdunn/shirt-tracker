@@ -8510,7 +8510,19 @@ const collectAllStats = () => {
   });
 
   // --- Wear-based stats (Inventory only) ---
-  const nonWearableTypes = new Set(["Misc", "Boxer Briefs", "Socks", "Hat"]);
+  const excludedWearTypes = new Set([
+    "chinos",
+    "boxer briefs",
+    "socks",
+    "hat",
+    "shorts",
+    "hybrid shorts",
+    "joggers",
+    "misc",
+    "outerwear",
+    "bamboo shorts",
+  ]);
+  const isWearExcludedType = (typeVal) => excludedWearTypes.has(String(typeVal || "").trim().toLowerCase());
   const wornItems = [];
   const unwornOverSixMonths = [];
   if (isInventory) {
@@ -8523,7 +8535,7 @@ const collectAllStats = () => {
         const lw = entry.row.lastWorn || null;
         const name = getCellValue(entry, "Name") || "Unnamed";
         const typeVal = getCellValue(entry, "Type");
-        const isWearable = !nonWearableTypes.has(typeVal);
+        const isWearable = !isWearExcludedType(typeVal);
         const priceRaw = getCellValue(entry, "Price");
         const price = parseCurrency(priceRaw);
         if (wc >= 1) {
@@ -8640,7 +8652,7 @@ const collectAllStats = () => {
       tab.entries.forEach((entry) => {
         const name = getCellValue(entry, "Name") || "Unnamed";
         const type = getCellValue(entry, "Type") || "Unknown";
-        if (nonWearableTypes.has(type)) return;
+        if (isWearExcludedType(type)) return;
         const price = parseCurrency(getCellValue(entry, "Price"));
         const wearCount = entry.row.wearCount || 0;
         const lastWorn = entry.row.lastWorn || null;
