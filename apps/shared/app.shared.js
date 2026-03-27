@@ -10221,7 +10221,7 @@ const openStatsDialog = () => {
     }
     if (s.topRotationScore.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top rotation score</div>`;
-      wearBlock += `<div class="stats-hint">Score blends wears, recency, and price. Recency bonus: 30d=5, 90d=4, 180d=3, 365d=2, older=1.</div>`;
+      wearBlock += `<div class="stats-hint">Score blends wears, recency, and price (score = wears*60 + recency*40 + round(log10(price+1)*25)).</div>`;
       s.topRotationScore.forEach((item, i) => {
         const type = item.type ? ` - ${item.type}` : "";
         const tieTag = item.isTie ? " (tie)" : "";
