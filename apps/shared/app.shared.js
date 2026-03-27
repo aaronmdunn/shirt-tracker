@@ -8995,7 +8995,8 @@ const collectAllStats = () => {
       const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
       if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
         const name = getCellValue(entry, "Name") || "Unnamed";
-        whaleItems.push({ name, tab: tab.name });
+        const type = getCellValue(entry, "Type") || "";
+        whaleItems.push({ name, tab: tab.name, type });
       }
     });
   });
@@ -10151,7 +10152,8 @@ const openStatsDialog = () => {
         rareBlock += `<div class="stats-section-title" style="margin-top:8px">Whales</div>`;
         rareBlock += row("Total whales", String(s.whaleItems.length));
         s.whaleItems.forEach((item) => {
-          rareBlock += sub(`${item.name} (${item.tab})`, "");
+          const type = item.type ? ` - ${item.type}` : "";
+          rareBlock += sub(`${item.name} (${item.tab})${type}`, "");
         });
       }
       html += section(rareBlock);
@@ -10200,7 +10202,8 @@ const openStatsDialog = () => {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Last 5 worn</div>`;
       s.last5Worn.forEach((item, i) => {
         const date = new Date(item.lastWorn).toLocaleDateString();
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, date);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, date);
       });
     }
     if (s.wearEvents.length) {
