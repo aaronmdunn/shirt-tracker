@@ -8736,6 +8736,8 @@ const collectAllStats = () => {
   };
 
   const pricingFrom = (subset) => {
+    const PRICE_RANK_COUNT = 10;
+    const cheapestExcludedTypes = new Set(["socks", "boxer briefs", "hat", "misc"]);
     const prices = [];
     const priceItems = [];
     if (isInventory) {
@@ -8744,8 +8746,9 @@ const collectAllStats = () => {
         const parsed = parseCurrency(raw);
         if (parsed !== null && parsed > 0) {
           const name = getCellValue(entry, "Name") || "Unnamed";
+          const type = getCellValue(entry, "Type") || "";
           prices.push(parsed);
-          priceItems.push({ name, tab: entry.tabName || "", price: parsed });
+          priceItems.push({ name, tab: entry.tabName || "", type, price: parsed });
         }
       });
       priceItems.sort((a, b) => b.price - a.price);
@@ -8758,7 +8761,14 @@ const collectAllStats = () => {
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     })();
-    return { totalCost, meanPrice, medianPrice, top5Expensive: priceItems.slice(0, 5), top5Cheapest: priceItems.length ? priceItems.slice(-5).reverse() : [] };
+    const cheapestPool = priceItems.filter((item) => !cheapestExcludedTypes.has(String(item.type || "").trim().toLowerCase()));
+    return {
+      totalCost,
+      meanPrice,
+      medianPrice,
+      top5Expensive: priceItems.slice(0, PRICE_RANK_COUNT),
+      top5Cheapest: cheapestPool.length ? cheapestPool.slice(-PRICE_RANK_COUNT).reverse() : [],
+    };
   };
 
   const tagsFrom = (subset) => {
@@ -8985,7 +8995,8 @@ const collectAllStats = () => {
       const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
       if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
         const name = getCellValue(entry, "Name") || "Unnamed";
-        whaleItems.push({ name, tab: tab.name });
+        const type = getCellValue(entry, "Type") || "";
+        whaleItems.push({ name, tab: tab.name, type });
       }
     });
   });
@@ -9095,13 +9106,13 @@ const collectAllStats = () => {
       withDate.sort((a, b) => new Date(a.lastWorn) - new Date(b.lastWorn));
       const oldest = withDate[0];
       const daysSince = Math.floor((Date.now() - new Date(oldest.lastWorn).getTime()) / 86400000);
-      longestUnworn = { name: oldest.name, tab: oldest.tab, daysSince, lastWorn: oldest.lastWorn };
+      longestUnworn = { name: oldest.name, tab: oldest.tab, type: oldest.type || "", daysSince, lastWorn: oldest.lastWorn };
     }
   }
   // Cost per wear: Price / wearCount, sorted ascending (best value first)
   const costPerWear = wornItems
     .filter((i) => i.price !== null && i.price > 0)
-    .map((i) => ({ name: i.name, tab: i.tab, cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
+    .map((i) => ({ name: i.name, tab: i.tab, type: i.type || "", cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
     .sort((a, b) => a.cpw - b.cpw)
     .slice(0, 5);
   // Top 5 most worn
@@ -9993,15 +10004,19 @@ const openStatsDialog = () => {
     if (stats.priceStdDev > 0) {
       block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
-    block += `<div class="stats-section-title" style="margin-top:8px">Most expensive</div>`;
+    block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
-      const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+      const brand = item.tab || "Unknown";
+      const type = item.type || "Unknown";
+      const label = `${i + 1}. ${item.name} (${brand}) - ${type}`;
       block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
-      block += `<div class="stats-section-title" style="margin-top:8px">Cheapest</div>`;
+      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest (excluding Socks, Boxer Briefs, Hat, Misc)</div>`;
       stats.top5Cheapest.forEach((item, i) => {
-        const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
+        const brand = item.tab || "Unknown";
+        const type = item.type || "Unknown";
+        const label = `${i + 1}. ${item.name} (${brand}) - ${type}`;
         block += sub(label, formatCurrency(item.price));
       });
     }
@@ -10137,7 +10152,8 @@ const openStatsDialog = () => {
         rareBlock += `<div class="stats-section-title" style="margin-top:8px">Whales</div>`;
         rareBlock += row("Total whales", String(s.whaleItems.length));
         s.whaleItems.forEach((item) => {
-          rareBlock += sub(`${item.name} (${item.tab})`, "");
+          const type = item.type ? ` - ${item.type}` : "";
+          rareBlock += sub(`${item.name} (${item.tab})${type}`, "");
         });
       }
       html += section(rareBlock);
@@ -10172,19 +10188,22 @@ const openStatsDialog = () => {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
-      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)}) — ${s.longestUnworn.daysSince} days`);
+      const longestType = s.longestUnworn.type ? ` - ${esc(s.longestUnworn.type)}` : "";
+      wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)})${longestType} — ${s.longestUnworn.daysSince} days`);
     }
     if (s.top5MostWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
       s.top5MostWorn.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.wearCount} wears`);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, `${item.wearCount} wears`);
       });
     }
     if (s.last5Worn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Last 5 worn</div>`;
       s.last5Worn.forEach((item, i) => {
         const date = new Date(item.lastWorn).toLocaleDateString();
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, date);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, date);
       });
     }
     if (s.wearEvents.length) {
@@ -10197,7 +10216,8 @@ const openStatsDialog = () => {
     if (s.costPerWear.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Best cost per wear</div>`;
       s.costPerWear.forEach((item, i) => {
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
+        const type = item.type ? ` - ${item.type}` : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, `${formatCurrency(item.cpw)}/wear (${item.wearCount} wears)`);
       });
     }
     // Most worn brand by day of week
@@ -10236,10 +10256,11 @@ const openStatsDialog = () => {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
-      const label = item.type ? `${item.name} (${item.type})` : item.name;
       // Wishlist: show Brand column value; Inventory: show tab name (which IS the brand)
-      const brandLabel = !s.isInventory ? (item.brand || "") : item.tab;
-      const right = brandLabel ? `${brandLabel} - ${date}` : date;
+      const brandLabel = !s.isInventory ? (item.brand || "Unknown") : (item.tab || "Unknown");
+      const typeLabel = item.type || "Unknown";
+      const label = `${item.name} (${brandLabel}) - ${typeLabel}`;
+      const right = date;
       addedBlock += sub(label, right);
     });
     addedBlock += `<button type="button" id="stats-all-added-link" class="stats-link-button">View all added shirts</button>`;
@@ -10250,8 +10271,10 @@ const openStatsDialog = () => {
   if (s.isInventory && s.recentlyDeleted.length) {
     let delBlock = `<div class="stats-section-title">Recently deleted</div>`;
     s.recentlyDeleted.forEach((item) => {
-      const label = item.type ? `${item.name} (${item.type})` : item.name;
-      delBlock += sub(label, `${item.tab} \u00B7 ${item.date}`);
+      const brand = item.tab || "Unknown";
+      const type = item.type || "Unknown";
+      const label = `${item.name} (${brand}) - ${type}`;
+      delBlock += sub(label, item.date);
     });
     html += section(delBlock);
   }
