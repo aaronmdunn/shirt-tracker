@@ -2794,6 +2794,16 @@ input[type="date"].stats-date-input {
   cursor: pointer;
 }
 
+.stats-export-options {
+  display: grid;
+  gap: 8px;
+}
+
+.stats-export-note {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 #wear-history-dialog,
 #unworn-six-months-dialog,
 #all-added-dialog,

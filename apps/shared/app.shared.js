@@ -634,6 +634,7 @@ const statsDialog = document.getElementById("stats-dialog");
 const statsContent = document.getElementById("stats-content");
 const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
+const statsExportButton = document.getElementById("stats-export");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
@@ -657,6 +658,7 @@ let deleteSelectedButton = null;
 let pendingDeleteTabId = null;
 let activeTagsRowId = null;
 let lastClearSnapshot = null;
+let latestStatsSnapshot = null;
 const storageStatus = { ok: null };
 
 const canUseLocalStorage = () => {
@@ -6884,6 +6886,215 @@ const exportCsv = () => {
   addEventLog("Exported CSV");
 };
 
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+
+const getStatsExportBaseName = (stats) => {
+  const mode = stats && stats.isInventory ? "inventory" : "wishlist";
+  const stamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+$/, "");
+  return `shirt-tracker-${mode}-stats-${stamp}`;
+};
+
+const buildStatsCsvRows = (stats) => {
+  const rows = [["Section", "Metric", "Value", "Details"]];
+  const push = (section, metric, value, details = "") => {
+    rows.push([section, metric, value, details]);
+  };
+  const pushPairs = (section, metricPrefix, pairs) => {
+    (pairs || []).forEach(([label, count]) => {
+      push(section, `${metricPrefix}: ${label}`, String(count));
+    });
+  };
+
+  push("Summary", "Mode", stats.isInventory ? "Inventory" : "Wishlist");
+  push("Summary", "Total items", String(stats.totalItems || 0));
+  push("Summary", "Generated at", new Date().toISOString());
+
+  if (stats.isInventory) {
+    push("Pricing", "Total value", String(stats.totalCost || 0));
+    push("Pricing", "Mean price", String(stats.meanPrice || 0));
+    push("Pricing", "Median price", String(stats.medianPrice || 0));
+    push("Pricing", "Price std deviation", String(stats.priceStdDev || 0));
+  }
+
+  (stats.perTab || []).forEach((tab) => {
+    push("Tabs", `Items in ${tab.name}`, String(tab.count || 0));
+    if (stats.isInventory && tab.stats && typeof tab.stats.totalCost === "number") {
+      push("Tabs", `Value in ${tab.name}`, String(tab.stats.totalCost || 0));
+    }
+  });
+
+  pushPairs("Tallies", "Type", stats.typeTally);
+  pushPairs("Tallies", "Fandom", stats.fandomTally);
+  pushPairs("Tallies", "Size", stats.sizeTally);
+  pushPairs("Tallies", "Condition", stats.conditionTally);
+  pushPairs("Tallies", "Tag", stats.topTags);
+
+  if (stats.isInventory) {
+    (stats.top5MostWorn || []).forEach((item, idx) => {
+      push("Wear", `Top worn #${idx + 1}`, String(item.wearCount || 0), `${item.name} (${item.tab})`);
+    });
+    (stats.costPerWear || []).forEach((item, idx) => {
+      push("Wear", `Best CPW #${idx + 1}`, String(item.cpw || 0), `${item.name} (${item.tab})`);
+    });
+    (stats.unwornOverSixMonths || []).forEach((item) => {
+      push("Wear", "Unworn > 6 months", String(item.daysSince || "Never"), `${item.name} (${item.tab})`);
+    });
+    (stats.brandByDayOfWeek || []).forEach((item) => {
+      push("Wear", `Top brand on ${item.day}`, item.brand || "-", String(item.count || 0));
+    });
+    (stats.brandByMonth || []).forEach((item) => {
+      push("Wear", `Top brand in ${item.month}`, item.brand || "-", String(item.count || 0));
+    });
+  }
+
+  (stats.allRecentlyAdded || []).forEach((item) => {
+    push("Recently added", item.name || "Unnamed", item.createdAt || "", `${item.tab || ""}${item.type ? ` | ${item.type}` : ""}`);
+  });
+
+  const adv = stats.advanced || {};
+  if (stats.isInventory && adv.closetHealth) {
+    push("Advanced", "Closet health score", String(adv.closetHealth.score || 0));
+    push("Advanced", "Recency %", String(adv.closetHealth.recencyPct || 0));
+    push("Advanced", "Never worn %", String(adv.closetHealth.neverWornPct || 0));
+    push("Advanced", "Inactive value %", String(adv.closetHealth.inactiveValuePct || 0));
+    push("Advanced", "CPW efficiency %", String(adv.closetHealth.cpwEffPct || 0));
+  }
+  (adv.wearGapRiskAll || []).forEach((item) => {
+    push("Advanced", "Wear gap risk", String(item.score || 0), `${item.name} (${item.tab})`);
+  });
+  (adv.brandUtilization || []).forEach((item) => {
+    push("Advanced", `Brand utilization: ${item.brand}`, String(item.utilizationPct || 0), `inventory=${item.inventory}, worn90=${item.wornLast90}`);
+  });
+
+  return rows.map((cols) => cols.map((col) => escapeCsv(col)).join(",")).join("\n");
+};
+
+const exportStatsJson = (stats) => {
+  const payload = {
+    generatedAt: new Date().toISOString(),
+    version: APP_VERSION,
+    mode: stats.isInventory ? "inventory" : "wishlist",
+    stats,
+  };
+  downloadFile(JSON.stringify(payload, null, 2), `${getStatsExportBaseName(stats)}.json`, "application/json;charset=utf-8;");
+  addEventLog("Exported stats JSON");
+};
+
+const exportStatsCsv = (stats) => {
+  const csv = buildStatsCsvRows(stats);
+  downloadFile(csv, `${getStatsExportBaseName(stats)}.csv`, "text/csv;charset=utf-8;");
+  addEventLog("Exported stats CSV");
+};
+
+const exportStatsPdf = (stats) => {
+  const win = window.open("", "_blank", "noopener,noreferrer");
+  if (!win) {
+    alert("Popup blocked. Please allow popups to export PDF.");
+    return;
+  }
+  const modeLabel = stats.isInventory ? "Inventory" : "Wishlist";
+  const jsonPayload = {
+    generatedAt: new Date().toISOString(),
+    version: APP_VERSION,
+    mode: modeLabel.toLowerCase(),
+    stats,
+  };
+  const printable = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</title>
+  <style>
+    body { font-family: "Times New Roman", serif; margin: 24px; color: #111; }
+    h1, h2 { margin: 0 0 10px 0; }
+    .meta { margin: 0 0 18px 0; font-size: 13px; color: #444; }
+    .summary { margin: 0 0 18px 0; }
+    .summary li { margin: 0 0 6px 0; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; border: 1px solid #ccc; padding: 12px; }
+    @media print { body { margin: 12mm; } }
+  </style>
+</head>
+<body>
+  <h1>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</h1>
+  <div class="meta">Generated ${escapeHtml(new Date().toLocaleString())} | Version ${escapeHtml(APP_VERSION)}</div>
+  <h2>Summary</h2>
+  <ul class="summary">
+    <li>Total items: ${escapeHtml(stats.totalItems)}</li>
+    ${stats.isInventory ? `<li>Total value: ${escapeHtml(formatCurrency(stats.totalCost || 0))}</li>` : ""}
+    ${stats.isInventory ? `<li>Closet health score: ${escapeHtml((stats.advanced && stats.advanced.closetHealth ? stats.advanced.closetHealth.score : 0))}</li>` : ""}
+    <li>This PDF includes the full raw stats payload below.</li>
+  </ul>
+  <h2>Full Stats Payload (JSON)</h2>
+  <pre>${escapeHtml(JSON.stringify(jsonPayload, null, 2))}</pre>
+</body>
+</html>`;
+  win.document.open();
+  win.document.write(printable);
+  win.document.close();
+  window.setTimeout(() => {
+    win.focus();
+    win.print();
+  }, 250);
+  addEventLog("Opened stats PDF export view");
+};
+
+const openStatsExportDialog = (stats) => {
+  latestStatsSnapshot = stats;
+  let dialog = document.getElementById("stats-export-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "stats-export-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Export Stats</h3>
+        <div class="stats-export-options">
+          <button type="button" class="btn" id="stats-export-pdf">Export PDF (full report)</button>
+          <button type="button" class="btn secondary" id="stats-export-csv">Export CSV (tabular)</button>
+          <button type="button" class="btn secondary" id="stats-export-json">Export JSON (complete)</button>
+        </div>
+        <div class="stats-export-note">PDF includes the full raw stats payload. JSON is the lossless machine-readable export.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="stats-export-close">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#stats-export-close");
+    const pdfButton = dialog.querySelector("#stats-export-pdf");
+    const csvButton = dialog.querySelector("#stats-export-csv");
+    const jsonButton = dialog.querySelector("#stats-export-json");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => closeDialog(dialog));
+    }
+    if (pdfButton) {
+      pdfButton.addEventListener("click", () => {
+        if (!latestStatsSnapshot) return;
+        exportStatsPdf(latestStatsSnapshot);
+      });
+    }
+    if (csvButton) {
+      csvButton.addEventListener("click", () => {
+        if (!latestStatsSnapshot) return;
+        exportStatsCsv(latestStatsSnapshot);
+      });
+    }
+    if (jsonButton) {
+      jsonButton.addEventListener("click", () => {
+        if (!latestStatsSnapshot) return;
+        exportStatsJson(latestStatsSnapshot);
+      });
+    }
+  }
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const detectCsvDelimiter = (line) => {
   const sample = line || "";
   const counts = {
@@ -9942,6 +10153,11 @@ const openStatsDialog = () => {
     advancedStatsLink.addEventListener("click", () => {
       openAdvancedStatsDialog(s);
     });
+  }
+  if (statsExportButton) {
+    statsExportButton.onclick = () => {
+      openStatsExportDialog(s);
+    };
   }
 
   openDialog(statsDialog);
