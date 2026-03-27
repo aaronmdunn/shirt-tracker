@@ -8736,6 +8736,8 @@ const collectAllStats = () => {
   };
 
   const pricingFrom = (subset) => {
+    const PRICE_RANK_COUNT = 10;
+    const cheapestExcludedTypes = new Set(["socks", "boxer briefs", "hat", "misc"]);
     const prices = [];
     const priceItems = [];
     if (isInventory) {
@@ -8744,8 +8746,9 @@ const collectAllStats = () => {
         const parsed = parseCurrency(raw);
         if (parsed !== null && parsed > 0) {
           const name = getCellValue(entry, "Name") || "Unnamed";
+          const type = getCellValue(entry, "Type") || "";
           prices.push(parsed);
-          priceItems.push({ name, tab: entry.tabName || "", price: parsed });
+          priceItems.push({ name, tab: entry.tabName || "", type, price: parsed });
         }
       });
       priceItems.sort((a, b) => b.price - a.price);
@@ -8758,7 +8761,14 @@ const collectAllStats = () => {
       const mid = Math.floor(sorted.length / 2);
       return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
     })();
-    return { totalCost, meanPrice, medianPrice, top5Expensive: priceItems.slice(0, 5), top5Cheapest: priceItems.length ? priceItems.slice(-5).reverse() : [] };
+    const cheapestPool = priceItems.filter((item) => !cheapestExcludedTypes.has(String(item.type || "").trim().toLowerCase()));
+    return {
+      totalCost,
+      meanPrice,
+      medianPrice,
+      top5Expensive: priceItems.slice(0, PRICE_RANK_COUNT),
+      top5Cheapest: cheapestPool.length ? cheapestPool.slice(-PRICE_RANK_COUNT).reverse() : [],
+    };
   };
 
   const tagsFrom = (subset) => {
@@ -9993,13 +10003,13 @@ const openStatsDialog = () => {
     if (stats.priceStdDev > 0) {
       block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
-    block += `<div class="stats-section-title" style="margin-top:8px">Most expensive</div>`;
+    block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
       const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
       block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
-      block += `<div class="stats-section-title" style="margin-top:8px">Cheapest</div>`;
+      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest (excluding Socks, Boxer Briefs, Hat, Misc)</div>`;
       stats.top5Cheapest.forEach((item, i) => {
         const label = item.tab ? `${i + 1}. ${item.name} (${item.tab})` : `${i + 1}. ${item.name}`;
         block += sub(label, formatCurrency(item.price));
