@@ -2808,7 +2808,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog,
 #all-added-dialog,
 #advanced-stats-dialog,
-#wear-gap-risk-dialog {
+#first-wear-lag-dialog {
   max-width: 620px;
   width: 90vw;
 }
@@ -2817,7 +2817,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
-#wear-gap-risk-dialog .dialog-body {
+#first-wear-lag-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
@@ -2827,7 +2827,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-actions,
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
-#wear-gap-risk-dialog .dialog-actions {
+#first-wear-lag-dialog .dialog-actions {
   justify-content: center;
 }
 
