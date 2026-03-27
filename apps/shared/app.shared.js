@@ -8197,6 +8197,8 @@ const collectAllStats = () => {
     return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
   };
 
+  const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+
   // --- Reusable stat helpers (work on any row subset) ---
   const tallyFrom = (subset, colName) => {
     const counts = {};
@@ -8540,6 +8542,21 @@ const collectAllStats = () => {
     .filter((i) => i.lastWorn)
     .sort((a, b) => new Date(b.lastWorn) - new Date(a.lastWorn))
     .slice(0, 5);
+  // Wear log events keyed by local calendar date (lifetime)
+  const wearEvents = [];
+  wornItems.forEach((item) => {
+    item.wearLog.forEach((dateStr) => {
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return;
+      wearEvents.push({
+        name: item.name,
+        tab: item.tab,
+        wornAt: d.toISOString(),
+        dateKey: toLocalDateKey(d),
+      });
+    });
+  });
+  wearEvents.sort((a, b) => new Date(b.wornAt) - new Date(a.wornAt));
   // Most worn brand by day of week (from wearLog data, lifetime)
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const brandByDay = Array.from({ length: 7 }, () => ({})); // [{ brand: count }, ...]
@@ -8602,6 +8619,7 @@ const collectAllStats = () => {
     top5MostWorn,
     bottom5LeastWorn,
     last5Worn,
+    wearEvents,
     brandByDayOfWeek,
     brandByMonth,
   };
@@ -8617,6 +8635,7 @@ const openStatsDialog = () => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const section = (content) => `<div class="stats-section">${content}</div>`;
+  const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 
   const barChart = (tally, maxItems) => {
     if (!tally.length) return "";
@@ -8831,6 +8850,7 @@ const openStatsDialog = () => {
   // --- Wear tracking stats (Inventory only) ---
   if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
+    const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
       wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)}) — ${s.longestUnworn.daysSince} days`);
     }
@@ -8846,6 +8866,10 @@ const openStatsDialog = () => {
         const date = new Date(item.lastWorn).toLocaleDateString();
         wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})`, date);
       });
+    }
+    if (s.wearEvents.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Worn on date</div>`;
+      wearBlock += `<div class="stats-date-lookup"><input id="stats-worn-date-input" class="stats-date-input" type="date" value="${todayKey}" max="${todayKey}"><div id="stats-worn-date-results" class="stats-date-results"></div></div>`;
     }
     if (s.bottom5LeastWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Bottom 5 least worn</div>`;
@@ -8933,6 +8957,45 @@ const openStatsDialog = () => {
   }
 
   statsContent.innerHTML = html;
+
+  const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
+  const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
+  if (wornDateInput && wornDateResults) {
+    const renderWornDateMatches = () => {
+      const selectedDate = wornDateInput.value;
+      if (!selectedDate) {
+        wornDateResults.innerHTML = `<div class="stats-hint">Pick a date to see what was worn.</div>`;
+        return;
+      }
+      const matches = s.wearEvents.filter((event) => event.dateKey === selectedDate);
+      if (!matches.length) {
+        wornDateResults.innerHTML = `<div class="stats-hint">No shirts logged for this date.</div>`;
+        return;
+      }
+
+      const grouped = {};
+      matches.forEach((event) => {
+        const key = `${event.name}||${event.tab}`;
+        const ts = new Date(event.wornAt).getTime();
+        if (!grouped[key]) grouped[key] = { name: event.name, tab: event.tab, count: 0, latest: ts };
+        grouped[key].count += 1;
+        if (ts > grouped[key].latest) grouped[key].latest = ts;
+      });
+
+      const ranked = Object.values(grouped)
+        .sort((a, b) => b.latest - a.latest || a.name.localeCompare(b.name));
+      let out = row("Shirts worn", String(ranked.length));
+      ranked.forEach((item, i) => {
+        out += sub(`${i + 1}. ${item.name} (${item.tab})`, `${item.count} ${item.count === 1 ? "wear" : "wears"}`);
+      });
+      wornDateResults.innerHTML = out;
+    };
+
+    wornDateInput.addEventListener("input", renderWornDateMatches);
+    wornDateInput.addEventListener("change", renderWornDateMatches);
+    renderWornDateMatches();
+  }
+
   openDialog(statsDialog);
   resetDialogScroll(statsDialog);
 };

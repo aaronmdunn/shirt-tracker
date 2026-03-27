@@ -2757,6 +2757,21 @@ dialog {
   white-space: nowrap;
 }
 
+.stats-date-lookup {
+  display: grid;
+  gap: 8px;
+}
+
+input[type="date"].stats-date-input {
+  width: auto;
+  max-width: 220px;
+}
+
+.stats-date-results {
+  display: grid;
+  gap: 2px;
+}
+
 .privacy-dialog .dialog-body {
   gap: 10px;
   text-align: left;
