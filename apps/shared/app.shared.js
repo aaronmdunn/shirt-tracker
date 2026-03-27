@@ -6990,56 +6990,234 @@ const exportStatsCsv = (stats) => {
   addEventLog("Exported stats CSV");
 };
 
-const exportStatsPdf = (stats) => {
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) {
-    alert("Popup blocked. Please allow popups to export PDF.");
-    return;
-  }
+const exportStatsPdf = (stats, options = {}) => {
+  const isFullExport = !!options.full;
   const modeLabel = stats.isInventory ? "Inventory" : "Wishlist";
-  const jsonPayload = {
-    generatedAt: new Date().toISOString(),
-    version: APP_VERSION,
-    mode: modeLabel.toLowerCase(),
-    stats,
+  const generatedAt = new Date();
+  const adv = stats.advanced || {};
+
+  const renderKvTable = (rows) => {
+    if (!rows.length) return "";
+    return `<table class="kv-table"><tbody>${rows.map((item) => `<tr><th>${escapeHtml(item.label)}</th><td>${escapeHtml(item.value)}</td></tr>`).join("")}</tbody></table>`;
   };
+
+  const renderSimpleTable = (headers, rows) => {
+    if (!rows.length) return `<div class="empty-note">No data yet.</div>`;
+    return `
+      <table class="data-table">
+        <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((cols) => `<tr>${cols.map((col) => `<td>${escapeHtml(col)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>
+    `;
+  };
+
+  const tallyLine = (pairs) => {
+    if (!Array.isArray(pairs) || !pairs.length) return "No data yet.";
+    const maxItems = isFullExport ? pairs.length : 10;
+    return pairs.slice(0, maxItems).map(([label, count]) => `${label} (${count})`).join(", ");
+  };
+
+  const summaryRows = [
+    { label: "Mode", value: modeLabel },
+    { label: "Generated", value: generatedAt.toLocaleString() },
+    { label: "App version", value: APP_VERSION },
+    { label: "Total items", value: String(stats.totalItems || 0) },
+  ];
+  if (stats.isInventory) {
+    summaryRows.push({ label: "Total value", value: formatCurrency(stats.totalCost || 0) });
+    summaryRows.push({ label: "Mean price", value: formatCurrency(stats.meanPrice || 0) });
+    summaryRows.push({ label: "Median price", value: formatCurrency(stats.medianPrice || 0) });
+    if (adv.closetHealth) {
+      summaryRows.push({ label: "Closet health score", value: String(adv.closetHealth.score || 0) });
+    }
+  }
+
+  const tabRows = (stats.perTab || []).map((tab) => {
+    const value = stats.isInventory && tab.stats ? formatCurrency(tab.stats.totalCost || 0) : "-";
+    return [tab.name || "Unnamed", String(tab.count || 0), value];
+  });
+
+  const topWornRows = (stats.top5MostWorn || []).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})`,
+    String(item.wearCount || 0),
+  ]);
+
+  const wearGapRows = (adv.wearGapRiskAll || []).slice(0, isFullExport ? (adv.wearGapRiskAll || []).length : 15).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})`,
+    String(item.daysSince === null ? "Never" : item.daysSince),
+    String(item.score || 0),
+  ]);
+
+  const recentRows = (stats.allRecentlyAdded || []).slice(0, isFullExport ? (stats.allRecentlyAdded || []).length : 25).map((item) => [
+    item.name || "Unnamed",
+    item.tab || "",
+    item.type || "",
+    item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
+    item.price !== null && item.price !== undefined && item.price > 0 ? formatCurrency(item.price) : "",
+  ]);
+
+  const unwornRows = (stats.unwornOverSixMonths || []).slice(0, isFullExport ? (stats.unwornOverSixMonths || []).length : 40).map((item, index) => [
+    String(index + 1),
+    `${item.name || "Unnamed"} (${item.tab || ""})${item.type ? ` - ${item.type}` : ""}`,
+    String(item.daysSince === null ? "Never" : item.daysSince),
+  ]);
+
+  const wearEventRows = (stats.wearEvents || []).slice(0, isFullExport ? (stats.wearEvents || []).length : 100).map((event, index) => [
+    String(index + 1),
+    event.name || "Unnamed",
+    event.tab || "",
+    event.type || "",
+    event.wornAt ? new Date(event.wornAt).toLocaleString() : "",
+  ]);
+
+  const brandUtilRows = (adv.brandUtilization || []).slice(0, isFullExport ? (adv.brandUtilization || []).length : 40).map((item) => [
+    item.brand || "",
+    String(item.inventory || 0),
+    String(item.wornLast90 || 0),
+    `${item.utilizationPct || 0}%`,
+    item.avgCpw === null || item.avgCpw === undefined ? "n/a" : formatCurrency(item.avgCpw),
+  ]);
+
+  const spendWearRows = (adv.monthlySpendVsWear || []).slice(0, isFullExport ? (adv.monthlySpendVsWear || []).length : 24).map((item) => [
+    item.label || "",
+    String(item.added || 0),
+    formatCurrency(item.spend || 0),
+    String(item.wears || 0),
+    item.spendPerWear === null || item.spendPerWear === undefined ? "n/a" : formatCurrency(item.spendPerWear),
+  ]);
+
+  const typeRotationRows = (adv.typeRotationBalance || []).slice(0, isFullExport ? (adv.typeRotationBalance || []).length : 30).map((item) => [
+    item.type || "",
+    String(item.inventoryCount || 0),
+    String(item.wearCount || 0),
+    `${(item.inventoryPct || 0).toFixed(1)}%`,
+    `${(item.wearPct || 0).toFixed(1)}%`,
+    `${(item.deltaPct || 0).toFixed(1)}%`,
+  ]);
+
+  const seasonalityRows = (adv.seasonalityByMonth || []).map((item) => [
+    item.month || "",
+    item.type || "-",
+    String(item.count || 0),
+  ]);
+
+  const tagPerformanceRows = (adv.tagPerformance || []).slice(0, isFullExport ? (adv.tagPerformance || []).length : 40).map((item) => [
+    item.tag || "",
+    String(item.samples || 0),
+    (item.avgWears || 0).toFixed(1),
+    item.avgCpw === null || item.avgCpw === undefined ? "n/a" : formatCurrency(item.avgCpw),
+  ]);
+
+  const topBrandStreakRows = ((adv.repeatWearStreaks && adv.repeatWearStreaks.topBrandStreaks) || []).map((item, index) => [
+    String(index + 1),
+    item.label || "",
+    `${item.streak || 0} days`,
+  ]);
+
+  const topTypeStreakRows = ((adv.repeatWearStreaks && adv.repeatWearStreaks.topTypeStreaks) || []).map((item, index) => [
+    String(index + 1),
+    item.label || "",
+    `${item.streak || 0} days`,
+  ]);
+
+  const section = (title, body) => `<section class="report-section"><h2>${escapeHtml(title)}</h2>${body}</section>`;
+
   const printable = `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</title>
   <style>
-    body { font-family: "Times New Roman", serif; margin: 24px; color: #111; }
-    h1, h2 { margin: 0 0 10px 0; }
-    .meta { margin: 0 0 18px 0; font-size: 13px; color: #444; }
-    .summary { margin: 0 0 18px 0; }
-    .summary li { margin: 0 0 6px 0; }
-    pre { white-space: pre-wrap; word-break: break-word; font-size: 11px; border: 1px solid #ccc; padding: 12px; }
+    body { font-family: "Georgia", "Times New Roman", serif; margin: 24px; color: #141414; line-height: 1.4; }
+    h1 { margin: 0 0 8px 0; font-size: 24px; }
+    h2 { margin: 0 0 10px 0; font-size: 16px; }
+    .meta { margin: 0 0 16px 0; font-size: 12px; color: #555; }
+    .report-section { margin: 0 0 18px 0; page-break-inside: avoid; }
+    .kv-table, .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .kv-table th, .kv-table td, .data-table th, .data-table td { border: 1px solid #cfcfcf; padding: 6px 8px; text-align: left; vertical-align: top; }
+    .kv-table th { width: 28%; background: #f5f5f5; }
+    .data-table thead th { background: #f5f5f5; }
+    .inline-note { margin: 0; font-size: 12px; }
+    .empty-note { font-size: 12px; color: #666; }
+    .footer-note { margin-top: 18px; font-size: 11px; color: #666; }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
 <body>
   <h1>Shirt Tracker ${escapeHtml(modeLabel)} Stats Report</h1>
-  <div class="meta">Generated ${escapeHtml(new Date().toLocaleString())} | Version ${escapeHtml(APP_VERSION)}</div>
-  <h2>Summary</h2>
-  <ul class="summary">
-    <li>Total items: ${escapeHtml(stats.totalItems)}</li>
-    ${stats.isInventory ? `<li>Total value: ${escapeHtml(formatCurrency(stats.totalCost || 0))}</li>` : ""}
-    ${stats.isInventory ? `<li>Closet health score: ${escapeHtml((stats.advanced && stats.advanced.closetHealth ? stats.advanced.closetHealth.score : 0))}</li>` : ""}
-    <li>This PDF includes the full raw stats payload below.</li>
-  </ul>
-  <h2>Full Stats Payload (JSON)</h2>
-  <pre>${escapeHtml(JSON.stringify(jsonPayload, null, 2))}</pre>
+  <div class="meta">Generated ${escapeHtml(generatedAt.toLocaleString())} | Version ${escapeHtml(APP_VERSION)}</div>
+  ${section("Summary", renderKvTable(summaryRows))}
+  ${section("Top Tallies", `${renderKvTable([
+    { label: "Top types", value: tallyLine(stats.typeTally) },
+    { label: "Top fandoms", value: tallyLine(stats.fandomTally) },
+    { label: "Size breakdown", value: tallyLine(stats.sizeTally) },
+    { label: "Condition breakdown", value: stats.isInventory ? tallyLine(stats.conditionTally) : "Wishlist mode" },
+    { label: "Top tags", value: tallyLine(stats.topTags) },
+  ])}<p class="inline-note">This report shows key highlights. Use JSON export for a full machine-readable payload.</p>`)}
+  ${section("Tab Breakdown", renderSimpleTable(["Tab", "Items", "Value"], tabRows))}
+  ${stats.isInventory ? section("Wear Highlights", `${renderSimpleTable(["#", "Shirt", "Wear Count"], topWornRows)}${renderKvTable([
+    { label: "Longest unworn", value: stats.longestUnworn ? `${stats.longestUnworn.name} (${stats.longestUnworn.tab}) - ${stats.longestUnworn.daysSince} days` : "No data" },
+    { label: "Unworn over 6 months", value: String((stats.unwornOverSixMonths || []).length) },
+  ])}`) : ""}
+  ${stats.isInventory ? section(`Advanced Wear Gap Risk (${isFullExport ? "All" : "Top 15"})`, renderSimpleTable(["#", "Shirt", "Days Since", "Risk Score"], wearGapRows)) : ""}
+  ${stats.isInventory ? section(`Unworn Over 6 Months (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["#", "Shirt", "Days Since"], unwornRows)) : ""}
+  ${stats.isInventory ? section(`Wear Events (${isFullExport ? "All" : "Latest 100"})`, renderSimpleTable(["#", "Name", "Brand", "Type", "Worn At"], wearEventRows)) : ""}
+  ${stats.isInventory ? section(`Brand Utilization (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Brand", "Inventory", "Worn 90d", "Utilization", "Avg CPW"], brandUtilRows)) : ""}
+  ${stats.isInventory ? section(`Monthly Spend vs Wear (${isFullExport ? "All" : "Latest 24"})`, renderSimpleTable(["Month", "Added", "Spend", "Wears", "Spend/Wear"], spendWearRows)) : ""}
+  ${stats.isInventory ? section(`Type Rotation Balance (${isFullExport ? "All" : "Top 30 by delta"})`, renderSimpleTable(["Type", "Inventory", "Wears", "Inv %", "Wear %", "Delta"], typeRotationRows)) : ""}
+  ${stats.isInventory ? section("Seasonality by Month", renderSimpleTable(["Month", "Top Type", "Count"], seasonalityRows)) : ""}
+  ${stats.isInventory ? section(`Tag Performance (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Tag", "Samples", "Avg Wears", "Avg CPW"], tagPerformanceRows)) : ""}
+  ${stats.isInventory ? section("Repeat Wear Streaks (Brands)", renderSimpleTable(["#", "Brand", "Streak"], topBrandStreakRows)) : ""}
+  ${stats.isInventory ? section("Repeat Wear Streaks (Types)", renderSimpleTable(["#", "Type", "Streak"], topTypeStreakRows)) : ""}
+  ${section(`Recently Added (${isFullExport ? "All" : "Latest 25"})`, renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
+  <div class="footer-note">${isFullExport ? "Full export includes all available stats sections in print-friendly tables." : "Need every field and row? Use Export PDF (full, all stats) or Export JSON."}</div>
 </body>
 </html>`;
-  win.document.open();
-  win.document.write(printable);
-  win.document.close();
-  window.setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 250);
-  addEventLog("Opened stats PDF export view");
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.width = "1px";
+  iframe.style.height = "1px";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  iframe.style.border = "0";
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1000);
+  };
+
+  let didPrint = false;
+  iframe.onload = () => {
+    if (didPrint) return;
+    try {
+      const frameDoc = iframe.contentDocument;
+      const frameWindow = iframe.contentWindow;
+      if (!frameWindow || !frameDoc) {
+        cleanup();
+        return;
+      }
+      const marker = frameDoc.getElementById("stats-pdf-export-root");
+      if (!marker) {
+        return;
+      }
+      didPrint = true;
+      frameWindow.focus();
+      frameWindow.print();
+      addEventLog(isFullExport ? "Opened full stats PDF print dialog" : "Opened stats PDF print dialog");
+    } catch (error) {
+      alert("Unable to open print dialog for PDF export.");
+    } finally {
+      cleanup();
+    }
+  };
+
+  iframe.srcdoc = printable.replace("<body>", "<body id=\"stats-pdf-export-root\">");
+  document.body.appendChild(iframe);
 };
 
 const openStatsExportDialog = (stats) => {
@@ -7052,11 +7230,12 @@ const openStatsExportDialog = (stats) => {
       <div class="dialog-body">
         <h3>Export Stats</h3>
         <div class="stats-export-options">
-          <button type="button" class="btn" id="stats-export-pdf">Export PDF (full report)</button>
+          <button type="button" class="btn" id="stats-export-pdf">Export PDF (summary)</button>
+          <button type="button" class="btn secondary" id="stats-export-pdf-full">Export PDF (full, all stats)</button>
           <button type="button" class="btn secondary" id="stats-export-csv">Export CSV (tabular)</button>
           <button type="button" class="btn secondary" id="stats-export-json">Export JSON (complete)</button>
         </div>
-        <div class="stats-export-note">PDF includes the full raw stats payload. JSON is the lossless machine-readable export.</div>
+        <div class="stats-export-note">Summary PDF is concise. Full PDF includes all available stats sections in print-friendly tables (can be very large).</div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="stats-export-close">Close</button>
@@ -7066,6 +7245,7 @@ const openStatsExportDialog = (stats) => {
 
     const closeButton = dialog.querySelector("#stats-export-close");
     const pdfButton = dialog.querySelector("#stats-export-pdf");
+    const fullPdfButton = dialog.querySelector("#stats-export-pdf-full");
     const csvButton = dialog.querySelector("#stats-export-csv");
     const jsonButton = dialog.querySelector("#stats-export-json");
     if (closeButton) {
@@ -7074,7 +7254,13 @@ const openStatsExportDialog = (stats) => {
     if (pdfButton) {
       pdfButton.addEventListener("click", () => {
         if (!latestStatsSnapshot) return;
-        exportStatsPdf(latestStatsSnapshot);
+        exportStatsPdf(latestStatsSnapshot, { full: false });
+      });
+    }
+    if (fullPdfButton) {
+      fullPdfButton.addEventListener("click", () => {
+        if (!latestStatsSnapshot) return;
+        exportStatsPdf(latestStatsSnapshot, { full: true });
       });
     }
     if (csvButton) {
