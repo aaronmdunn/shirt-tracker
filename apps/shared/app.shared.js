@@ -8350,7 +8350,14 @@ const collectAllStats = () => {
         if (!Number.isNaN(d.getTime())) {
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
-          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed", type: getCellValue(entry, "Type") || "", brand: getCellValue(entry, "Brand") || "" });
+          allDatedItems.push({
+            date: d,
+            tab: tab.name,
+            name: getCellValue(entry, "Name") || "Unnamed",
+            type: getCellValue(entry, "Type") || "",
+            brand: getCellValue(entry, "Brand") || "",
+            price: parseCurrency(getCellValue(entry, "Price")),
+          });
         }
       }
     });
@@ -8473,12 +8480,21 @@ const collectAllStats = () => {
 
   // --- Recently added (rows with createdAt) ---
   allDatedItems.sort((a, b) => b.date - a.date);
+  const allRecentlyAdded = allDatedItems.map((item) => ({
+    name: item.name,
+    tab: item.tab,
+    type: item.type,
+    brand: item.brand,
+    createdAt: item.date.toISOString(),
+    price: item.price,
+  }));
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
     name: item.name,
     tab: item.tab,
     type: item.type,
     brand: item.brand,
     createdAt: item.date.toISOString(),
+    price: item.price,
   }));
 
   // --- Recently deleted ---
@@ -8494,7 +8510,19 @@ const collectAllStats = () => {
   });
 
   // --- Wear-based stats (Inventory only) ---
-  const nonWearableTypes = new Set(["Misc", "Boxer Briefs", "Socks", "Hat"]);
+  const excludedWearTypes = new Set([
+    "chinos",
+    "boxer briefs",
+    "socks",
+    "hat",
+    "shorts",
+    "hybrid shorts",
+    "joggers",
+    "misc",
+    "outerwear",
+    "bamboo shorts",
+  ]);
+  const isWearExcludedType = (typeVal) => excludedWearTypes.has(String(typeVal || "").trim().toLowerCase());
   const wornItems = [];
   const unwornOverSixMonths = [];
   if (isInventory) {
@@ -8507,7 +8535,7 @@ const collectAllStats = () => {
         const lw = entry.row.lastWorn || null;
         const name = getCellValue(entry, "Name") || "Unnamed";
         const typeVal = getCellValue(entry, "Type");
-        const isWearable = !nonWearableTypes.has(typeVal);
+        const isWearable = !isWearExcludedType(typeVal);
         const priceRaw = getCellValue(entry, "Price");
         const price = parseCurrency(priceRaw);
         if (wc >= 1) {
@@ -8611,6 +8639,297 @@ const collectAllStats = () => {
     return { month: name, brand: entries.length ? entries[0][0] : null, count: entries.length ? entries[0][1] : 0 };
   });
 
+  // --- Advanced stats ---
+  const median = (values) => {
+    if (!values.length) return 0;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  };
+  const wearableUniverse = [];
+  if (isInventory) {
+    perTabRows.forEach((tab) => {
+      tab.entries.forEach((entry) => {
+        const name = getCellValue(entry, "Name") || "Unnamed";
+        const type = getCellValue(entry, "Type") || "Unknown";
+        if (isWearExcludedType(type)) return;
+        const price = parseCurrency(getCellValue(entry, "Price"));
+        const wearCount = entry.row.wearCount || 0;
+        const lastWorn = entry.row.lastWorn || null;
+        const wearLog = entry.row.wearLog && entry.row.wearLog.length
+          ? entry.row.wearLog
+          : (lastWorn ? [lastWorn] : []);
+        wearableUniverse.push({
+          name,
+          tab: tab.name,
+          type,
+          price,
+          wearCount,
+          lastWorn,
+          wearLog,
+          createdAt: entry.row.createdAt || null,
+          tags: Array.isArray(entry.row.tags) ? entry.row.tags : [],
+        });
+      });
+    });
+  }
+
+  const nowMs = Date.now();
+  const wearGapRisk = wearableUniverse
+    .map((item) => {
+      const lwMs = item.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lwMs) ? null : Math.floor((nowMs - lwMs) / 86400000);
+      const score = (daysSince === null ? 300 : Math.min(daysSince, 365)) + Math.max(0, 8 - item.wearCount) * 15;
+      return { ...item, daysSince, score };
+    })
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 12);
+
+  const adoptionDays = [];
+  const neverWornSinceAdded = [];
+  let itemsWithCreatedAt = 0;
+  wearableUniverse.forEach((item) => {
+    if (!item.createdAt) return;
+    const createdMs = new Date(item.createdAt).getTime();
+    if (Number.isNaN(createdMs)) return;
+    itemsWithCreatedAt++;
+    let firstWearMs = null;
+    item.wearLog.forEach((stamp) => {
+      const ms = new Date(stamp).getTime();
+      if (Number.isNaN(ms) || ms < createdMs) return;
+      if (firstWearMs === null || ms < firstWearMs) firstWearMs = ms;
+    });
+    if (firstWearMs === null) {
+      neverWornSinceAdded.push({ ...item });
+      return;
+    }
+    adoptionDays.push(Math.floor((firstWearMs - createdMs) / 86400000));
+  });
+  const newItemAdoption = {
+    itemsWithCreatedAt,
+    wornAfterAddCount: adoptionDays.length,
+    medianDaysToFirstWear: adoptionDays.length ? median(adoptionDays) : null,
+    adoptionRatePct: itemsWithCreatedAt ? Math.round((adoptionDays.length / itemsWithCreatedAt) * 100) : 0,
+    neverWornSinceAdded: neverWornSinceAdded
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 12),
+  };
+
+  const monthlyMap = {};
+  allDatedItems.forEach((item) => {
+    const key = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthlyMap[key]) monthlyMap[key] = { key, added: 0, spend: 0, wears: 0 };
+    monthlyMap[key].added += 1;
+    if (item.price !== null && item.price > 0) monthlyMap[key].spend += item.price;
+  });
+  wearEvents.forEach((event) => {
+    const d = new Date(event.wornAt);
+    if (Number.isNaN(d.getTime())) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!monthlyMap[key]) monthlyMap[key] = { key, added: 0, spend: 0, wears: 0 };
+    monthlyMap[key].wears += 1;
+  });
+  const monthlySpendVsWear = Object.values(monthlyMap)
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((m) => {
+      const [y, mo] = m.key.split("-");
+      const label = new Date(Number(y), Number(mo) - 1).toLocaleDateString(undefined, { year: "numeric", month: "short" });
+      return {
+        label,
+        added: m.added,
+        spend: m.spend,
+        wears: m.wears,
+        spendPerWear: m.wears > 0 ? m.spend / m.wears : null,
+      };
+    });
+
+  const brandRollup = {};
+  wearableUniverse.forEach((item) => {
+    if (!brandRollup[item.tab]) {
+      brandRollup[item.tab] = { brand: item.tab, inventory: 0, wornLast90: 0, totalWears: 0, cpwSum: 0, cpwCount: 0 };
+    }
+    const bucket = brandRollup[item.tab];
+    bucket.inventory += 1;
+    bucket.totalWears += item.wearCount;
+    if (item.lastWorn) {
+      const age = Math.floor((nowMs - new Date(item.lastWorn).getTime()) / 86400000);
+      if (!Number.isNaN(age) && age <= 90) bucket.wornLast90 += 1;
+    }
+    if (item.price !== null && item.price > 0 && item.wearCount > 0) {
+      bucket.cpwSum += item.price / item.wearCount;
+      bucket.cpwCount += 1;
+    }
+  });
+  const brandUtilization = Object.values(brandRollup)
+    .map((item) => ({
+      ...item,
+      utilizationPct: item.inventory > 0 ? Math.round((item.wornLast90 / item.inventory) * 100) : 0,
+      avgCpw: item.cpwCount > 0 ? item.cpwSum / item.cpwCount : null,
+    }))
+    .sort((a, b) => a.utilizationPct - b.utilizationPct || b.inventory - a.inventory);
+
+  const invTypeCounts = {};
+  wearableUniverse.forEach((item) => {
+    invTypeCounts[item.type] = (invTypeCounts[item.type] || 0) + 1;
+  });
+  const wearTypeCounts = {};
+  wearEvents.forEach((event) => {
+    const key = event.type || "Unknown";
+    wearTypeCounts[key] = (wearTypeCounts[key] || 0) + 1;
+  });
+  const invTypeTotal = Object.values(invTypeCounts).reduce((s, c) => s + c, 0);
+  const wearTypeTotal = Object.values(wearTypeCounts).reduce((s, c) => s + c, 0);
+  const typeKeys = Array.from(new Set([...Object.keys(invTypeCounts), ...Object.keys(wearTypeCounts)]));
+  const typeRotationBalance = typeKeys
+    .map((type) => {
+      const invCount = invTypeCounts[type] || 0;
+      const wearCount = wearTypeCounts[type] || 0;
+      const invPct = invTypeTotal > 0 ? (invCount / invTypeTotal) * 100 : 0;
+      const wearPct = wearTypeTotal > 0 ? (wearCount / wearTypeTotal) * 100 : 0;
+      return {
+        type,
+        inventoryCount: invCount,
+        wearCount,
+        inventoryPct: invPct,
+        wearPct,
+        deltaPct: wearPct - invPct,
+      };
+    })
+    .sort((a, b) => Math.abs(b.deltaPct) - Math.abs(a.deltaPct));
+
+  let totalWearableValue = 0;
+  let inactive90Value = 0;
+  let inactive180Value = 0;
+  let inactive90Count = 0;
+  let inactive180Count = 0;
+  wearableUniverse.forEach((item) => {
+    const value = item.price !== null && item.price > 0 ? item.price : 0;
+    totalWearableValue += value;
+    const lwMs = item.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    const age = Number.isNaN(lwMs) ? Infinity : Math.floor((nowMs - lwMs) / 86400000);
+    if (age > 90) {
+      inactive90Count += 1;
+      inactive90Value += value;
+    }
+    if (age > 180) {
+      inactive180Count += 1;
+      inactive180Value += value;
+    }
+  });
+  const inactiveCapital = {
+    totalWearableValue,
+    inactive90Count,
+    inactive180Count,
+    inactive90Value,
+    inactive180Value,
+  };
+
+  const longestConsecutiveStreak = (dateKeys) => {
+    if (!dateKeys.length) return 0;
+    const sorted = Array.from(new Set(dateKeys)).sort();
+    let best = 1;
+    let run = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const gap = Math.floor((new Date(sorted[i] + "T00:00:00").getTime() - new Date(sorted[i - 1] + "T00:00:00").getTime()) / 86400000);
+      if (gap === 1) run += 1;
+      else run = 1;
+      if (run > best) best = run;
+    }
+    return best;
+  };
+  const brandDates = {};
+  const typeDates = {};
+  wearEvents.forEach((event) => {
+    if (!brandDates[event.tab]) brandDates[event.tab] = [];
+    brandDates[event.tab].push(event.dateKey);
+    const typeKey = event.type || "Unknown";
+    if (!typeDates[typeKey]) typeDates[typeKey] = [];
+    typeDates[typeKey].push(event.dateKey);
+  });
+  const topBrandStreaks = Object.entries(brandDates)
+    .map(([brand, days]) => ({ label: brand, streak: longestConsecutiveStreak(days) }))
+    .sort((a, b) => b.streak - a.streak || a.label.localeCompare(b.label))
+    .slice(0, 5);
+  const topTypeStreaks = Object.entries(typeDates)
+    .map(([type, days]) => ({ label: type, streak: longestConsecutiveStreak(days) }))
+    .sort((a, b) => b.streak - a.streak || a.label.localeCompare(b.label))
+    .slice(0, 5);
+  const repeatWearStreaks = { topBrandStreaks, topTypeStreaks };
+
+  const monthTypeCounts = Array.from({ length: 12 }, () => ({}));
+  wearEvents.forEach((event) => {
+    const d = new Date(event.wornAt);
+    if (Number.isNaN(d.getTime())) return;
+    const month = d.getMonth();
+    const key = event.type || "Unknown";
+    monthTypeCounts[month][key] = (monthTypeCounts[month][key] || 0) + 1;
+  });
+  const seasonalityByMonth = monthNames.map((month, idx) => {
+    const entries = Object.entries(monthTypeCounts[idx]).sort((a, b) => b[1] - a[1]);
+    return { month, type: entries.length ? entries[0][0] : null, count: entries.length ? entries[0][1] : 0 };
+  });
+
+  const tagRollup = {};
+  wearableUniverse.forEach((item) => {
+    item.tags.forEach((rawTag) => {
+      const tag = String(rawTag || "").trim();
+      if (!tag || tag === "Original") return;
+      if (!tagRollup[tag]) tagRollup[tag] = { tag, samples: 0, wearSum: 0, cpwSum: 0, cpwCount: 0 };
+      const bucket = tagRollup[tag];
+      bucket.samples += 1;
+      bucket.wearSum += item.wearCount;
+      if (item.price !== null && item.price > 0 && item.wearCount > 0) {
+        bucket.cpwSum += item.price / item.wearCount;
+        bucket.cpwCount += 1;
+      }
+    });
+  });
+  const tagPerformance = Object.values(tagRollup)
+    .filter((t) => t.samples >= 2)
+    .map((t) => ({
+      tag: t.tag,
+      samples: t.samples,
+      avgWears: t.samples ? t.wearSum / t.samples : 0,
+      avgCpw: t.cpwCount ? t.cpwSum / t.cpwCount : null,
+    }))
+    .sort((a, b) => b.avgWears - a.avgWears || b.samples - a.samples)
+    .slice(0, 12);
+
+  const wornLast30 = wearableUniverse.filter((item) => {
+    if (!item.lastWorn) return false;
+    const age = Math.floor((nowMs - new Date(item.lastWorn).getTime()) / 86400000);
+    return !Number.isNaN(age) && age <= 30;
+  }).length;
+  const neverWornCount = wearableUniverse.filter((item) => !item.lastWorn && item.wearCount === 0).length;
+  const recencyPct = wearableUniverse.length ? Math.round((wornLast30 / wearableUniverse.length) * 100) : 0;
+  const neverWornPct = wearableUniverse.length ? Math.round((neverWornCount / wearableUniverse.length) * 100) : 0;
+  const inactiveValuePct = totalWearableValue > 0 ? Math.round((inactive180Value / totalWearableValue) * 100) : 0;
+  const pricedWorn = wearableUniverse.filter((item) => item.price !== null && item.price > 0 && item.wearCount > 0);
+  const cpwEffPct = pricedWorn.length
+    ? Math.round((pricedWorn.filter((item) => (item.price / item.wearCount) <= 20).length / pricedWorn.length) * 100)
+    : 50;
+  const closetHealthScore = Math.max(0, Math.min(100,
+    Math.round((recencyPct * 0.35) + ((100 - neverWornPct) * 0.25) + ((100 - inactiveValuePct) * 0.2) + (cpwEffPct * 0.2))
+  ));
+  const advanced = {
+    wearGapRisk,
+    newItemAdoption,
+    monthlySpendVsWear,
+    brandUtilization,
+    typeRotationBalance,
+    inactiveCapital,
+    repeatWearStreaks,
+    seasonalityByMonth,
+    tagPerformance,
+    closetHealth: {
+      score: closetHealthScore,
+      recencyPct,
+      neverWornPct,
+      inactiveValuePct,
+      cpwEffPct,
+    },
+  };
+
   return {
     totalItems,
     isInventory,
@@ -8635,6 +8954,7 @@ const collectAllStats = () => {
     whaleItems,
     topWords,
     recentlyAdded: top5RecentlyAdded,
+    allRecentlyAdded,
     recentlyDeleted,
     longestUnworn,
     costPerWear,
@@ -8644,6 +8964,7 @@ const collectAllStats = () => {
     wearEvents,
     brandByDayOfWeek,
     brandByMonth,
+    advanced,
   };
 };
 
@@ -8781,6 +9102,240 @@ const openUnwornSixMonthsDialog = (items) => {
     rowEl.appendChild(right);
     list.appendChild(rowEl);
   });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openAllAddedDialog = (addedItems, isInventoryMode) => {
+  const items = Array.isArray(addedItems) ? addedItems.slice() : [];
+
+  let dialog = document.getElementById("all-added-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "all-added-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>All Added Shirts</h3>
+        <div id="all-added-summary" class="stats-hint"></div>
+        <div id="all-added-list" class="added-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="all-added-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#all-added-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#all-added-summary");
+  const list = dialog.querySelector("#all-added-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (!items.length) {
+    if (summary) summary.textContent = "No added shirts found.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No rows with created dates are available.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) summary.textContent = `${items.length} ${items.length === 1 ? "shirt" : "shirts"}`;
+
+  const head = document.createElement("div");
+  head.className = "added-history-item added-history-head";
+  head.innerHTML = "<span>Name</span><span>Brand</span><span>Type</span><span>Date Added</span><span>Price</span>";
+  list.appendChild(head);
+
+  items.forEach((item) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "added-history-item";
+    const brandLabel = isInventoryMode ? item.tab : (item.brand || "");
+    const dateLabel = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "";
+    const priceLabel = item.price !== null && item.price !== undefined ? formatCurrency(item.price) : "\u2014";
+    const values = [
+      item.name || "Unnamed",
+      brandLabel || "\u2014",
+      item.type || "\u2014",
+      dateLabel || "\u2014",
+      priceLabel,
+    ];
+    values.forEach((value) => {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      rowEl.appendChild(cell);
+    });
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openAdvancedStatsDialog = (stats) => {
+  let dialog = document.getElementById("advanced-stats-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "advanced-stats-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Advanced Stats</h3>
+        <div id="advanced-stats-content" class="advanced-stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="advanced-stats-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#advanced-stats-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#advanced-stats-content");
+  if (!content) return;
+  content.textContent = "";
+
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+  const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
+  const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
+
+  if (!stats || !stats.isInventory) {
+    content.innerHTML = `<div class="stats-hint">Advanced stats are currently available in Inventory mode.</div>`;
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  const adv = stats.advanced || {};
+  let html = "";
+
+  if (adv.closetHealth) {
+    html += section("Closet health score",
+      row("Score", `${adv.closetHealth.score}/100`) +
+      sub("Worn in last 30 days", `${adv.closetHealth.recencyPct}%`) +
+      sub("Never worn", `${adv.closetHealth.neverWornPct}%`) +
+      sub("Value inactive >180d", `${adv.closetHealth.inactiveValuePct}%`) +
+      sub("Items <= $20 CPW", `${adv.closetHealth.cpwEffPct}%`)
+    );
+  }
+
+  if (Array.isArray(adv.wearGapRisk) && adv.wearGapRisk.length) {
+    let body = `<div class="stats-hint">High score = likely neglected. Combines recency and low wear count.</div>`;
+    adv.wearGapRisk.forEach((item, idx) => {
+      const age = item.daysSince === null ? "Never" : `${item.daysSince}d ago`;
+      body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${age} | ${item.wearCount} wears | risk ${item.score}`);
+    });
+    html += section("Wear gap risk", body);
+  }
+
+  if (adv.newItemAdoption) {
+    let body = "";
+    body += row("Items with add date", String(adv.newItemAdoption.itemsWithCreatedAt || 0));
+    body += row("Adoption rate", `${adv.newItemAdoption.adoptionRatePct || 0}%`);
+    const medianDays = adv.newItemAdoption.medianDaysToFirstWear;
+    body += row("Median days to first wear", medianDays === null ? "n/a" : `${Math.round(medianDays)} days`);
+    const never = Array.isArray(adv.newItemAdoption.neverWornSinceAdded) ? adv.newItemAdoption.neverWornSinceAdded : [];
+    if (never.length) {
+      body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added</div>`;
+      never.forEach((item, idx) => {
+        body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, "Unworn");
+      });
+    }
+    html += section("New item adoption", body);
+  }
+
+  if (Array.isArray(adv.monthlySpendVsWear) && adv.monthlySpendVsWear.length) {
+    let body = "";
+    adv.monthlySpendVsWear.slice(-12).forEach((m) => {
+      const cpw = m.spendPerWear === null ? "n/a" : `${formatCurrency(m.spendPerWear)}/wear`;
+      body += sub(m.label, `${formatCurrency(m.spend)} | ${m.added} added | ${m.wears} wears | ${cpw}`);
+    });
+    html += section("Monthly spend vs wear value", body);
+  }
+
+  if (Array.isArray(adv.brandUtilization) && adv.brandUtilization.length) {
+    let body = "";
+    adv.brandUtilization.slice(0, 10).forEach((brand) => {
+      const cpw = brand.avgCpw === null ? "n/a" : formatCurrency(brand.avgCpw);
+      body += sub(brand.brand, `${brand.utilizationPct}% active (90d) | ${brand.inventory} items | ${brand.totalWears} wears | avg CPW ${cpw}`);
+    });
+    html += section("Brand utilization efficiency", body);
+  }
+
+  if (Array.isArray(adv.typeRotationBalance) && adv.typeRotationBalance.length) {
+    let body = "";
+    adv.typeRotationBalance.slice(0, 10).forEach((t) => {
+      const delta = `${t.deltaPct >= 0 ? "+" : ""}${t.deltaPct.toFixed(1)}%`;
+      body += sub(t.type, `inventory ${t.inventoryPct.toFixed(1)}% vs wear ${t.wearPct.toFixed(1)}% (${delta})`);
+    });
+    html += section("Type rotation balance", body);
+  }
+
+  if (adv.inactiveCapital) {
+    const body =
+      row("Inactive >90d", `${adv.inactiveCapital.inactive90Count} items | ${formatCurrency(adv.inactiveCapital.inactive90Value)}`) +
+      row("Inactive >180d", `${adv.inactiveCapital.inactive180Count} items | ${formatCurrency(adv.inactiveCapital.inactive180Value)}`) +
+      row("Total wearable value", formatCurrency(adv.inactiveCapital.totalWearableValue));
+    html += section("Inactive capital", body);
+  }
+
+  if (adv.repeatWearStreaks) {
+    let body = "";
+    const brandStreaks = Array.isArray(adv.repeatWearStreaks.topBrandStreaks) ? adv.repeatWearStreaks.topBrandStreaks : [];
+    const typeStreaks = Array.isArray(adv.repeatWearStreaks.topTypeStreaks) ? adv.repeatWearStreaks.topTypeStreaks : [];
+    if (brandStreaks.length) {
+      body += `<div class="stats-section-title" style="margin-top:8px">By brand</div>`;
+      brandStreaks.forEach((sItem) => {
+        body += sub(sItem.label, `${sItem.streak} ${sItem.streak === 1 ? "day" : "days"}`);
+      });
+    }
+    if (typeStreaks.length) {
+      body += `<div class="stats-section-title" style="margin-top:8px">By type</div>`;
+      typeStreaks.forEach((sItem) => {
+        body += sub(sItem.label, `${sItem.streak} ${sItem.streak === 1 ? "day" : "days"}`);
+      });
+    }
+    html += section("Repeat-wear streaks", body || `<div class="stats-hint">No streak data yet.</div>`);
+  }
+
+  if (Array.isArray(adv.seasonalityByMonth) && adv.seasonalityByMonth.length) {
+    let body = "";
+    adv.seasonalityByMonth.forEach((m) => {
+      body += sub(m.month, m.type ? `${m.type} (${m.count})` : "—");
+    });
+    html += section("Seasonality snapshot (top type by month)", body);
+  }
+
+  if (Array.isArray(adv.tagPerformance) && adv.tagPerformance.length) {
+    let body = "";
+    adv.tagPerformance.forEach((tag) => {
+      const cpw = tag.avgCpw === null ? "n/a" : `${formatCurrency(tag.avgCpw)}/wear`;
+      body += sub(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`);
+    });
+    html += section("Tag performance", body);
+  }
+
+  content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
 
   openDialog(dialog);
   resetDialogScroll(dialog);
@@ -9083,6 +9638,7 @@ const openStatsDialog = () => {
       const right = brandLabel ? `${brandLabel} - ${date}` : date;
       addedBlock += sub(label, right);
     });
+    addedBlock += `<button type="button" id="stats-all-added-link" class="stats-link-button">View all added shirts</button>`;
     html += section(addedBlock);
   }
 
@@ -9114,12 +9670,16 @@ const openStatsDialog = () => {
     html += section(wishBlock);
   }
 
+  html += section(`<button type="button" id="stats-advanced-link" class="stats-link-button">Advanced Stats</button>`);
+
   statsContent.innerHTML = html;
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
+  const allAddedLink = statsContent.querySelector("#stats-all-added-link");
+  const advancedStatsLink = statsContent.querySelector("#stats-advanced-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -9164,6 +9724,16 @@ const openStatsDialog = () => {
   if (unwornSixMonthsLink) {
     unwornSixMonthsLink.addEventListener("click", () => {
       openUnwornSixMonthsDialog(s.unwornOverSixMonths);
+    });
+  }
+  if (allAddedLink) {
+    allAddedLink.addEventListener("click", () => {
+      openAllAddedDialog(s.allRecentlyAdded, s.isInventory);
+    });
+  }
+  if (advancedStatsLink) {
+    advancedStatsLink.addEventListener("click", () => {
+      openAdvancedStatsDialog(s);
     });
   }
 

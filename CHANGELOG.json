@@ -21,7 +21,10 @@
       "Added 'Worn on date' selector in Wear Tracking stats to show all shirts worn on any selected date",
       "Added full Wear History dialog link from stats with shirt name, brand, type, and wear date",
       "Replaced 'Bottom 5 least worn' with a dialog link listing shirts not worn in the past 6 months",
-      "Added Type to 'Shirts worn on date' results and grouped matches by name + brand + type"
+      "Added Type to 'Shirts worn on date' results and grouped matches by name + brand + type",
+      "Added 'View all added shirts' dialog from Recently Added with name, brand, type, date added, and price",
+      "Added 'Advanced Stats' link and dialog with wear risk, adoption, utilization, streak, seasonality, and tag-performance analytics",
+      "Excluded non-wear types (Chinos, Boxer Briefs, Socks, Hat, Shorts, Hybrid Shorts, Joggers, Misc, Outerwear, Bamboo Shorts) from wear-based stats while keeping them in inventory/value stats"
     ]
   },
   {
