@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.0.14",
+    "date": "2026-03-27",
+    "changes": [
+      "Added 'Worn on date' selector in Wear Tracking stats to show all shirts worn on any selected date",
+      "Added full Wear History dialog link from stats with shirt name, brand, type, and wear date",
+      "Replaced 'Bottom 5 least worn' with a dialog link listing shirts not worn in the past 6 months",
+      "Added Type to 'Shirts worn on date' results and grouped matches by name + brand + type",
+      "Added 'View all added shirts' dialog from Recently Added with name, brand, type, date added, and price",
+      "Added 'Advanced Stats' link and dialog with wear risk, adoption, utilization, streak, seasonality, and tag-performance analytics",
+      "Excluded non-wear types (Chinos, Boxer Briefs, Socks, Hat, Shorts, Hybrid Shorts, Joggers, Misc, Outerwear, Bamboo Shorts) from wear-based stats while keeping them in inventory/value stats",
+      "Updated Wear Gap Risk so Advanced Stats stays compact and links to a dedicated full-list dialog"
+    ]
+  },
+  {
     "version": "2.0.13",
     "date": "2026-03-26",
     "changes": [
@@ -17,14 +31,7 @@
       "Fixed transparent image backgrounds rendering black in compressed uploads",
       "Updated flannel icon with new plaid shirt design",
       "Added 'Top brand by month' bar chart to stats dialog",
-      "Removed Storage section from stats dialog",
-      "Added 'Worn on date' selector in Wear Tracking stats to show all shirts worn on any selected date",
-      "Added full Wear History dialog link from stats with shirt name, brand, type, and wear date",
-      "Replaced 'Bottom 5 least worn' with a dialog link listing shirts not worn in the past 6 months",
-      "Added Type to 'Shirts worn on date' results and grouped matches by name + brand + type",
-      "Added 'View all added shirts' dialog from Recently Added with name, brand, type, date added, and price",
-      "Added 'Advanced Stats' link and dialog with wear risk, adoption, utilization, streak, seasonality, and tag-performance analytics",
-      "Excluded non-wear types (Chinos, Boxer Briefs, Socks, Hat, Shorts, Hybrid Shorts, Joggers, Misc, Outerwear, Bamboo Shorts) from wear-based stats while keeping them in inventory/value stats"
+      "Removed Storage section from stats dialog"
     ]
   },
   {
