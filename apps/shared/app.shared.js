@@ -8524,6 +8524,7 @@ const collectAllStats = () => {
             unwornOverSixMonths.push({
               name,
               tab: tab.name,
+              type: typeVal,
               lastWorn: lw,
               daysSince,
             });
@@ -8571,6 +8572,7 @@ const collectAllStats = () => {
       wearEvents.push({
         name: item.name,
         tab: item.tab,
+        type: item.type,
         wornAt: d.toISOString(),
         dateKey: toLocalDateKey(d),
       });
@@ -8699,7 +8701,7 @@ const openWearHistoryDialog = (wearEvents) => {
 
     const left = document.createElement("span");
     left.className = "wear-history-name";
-    left.textContent = `${index + 1}. ${event.name} (${event.tab})`;
+    left.textContent = `${index + 1}. ${event.name} (${event.tab})${event.type ? ` - ${event.type}` : ""}`;
 
     const right = document.createElement("span");
     right.className = "wear-history-date";
@@ -8767,7 +8769,7 @@ const openUnwornSixMonthsDialog = (items) => {
 
     const left = document.createElement("span");
     left.className = "wear-history-name";
-    left.textContent = `${index + 1}. ${item.name} (${item.tab})`;
+    left.textContent = `${index + 1}. ${item.name} (${item.tab})${item.type ? ` - ${item.type}` : ""}`;
 
     const right = document.createElement("span");
     right.className = "wear-history-date";
