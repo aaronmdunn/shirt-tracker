@@ -2757,6 +2757,81 @@ dialog {
   white-space: nowrap;
 }
 
+.stats-date-lookup {
+  display: grid;
+  gap: 8px;
+}
+
+input[type="date"].stats-date-input {
+  width: auto;
+  max-width: 220px;
+}
+
+.stats-date-results {
+  display: grid;
+  gap: 2px;
+}
+
+.stats-link-button {
+  width: fit-content;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  margin: 0;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#wear-history-dialog,
+#unworn-six-months-dialog {
+  max-width: 620px;
+  width: 90vw;
+}
+
+#wear-history-dialog .dialog-body,
+#unworn-six-months-dialog .dialog-body {
+  padding: 20px 24px 12px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+#wear-history-dialog .dialog-actions,
+#unworn-six-months-dialog .dialog-actions {
+  justify-content: center;
+}
+
+.wear-history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.wear-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.wear-history-name {
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.wear-history-date {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .privacy-dialog .dialog-body {
   gap: 10px;
   text-align: left;
