@@ -9872,6 +9872,7 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (adv.closetHealth) {
     html += section("Closet health score",
+      `<div class="stats-hint">A 0-100 snapshot of closet rotation health. Higher is better, based on recent wear activity, never-worn share, inactive value, and cost-per-wear efficiency.</div>` +
       row("Score", `${adv.closetHealth.score}/100`) +
       sub("Worn in last 30 days", `${adv.closetHealth.recencyPct}%`) +
       sub("Never worn", `${adv.closetHealth.neverWornPct}%`) +
