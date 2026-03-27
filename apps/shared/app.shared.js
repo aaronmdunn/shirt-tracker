@@ -10164,37 +10164,15 @@ const openStatsDialog = () => {
       html += section(divBlock);
     }
 
-    // --- Rarity score ---
-    if (s.rareTypes.length || s.rareFandoms.length || s.whaleItems.length) {
-      const rarityList = (items) => {
-        let out = "";
-        items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
-        if (items.length > 5) {
-          const rest = items.slice(5);
-          out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
-          rest.forEach((name) => { out += sub(name, ""); });
-          out += `</div></details>`;
-        }
-        return out;
-      };
-      let rareBlock = `<div class="stats-section-title">Rarities</div>`;
-      if (s.rareTypes.length) {
-        rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
-        rareBlock += rarityList(s.rareTypes);
-      }
-      if (s.rareFandoms.length) {
-        rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
-        rareBlock += rarityList(s.rareFandoms);
-      }
-      if (s.whaleItems.length) {
-        rareBlock += `<div class="stats-section-title" style="margin-top:8px">Whales</div>`;
-        rareBlock += row("Total whales", String(s.whaleItems.length));
-        s.whaleItems.forEach((item) => {
-          const type = item.type ? ` - ${item.type}` : "";
-          rareBlock += sub(`${item.name} (${item.tab})${type}`, "");
-        });
-      }
-      html += section(rareBlock);
+    // --- Whales ---
+    if (s.whaleItems.length) {
+      let whaleBlock = `<div class="stats-section-title">Whales</div>`;
+      whaleBlock += row("Total whales", String(s.whaleItems.length));
+      s.whaleItems.forEach((item) => {
+        const type = item.type ? ` - ${item.type}` : "";
+        whaleBlock += sub(`${item.name} (${item.tab})${type}`, "");
+      });
+      html += section(whaleBlock);
     }
 
     // --- Name word frequency (Inventory only) ---
