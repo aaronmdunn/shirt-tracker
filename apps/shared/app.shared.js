@@ -6934,8 +6934,10 @@ const buildStatsCsvRows = (stats) => {
   pushPairs("Tallies", "Tag", stats.topTags);
 
   if (stats.isInventory) {
-    (stats.top5MostWorn || []).forEach((item, idx) => {
-      push("Wear", `Top worn #${idx + 1}`, String(item.wearCount || 0), `${item.name} (${item.tab})`);
+    (stats.topRotationScore || []).forEach((item, idx) => {
+      const tieTag = item.isTie ? " (tie)" : "";
+      const score = (item.rotationScorePoints || 0) / 100;
+      push("Wear", `Top rotation #${idx + 1}${tieTag}`, score.toFixed(2), `${item.name} (${item.tab})${item.type ? ` - ${item.type}` : ""}, wears=${item.wearCount || 0}`);
     });
     (stats.costPerWear || []).forEach((item, idx) => {
       push("Wear", `Best CPW #${idx + 1}`, String(item.cpw || 0), `${item.name} (${item.tab})`);
@@ -7037,9 +7039,10 @@ const exportStatsPdf = (stats, options = {}) => {
     return [tab.name || "Unnamed", String(tab.count || 0), value];
   });
 
-  const topWornRows = (stats.top5MostWorn || []).map((item, index) => [
+  const topWornRows = (stats.topRotationScore || []).map((item, index) => [
     String(index + 1),
-    `${item.name || "Unnamed"} (${item.tab || ""})`,
+    `${item.name || "Unnamed"} (${item.tab || ""})${item.type ? ` - ${item.type}` : ""}${item.isTie ? " (tie)" : ""}`,
+    ((item.rotationScorePoints || 0) / 100).toFixed(2),
     String(item.wearCount || 0),
   ]);
 
@@ -7157,7 +7160,7 @@ const exportStatsPdf = (stats, options = {}) => {
     { label: "Top tags", value: tallyLine(stats.topTags) },
   ])}<p class="inline-note">This report shows key highlights. Use JSON export for a full machine-readable payload.</p>`)}
   ${section("Tab Breakdown", renderSimpleTable(["Tab", "Items", "Value"], tabRows))}
-  ${stats.isInventory ? section("Wear Highlights", `${renderSimpleTable(["#", "Shirt", "Wear Count"], topWornRows)}${renderKvTable([
+  ${stats.isInventory ? section("Wear Highlights", `${renderSimpleTable(["#", "Shirt", "Rotation Score", "Wear Count"], topWornRows)}${renderKvTable([
     { label: "Longest unworn", value: stats.longestUnworn ? `${stats.longestUnworn.name} (${stats.longestUnworn.tab}) - ${stats.longestUnworn.daysSince} days` : "No data" },
     { label: "Unworn over 6 months", value: String((stats.unwornOverSixMonths || []).length) },
   ])}`) : ""}
@@ -9115,8 +9118,33 @@ const collectAllStats = () => {
     .map((i) => ({ name: i.name, tab: i.tab, type: i.type || "", cpw: i.price / i.wearCount, wearCount: i.wearCount, price: i.price }))
     .sort((a, b) => a.cpw - b.cpw)
     .slice(0, 5);
-  // Top 5 most worn
-  const top5MostWorn = wornItems.slice().sort((a, b) => b.wearCount - a.wearCount).slice(0, 5);
+  const recencyBonusFromLastWorn = (lastWorn) => {
+    if (!lastWorn) return 0;
+    const ageDays = Math.floor((Date.now() - new Date(lastWorn).getTime()) / 86400000);
+    if (Number.isNaN(ageDays)) return 0;
+    if (ageDays <= 30) return 5;
+    if (ageDays <= 90) return 4;
+    if (ageDays <= 180) return 3;
+    if (ageDays <= 365) return 2;
+    return 1;
+  };
+  const rotationRanked = wornItems
+    .map((item) => {
+      const recencyBonus = recencyBonusFromLastWorn(item.lastWorn);
+      const priceValue = item.price !== null && item.price > 0 ? item.price : 0;
+      const priceBonusPoints = Math.round(Math.log10(priceValue + 1) * 25);
+      const rotationScorePoints = (item.wearCount * 60) + (recencyBonus * 40) + priceBonusPoints;
+      return { ...item, recencyBonus, priceBonusPoints, rotationScorePoints };
+    })
+    .sort((a, b) => b.rotationScorePoints - a.rotationScorePoints || b.price - a.price || b.wearCount - a.wearCount || new Date(b.lastWorn || 0) - new Date(a.lastWorn || 0) || a.name.localeCompare(b.name));
+  const topRotationScore = rotationRanked.slice(0, 5);
+  const tieCounts = new Map();
+  topRotationScore.forEach((item) => {
+    tieCounts.set(item.rotationScorePoints, (tieCounts.get(item.rotationScorePoints) || 0) + 1);
+  });
+  topRotationScore.forEach((item) => {
+    item.isTie = (tieCounts.get(item.rotationScorePoints) || 0) > 1;
+  });
   unwornOverSixMonths.sort((a, b) => {
     if (a.daysSince === null && b.daysSince === null) return a.name.localeCompare(b.name);
     if (a.daysSince === null) return -1;
@@ -9496,7 +9524,7 @@ const collectAllStats = () => {
     recentlyDeleted,
     longestUnworn,
     costPerWear,
-    top5MostWorn,
+    topRotationScore,
     unwornOverSixMonths,
     last5Worn,
     wearEvents,
@@ -10184,18 +10212,20 @@ const openStatsDialog = () => {
   }
 
   // --- Wear tracking stats (Inventory only) ---
-  if (s.isInventory && (s.top5MostWorn.length || s.longestUnworn || s.last5Worn.length || s.unwornOverSixMonths.length)) {
+  if (s.isInventory && (s.topRotationScore.length || s.longestUnworn || s.last5Worn.length || s.unwornOverSixMonths.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
     const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
       const longestType = s.longestUnworn.type ? ` - ${esc(s.longestUnworn.type)}` : "";
       wearBlock += row("Longest unworn", `${esc(s.longestUnworn.name)} (${esc(s.longestUnworn.tab)})${longestType} — ${s.longestUnworn.daysSince} days`);
     }
-    if (s.top5MostWorn.length) {
-      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top 5 most worn</div>`;
-      s.top5MostWorn.forEach((item, i) => {
+    if (s.topRotationScore.length) {
+      wearBlock += `<div class="stats-section-title" style="margin-top:8px">Top rotation score</div>`;
+      wearBlock += `<div class="stats-hint">Score blends wears, recency, and price.<br>Score = wears*60 + recency*40 + round(log10(price+1)*25)</div>`;
+      s.topRotationScore.forEach((item, i) => {
         const type = item.type ? ` - ${item.type}` : "";
-        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}`, `${item.wearCount} wears`);
+        const tieTag = item.isTie ? " (tie)" : "";
+        wearBlock += sub(`${i + 1}. ${item.name} (${item.tab})${type}${tieTag}`, `Score ${((item.rotationScorePoints || 0) / 100).toFixed(2)} · ${item.wearCount} wears`);
       });
     }
     if (s.last5Worn.length) {

@@ -15,7 +15,10 @@
       "Added 'Advanced Diagnostics' link in Cloud Backup with a detailed sync-status dialog (timers, retry count, sync lag, last edit/push times, and latest sync error)",
       "Added Stats export menu in the Stats dialog with CSV (tabular) and JSON (complete payload) downloads",
       "Added printable PDF exports for Stats: a concise summary report and a full all-stats report with expanded table sections",
-      "Removed popup dependency from Stats PDF export flow so print-to-PDF works in preview environments that block window.open"
+      "Removed popup dependency from Stats PDF export flow so print-to-PDF works in preview environments that block window.open",
+      "Expanded pricing rankings to top 10 most expensive and top 10 cheapest, and excluded Socks/Boxer Briefs/Hat/Misc from the cheapest list",
+      "Standardized stats item labels to 'Shirt Name (Brand) - Type' across pricing, wear, whales, and recent added/deleted lists",
+      "Replaced 'Top 5 most worn' with 'Top rotation score' using wear count, recency, and price weighting with tie indicators and an on-screen score formula legend"
     ]
   },
   {
