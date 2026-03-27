@@ -634,6 +634,7 @@ const statsDialog = document.getElementById("stats-dialog");
 const statsContent = document.getElementById("stats-content");
 const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
+const statsAdvancedButton = document.getElementById("stats-advanced");
 const statsExportButton = document.getElementById("stats-export");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
@@ -6965,8 +6966,8 @@ const buildStatsCsvRows = (stats) => {
     push("Advanced", "Inactive value %", String(adv.closetHealth.inactiveValuePct || 0));
     push("Advanced", "CPW efficiency %", String(adv.closetHealth.cpwEffPct || 0));
   }
-  (adv.wearGapRiskAll || []).forEach((item) => {
-    push("Advanced", "Wear gap risk", String(item.score || 0), `${item.name} (${item.tab})`);
+  (adv.firstWearLagAll || []).forEach((item) => {
+    push("Advanced", "First-wear lag (days)", String(item.firstWearLagDays || 0), `${item.name} (${item.tab})`);
   });
   (adv.brandUtilization || []).forEach((item) => {
     push("Advanced", `Brand utilization: ${item.brand}`, String(item.utilizationPct || 0), `inventory=${item.inventory}, worn90=${item.wornLast90}`);
@@ -7046,11 +7047,12 @@ const exportStatsPdf = (stats, options = {}) => {
     String(item.wearCount || 0),
   ]);
 
-  const wearGapRows = (adv.wearGapRiskAll || []).slice(0, isFullExport ? (adv.wearGapRiskAll || []).length : 15).map((item, index) => [
+  const firstWearLagRows = (adv.firstWearLagAll || []).slice(0, isFullExport ? (adv.firstWearLagAll || []).length : 15).map((item, index) => [
     String(index + 1),
     `${item.name || "Unnamed"} (${item.tab || ""})`,
-    String(item.daysSince === null ? "Never" : item.daysSince),
-    String(item.score || 0),
+    String(item.firstWearLagDays || 0),
+    item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "",
+    item.firstWearAt ? new Date(item.firstWearAt).toLocaleDateString() : "",
   ]);
 
   const recentRows = (stats.allRecentlyAdded || []).slice(0, isFullExport ? (stats.allRecentlyAdded || []).length : 25).map((item) => [
@@ -7164,7 +7166,7 @@ const exportStatsPdf = (stats, options = {}) => {
     { label: "Longest unworn", value: stats.longestUnworn ? `${stats.longestUnworn.name} (${stats.longestUnworn.tab}) - ${stats.longestUnworn.daysSince} days` : "No data" },
     { label: "Unworn over 6 months", value: String((stats.unwornOverSixMonths || []).length) },
   ])}`) : ""}
-  ${stats.isInventory ? section(`Advanced Wear Gap Risk (${isFullExport ? "All" : "Top 15"})`, renderSimpleTable(["#", "Shirt", "Days Since", "Risk Score"], wearGapRows)) : ""}
+  ${stats.isInventory ? section(`Advanced First-Wear Lag (${isFullExport ? "All" : "Top 15"})`, renderSimpleTable(["#", "Shirt", "Days to First Wear", "Added On", "First Worn"], firstWearLagRows)) : ""}
   ${stats.isInventory ? section(`Unworn Over 6 Months (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["#", "Shirt", "Days Since"], unwornRows)) : ""}
   ${stats.isInventory ? section(`Wear Events (${isFullExport ? "All" : "Latest 100"})`, renderSimpleTable(["#", "Name", "Brand", "Type", "Worn At"], wearEventRows)) : ""}
   ${stats.isInventory ? section(`Brand Utilization (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Brand", "Inventory", "Worn 90d", "Utilization", "Avg CPW"], brandUtilRows)) : ""}
@@ -9240,16 +9242,7 @@ const collectAllStats = () => {
   }
 
   const nowMs = Date.now();
-  const wearGapRiskAll = wearableUniverse
-    .map((item) => {
-      const lwMs = item.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
-      const daysSince = Number.isNaN(lwMs) ? null : Math.floor((nowMs - lwMs) / 86400000);
-      const score = (daysSince === null ? 300 : Math.min(daysSince, 365)) + Math.max(0, 8 - item.wearCount) * 15;
-      return { ...item, daysSince, score };
-    })
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-  const wearGapRisk = wearGapRiskAll.slice(0, 12);
-
+  const firstWearLagAll = [];
   const adoptionDays = [];
   const neverWornSinceAdded = [];
   let itemsWithCreatedAt = 0;
@@ -9265,18 +9258,30 @@ const collectAllStats = () => {
       if (firstWearMs === null || ms < firstWearMs) firstWearMs = ms;
     });
     if (firstWearMs === null) {
-      neverWornSinceAdded.push({ ...item });
+      neverWornSinceAdded.push({
+        ...item,
+        daysSinceAdded: Math.max(0, Math.floor((nowMs - createdMs) / 86400000)),
+      });
       return;
     }
-    adoptionDays.push(Math.floor((firstWearMs - createdMs) / 86400000));
+    const firstWearLagDays = Math.floor((firstWearMs - createdMs) / 86400000);
+    adoptionDays.push(firstWearLagDays);
+    firstWearLagAll.push({
+      ...item,
+      firstWearLagDays,
+      firstWearAt: new Date(firstWearMs).toISOString(),
+    });
   });
+  firstWearLagAll.sort((a, b) => b.firstWearLagDays - a.firstWearLagDays || a.name.localeCompare(b.name));
+  const firstWearLag = firstWearLagAll.slice(0, 10);
+
   const newItemAdoption = {
     itemsWithCreatedAt,
     wornAfterAddCount: adoptionDays.length,
     medianDaysToFirstWear: adoptionDays.length ? median(adoptionDays) : null,
     adoptionRatePct: itemsWithCreatedAt ? Math.round((adoptionDays.length / itemsWithCreatedAt) * 100) : 0,
     neverWornSinceAdded: neverWornSinceAdded
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (b.daysSinceAdded || 0) - (a.daysSinceAdded || 0) || a.name.localeCompare(b.name))
       .slice(0, 12),
   };
 
@@ -9477,8 +9482,8 @@ const collectAllStats = () => {
     Math.round((recencyPct * 0.35) + ((100 - neverWornPct) * 0.25) + ((100 - inactiveValuePct) * 0.2) + (cpwEffPct * 0.2))
   ));
   const advanced = {
-    wearGapRisk,
-    wearGapRiskAll,
+    firstWearLag,
+    firstWearLagAll,
     newItemAdoption,
     monthlySpendVsWear,
     brandUtilization,
@@ -9748,26 +9753,26 @@ const openAllAddedDialog = (addedItems, isInventoryMode) => {
   resetDialogScroll(dialog);
 };
 
-const openWearGapRiskDialog = (items) => {
+const openFirstWearLagDialog = (items) => {
   const listItems = Array.isArray(items) ? items.slice() : [];
 
-  let dialog = document.getElementById("wear-gap-risk-dialog");
+  let dialog = document.getElementById("first-wear-lag-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
-    dialog.id = "wear-gap-risk-dialog";
+    dialog.id = "first-wear-lag-dialog";
     dialog.innerHTML = `
       <div class="dialog-body">
-        <h3>Wear Gap Risk (All Shirts)</h3>
-        <div id="wear-gap-risk-summary" class="stats-hint"></div>
-        <div id="wear-gap-risk-list" class="wear-history-list"></div>
+        <h3>First-Wear Lag (All Shirts)</h3>
+        <div id="first-wear-lag-summary" class="stats-hint"></div>
+        <div id="first-wear-lag-list" class="wear-history-list"></div>
       </div>
       <div class="dialog-actions">
-        <button type="button" id="wear-gap-risk-close" class="btn">Close</button>
+        <button type="button" id="first-wear-lag-close" class="btn">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
 
-    const closeButton = dialog.querySelector("#wear-gap-risk-close");
+    const closeButton = dialog.querySelector("#first-wear-lag-close");
     if (closeButton) {
       closeButton.addEventListener("click", () => {
         closeDialog(dialog);
@@ -9775,23 +9780,25 @@ const openWearGapRiskDialog = (items) => {
     }
   }
 
-  const summary = dialog.querySelector("#wear-gap-risk-summary");
-  const list = dialog.querySelector("#wear-gap-risk-list");
+  const summary = dialog.querySelector("#first-wear-lag-summary");
+  const list = dialog.querySelector("#first-wear-lag-list");
   if (!list) return;
   list.textContent = "";
 
   if (!listItems.length) {
-    if (summary) summary.textContent = "No wearable shirts found.";
+    if (summary) summary.textContent = "No first-wear lag data available.";
     const empty = document.createElement("div");
     empty.className = "stats-hint";
-    empty.textContent = "No wear-risk data available.";
+    empty.textContent = "No first-wear lag data available.";
     list.appendChild(empty);
     openDialog(dialog);
     resetDialogScroll(dialog);
     return;
   }
 
-  if (summary) summary.textContent = `${listItems.length} ${listItems.length === 1 ? "shirt" : "shirts"}`;
+  if (summary) {
+    summary.textContent = `${listItems.length} ${listItems.length === 1 ? "shirt" : "shirts"} with add date + first wear date`;
+  }
 
   listItems.forEach((item, index) => {
     const rowEl = document.createElement("div");
@@ -9803,8 +9810,10 @@ const openWearGapRiskDialog = (items) => {
 
     const right = document.createElement("span");
     right.className = "wear-history-date";
-    const age = item.daysSince === null ? "Never" : `${item.daysSince}d ago`;
-    right.textContent = `Risk ${item.score} | ${age} | ${item.wearCount} wears`;
+    const createdLabel = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Unknown add date";
+    const firstWearLabel = item.firstWearAt ? new Date(item.firstWearAt).toLocaleDateString() : "Unknown first wear";
+    const lagDays = item.firstWearLagDays || 0;
+    right.textContent = `${lagDays}d to first wear | added ${createdLabel} | first worn ${firstWearLabel}`;
 
     rowEl.appendChild(left);
     rowEl.appendChild(right);
@@ -9864,6 +9873,7 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (adv.closetHealth) {
     html += section("Closet health score",
+      `<div class="stats-hint">A 0-100 snapshot of closet rotation health. Higher is better, based on recent wear activity, never-worn share, inactive value, and cost-per-wear efficiency.</div>` +
       row("Score", `${adv.closetHealth.score}/100`) +
       sub("Worn in last 30 days", `${adv.closetHealth.recencyPct}%`) +
       sub("Never worn", `${adv.closetHealth.neverWornPct}%`) +
@@ -9872,16 +9882,16 @@ const openAdvancedStatsDialog = (stats) => {
     );
   }
 
-  if (Array.isArray(adv.wearGapRisk) && adv.wearGapRisk.length) {
-    let body = `<div class="stats-hint">High score = likely neglected. Combines recency and low wear count.</div>`;
-    adv.wearGapRisk.forEach((item, idx) => {
-      const age = item.daysSince === null ? "Never" : `${item.daysSince}d ago`;
-      body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${age} | ${item.wearCount} wears | risk ${item.score}`);
+  if (Array.isArray(adv.firstWearLag) && adv.firstWearLag.length) {
+    let body = `<div class="stats-hint">Higher days means slower adoption after adding.</div>`;
+    adv.firstWearLag.forEach((item, idx) => {
+      const firstWearLabel = item.firstWearAt ? new Date(item.firstWearAt).toLocaleDateString() : "Unknown";
+      body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${item.firstWearLagDays || 0} days | first worn ${firstWearLabel}`);
     });
-    if (Array.isArray(adv.wearGapRiskAll) && adv.wearGapRiskAll.length > adv.wearGapRisk.length) {
-      body += `<button type="button" id="advanced-wear-gap-link" class="stats-link-button">View full wear gap list</button>`;
+    if (Array.isArray(adv.firstWearLagAll) && adv.firstWearLagAll.length > adv.firstWearLag.length) {
+      body += `<button type="button" id="advanced-first-wear-lag-link" class="stats-link-button">View full first-wear lag list</button>`;
     }
-    html += section("Wear gap risk", body);
+    html += section("First-wear lag outliers", body);
   }
 
   if (adv.newItemAdoption) {
@@ -9973,10 +9983,10 @@ const openAdvancedStatsDialog = (stats) => {
 
   content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
 
-  const wearGapLink = content.querySelector("#advanced-wear-gap-link");
-  if (wearGapLink) {
-    wearGapLink.addEventListener("click", () => {
-      openWearGapRiskDialog(adv.wearGapRiskAll || adv.wearGapRisk || []);
+  const firstWearLagLink = content.querySelector("#advanced-first-wear-lag-link");
+  if (firstWearLagLink) {
+    firstWearLagLink.addEventListener("click", () => {
+      openFirstWearLagDialog(adv.firstWearLagAll || adv.firstWearLag || []);
     });
   }
 
@@ -10154,37 +10164,15 @@ const openStatsDialog = () => {
       html += section(divBlock);
     }
 
-    // --- Rarity score ---
-    if (s.rareTypes.length || s.rareFandoms.length || s.whaleItems.length) {
-      const rarityList = (items) => {
-        let out = "";
-        items.slice(0, 5).forEach((name) => { out += sub(name, ""); });
-        if (items.length > 5) {
-          const rest = items.slice(5);
-          out += `<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">+${rest.length} more</span><span class="stats-value"></span></summary><div class="stats-tab-body">`;
-          rest.forEach((name) => { out += sub(name, ""); });
-          out += `</div></details>`;
-        }
-        return out;
-      };
-      let rareBlock = `<div class="stats-section-title">Rarities</div>`;
-      if (s.rareTypes.length) {
-        rareBlock += row("One-of-a-kind types", String(s.rareTypes.length));
-        rareBlock += rarityList(s.rareTypes);
-      }
-      if (s.rareFandoms.length) {
-        rareBlock += row("One-of-a-kind fandoms", String(s.rareFandoms.length));
-        rareBlock += rarityList(s.rareFandoms);
-      }
-      if (s.whaleItems.length) {
-        rareBlock += `<div class="stats-section-title" style="margin-top:8px">Whales</div>`;
-        rareBlock += row("Total whales", String(s.whaleItems.length));
-        s.whaleItems.forEach((item) => {
-          const type = item.type ? ` - ${item.type}` : "";
-          rareBlock += sub(`${item.name} (${item.tab})${type}`, "");
-        });
-      }
-      html += section(rareBlock);
+    // --- Whales ---
+    if (s.whaleItems.length) {
+      let whaleBlock = `<div class="stats-section-title">Whales</div>`;
+      whaleBlock += row("Total whales", String(s.whaleItems.length));
+      s.whaleItems.forEach((item) => {
+        const type = item.type ? ` - ${item.type}` : "";
+        whaleBlock += sub(`${item.name} (${item.tab})${type}`, "");
+      });
+      html += section(whaleBlock);
     }
 
     // --- Name word frequency (Inventory only) ---
@@ -10327,8 +10315,6 @@ const openStatsDialog = () => {
     html += section(wishBlock);
   }
 
-  html += section(`<button type="button" id="stats-advanced-link" class="stats-link-button">Advanced Stats</button>`);
-
   statsContent.innerHTML = html;
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
@@ -10336,7 +10322,6 @@ const openStatsDialog = () => {
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
   const allAddedLink = statsContent.querySelector("#stats-all-added-link");
-  const advancedStatsLink = statsContent.querySelector("#stats-advanced-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -10388,10 +10373,10 @@ const openStatsDialog = () => {
       openAllAddedDialog(s.allRecentlyAdded, s.isInventory);
     });
   }
-  if (advancedStatsLink) {
-    advancedStatsLink.addEventListener("click", () => {
+  if (statsAdvancedButton) {
+    statsAdvancedButton.onclick = () => {
       openAdvancedStatsDialog(s);
-    });
+    };
   }
   if (statsExportButton) {
     statsExportButton.onclick = () => {

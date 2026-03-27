@@ -18,7 +18,12 @@
       "Removed popup dependency from Stats PDF export flow so print-to-PDF works in preview environments that block window.open",
       "Expanded pricing rankings to top 10 most expensive and top 10 cheapest, and excluded Socks/Boxer Briefs/Hat/Misc from the cheapest list",
       "Standardized stats item labels to 'Shirt Name (Brand) - Type' across pricing, wear, whales, and recent added/deleted lists",
-      "Replaced 'Top 5 most worn' with 'Top rotation score' using wear count, recency, and price weighting with tie indicators and an on-screen score formula legend"
+      "Replaced 'Top 5 most worn' with 'Top rotation score' using wear count, recency, and price weighting with tie indicators and an on-screen score formula legend",
+      "Replaced Advanced Stats 'Wear Gap Risk' with first-wear lag analytics (preview + full list) to highlight slow adoption after add date",
+      "Set first-wear lag outlier preview to top 10 and updated Stats exports (CSV/PDF) to use first-wear lag labels",
+      "Added helper text under Closet health score explaining what the 0-100 score represents",
+      "Moved main Stats 'Advanced Stats' trigger into the dialog footer as a button next to Export and Close",
+      "Removed one-of-a-kind Rarities rows from main Stats while keeping the Whales section"
     ]
   },
   {
