@@ -9131,10 +9131,12 @@ const collectAllStats = () => {
   const rotationRanked = wornItems
     .map((item) => {
       const recencyBonus = recencyBonusFromLastWorn(item.lastWorn);
-      const rotationScorePoints = (item.wearCount * 60) + (recencyBonus * 40);
-      return { ...item, recencyBonus, rotationScorePoints };
+      const priceValue = item.price !== null && item.price > 0 ? item.price : 0;
+      const priceBonusPoints = Math.round(Math.log10(priceValue + 1) * 25);
+      const rotationScorePoints = (item.wearCount * 60) + (recencyBonus * 40) + priceBonusPoints;
+      return { ...item, recencyBonus, priceBonusPoints, rotationScorePoints };
     })
-    .sort((a, b) => b.rotationScorePoints - a.rotationScorePoints || b.wearCount - a.wearCount || new Date(b.lastWorn || 0) - new Date(a.lastWorn || 0) || a.name.localeCompare(b.name));
+    .sort((a, b) => b.rotationScorePoints - a.rotationScorePoints || b.price - a.price || b.wearCount - a.wearCount || new Date(b.lastWorn || 0) - new Date(a.lastWorn || 0) || a.name.localeCompare(b.name));
   const topRotationScore = rotationRanked.slice(0, 5);
   const tieCounts = new Map();
   topRotationScore.forEach((item) => {
