@@ -7122,13 +7122,6 @@ const exportStatsPdf = (stats, options = {}) => {
     `${item.streak || 0} days`,
   ]);
 
-  const fullPayload = {
-    generatedAt: generatedAt.toISOString(),
-    version: APP_VERSION,
-    mode: modeLabel.toLowerCase(),
-    stats,
-  };
-
   const section = (title, body) => `<section class="report-section"><h2>${escapeHtml(title)}</h2>${body}</section>`;
 
   const printable = `<!doctype html>
@@ -7149,7 +7142,6 @@ const exportStatsPdf = (stats, options = {}) => {
     .inline-note { margin: 0; font-size: 12px; }
     .empty-note { font-size: 12px; color: #666; }
     .footer-note { margin-top: 18px; font-size: 11px; color: #666; }
-    pre.json-appendix { white-space: pre-wrap; word-break: break-word; font-size: 10px; border: 1px solid #cfcfcf; padding: 8px; background: #fafafa; }
     @media print { body { margin: 12mm; } }
   </style>
 </head>
@@ -7180,8 +7172,7 @@ const exportStatsPdf = (stats, options = {}) => {
   ${stats.isInventory ? section("Repeat Wear Streaks (Brands)", renderSimpleTable(["#", "Brand", "Streak"], topBrandStreakRows)) : ""}
   ${stats.isInventory ? section("Repeat Wear Streaks (Types)", renderSimpleTable(["#", "Type", "Streak"], topTypeStreakRows)) : ""}
   ${section(`Recently Added (${isFullExport ? "All" : "Latest 25"})`, renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
-  ${isFullExport ? section("Full Stats JSON Appendix", `<pre class="json-appendix">${escapeHtml(JSON.stringify(fullPayload, null, 2))}</pre>`) : ""}
-  <div class="footer-note">${isFullExport ? "Full export includes every available stats entry plus a JSON appendix." : "Need every field and row? Use Export PDF (full, all stats) or Export JSON."}</div>
+  <div class="footer-note">${isFullExport ? "Full export includes all available stats sections in print-friendly tables." : "Need every field and row? Use Export PDF (full, all stats) or Export JSON."}</div>
 </body>
 </html>`;
 
@@ -7244,7 +7235,7 @@ const openStatsExportDialog = (stats) => {
           <button type="button" class="btn secondary" id="stats-export-csv">Export CSV (tabular)</button>
           <button type="button" class="btn secondary" id="stats-export-json">Export JSON (complete)</button>
         </div>
-        <div class="stats-export-note">Summary PDF is concise. Full PDF includes all available stats sections plus JSON appendix (can be very large).</div>
+        <div class="stats-export-note">Summary PDF is concise. Full PDF includes all available stats sections in print-friendly tables (can be very large).</div>
       </div>
       <div class="dialog-actions">
         <button type="button" class="btn" id="stats-export-close">Close</button>
