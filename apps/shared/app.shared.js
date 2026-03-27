@@ -7043,13 +7043,21 @@ const exportStatsPdf = (stats) => {
     }, 1000);
   };
 
+  let didPrint = false;
   iframe.onload = () => {
+    if (didPrint) return;
     try {
+      const frameDoc = iframe.contentDocument;
       const frameWindow = iframe.contentWindow;
-      if (!frameWindow) {
+      if (!frameWindow || !frameDoc) {
         cleanup();
         return;
       }
+      const marker = frameDoc.getElementById("stats-pdf-export-root");
+      if (!marker) {
+        return;
+      }
+      didPrint = true;
       frameWindow.focus();
       frameWindow.print();
       addEventLog("Opened stats PDF print dialog");
@@ -7060,16 +7068,8 @@ const exportStatsPdf = (stats) => {
     }
   };
 
+  iframe.srcdoc = printable.replace("<body>", "<body id=\"stats-pdf-export-root\">");
   document.body.appendChild(iframe);
-  const doc = iframe.contentDocument;
-  if (!doc) {
-    cleanup();
-    alert("Unable to create PDF export preview.");
-    return;
-  }
-  doc.open();
-  doc.write(printable);
-  doc.close();
 };
 
 const openStatsExportDialog = (stats) => {
