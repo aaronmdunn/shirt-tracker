@@ -8350,7 +8350,14 @@ const collectAllStats = () => {
         if (!Number.isNaN(d.getTime())) {
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
-          allDatedItems.push({ date: d, tab: tab.name, name: getCellValue(entry, "Name") || "Unnamed", type: getCellValue(entry, "Type") || "", brand: getCellValue(entry, "Brand") || "" });
+          allDatedItems.push({
+            date: d,
+            tab: tab.name,
+            name: getCellValue(entry, "Name") || "Unnamed",
+            type: getCellValue(entry, "Type") || "",
+            brand: getCellValue(entry, "Brand") || "",
+            price: parseCurrency(getCellValue(entry, "Price")),
+          });
         }
       }
     });
@@ -8473,12 +8480,21 @@ const collectAllStats = () => {
 
   // --- Recently added (rows with createdAt) ---
   allDatedItems.sort((a, b) => b.date - a.date);
+  const allRecentlyAdded = allDatedItems.map((item) => ({
+    name: item.name,
+    tab: item.tab,
+    type: item.type,
+    brand: item.brand,
+    createdAt: item.date.toISOString(),
+    price: item.price,
+  }));
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
     name: item.name,
     tab: item.tab,
     type: item.type,
     brand: item.brand,
     createdAt: item.date.toISOString(),
+    price: item.price,
   }));
 
   // --- Recently deleted ---
@@ -8635,6 +8651,7 @@ const collectAllStats = () => {
     whaleItems,
     topWords,
     recentlyAdded: top5RecentlyAdded,
+    allRecentlyAdded,
     recentlyDeleted,
     longestUnworn,
     costPerWear,
@@ -8779,6 +8796,81 @@ const openUnwornSixMonthsDialog = (items) => {
 
     rowEl.appendChild(left);
     rowEl.appendChild(right);
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openAllAddedDialog = (addedItems, isInventoryMode) => {
+  const items = Array.isArray(addedItems) ? addedItems.slice() : [];
+
+  let dialog = document.getElementById("all-added-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "all-added-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>All Added Shirts</h3>
+        <div id="all-added-summary" class="stats-hint"></div>
+        <div id="all-added-list" class="added-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="all-added-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#all-added-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#all-added-summary");
+  const list = dialog.querySelector("#all-added-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (!items.length) {
+    if (summary) summary.textContent = "No added shirts found.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No rows with created dates are available.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) summary.textContent = `${items.length} ${items.length === 1 ? "shirt" : "shirts"}`;
+
+  const head = document.createElement("div");
+  head.className = "added-history-item added-history-head";
+  head.innerHTML = "<span>Name</span><span>Brand</span><span>Type</span><span>Date Added</span><span>Price</span>";
+  list.appendChild(head);
+
+  items.forEach((item) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "added-history-item";
+    const brandLabel = isInventoryMode ? item.tab : (item.brand || "");
+    const dateLabel = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "";
+    const priceLabel = item.price !== null && item.price !== undefined ? formatCurrency(item.price) : "\u2014";
+    const values = [
+      item.name || "Unnamed",
+      brandLabel || "\u2014",
+      item.type || "\u2014",
+      dateLabel || "\u2014",
+      priceLabel,
+    ];
+    values.forEach((value) => {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      rowEl.appendChild(cell);
+    });
     list.appendChild(rowEl);
   });
 
@@ -9083,6 +9175,7 @@ const openStatsDialog = () => {
       const right = brandLabel ? `${brandLabel} - ${date}` : date;
       addedBlock += sub(label, right);
     });
+    addedBlock += `<button type="button" id="stats-all-added-link" class="stats-link-button">View all added shirts</button>`;
     html += section(addedBlock);
   }
 
@@ -9120,6 +9213,7 @@ const openStatsDialog = () => {
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
+  const allAddedLink = statsContent.querySelector("#stats-all-added-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -9164,6 +9258,11 @@ const openStatsDialog = () => {
   if (unwornSixMonthsLink) {
     unwornSixMonthsLink.addEventListener("click", () => {
       openUnwornSixMonthsDialog(s.unwornOverSixMonths);
+    });
+  }
+  if (allAddedLink) {
+    allAddedLink.addEventListener("click", () => {
+      openAllAddedDialog(s.allRecentlyAdded, s.isInventory);
     });
   }
 

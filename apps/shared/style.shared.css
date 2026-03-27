@@ -2785,20 +2785,23 @@ input[type="date"].stats-date-input {
 }
 
 #wear-history-dialog,
-#unworn-six-months-dialog {
+#unworn-six-months-dialog,
+#all-added-dialog {
   max-width: 620px;
   width: 90vw;
 }
 
 #wear-history-dialog .dialog-body,
-#unworn-six-months-dialog .dialog-body {
+#unworn-six-months-dialog .dialog-body,
+#all-added-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
 }
 
 #wear-history-dialog .dialog-actions,
-#unworn-six-months-dialog .dialog-actions {
+#unworn-six-months-dialog .dialog-actions,
+#all-added-dialog .dialog-actions {
   justify-content: center;
 }
 
@@ -2829,6 +2832,39 @@ input[type="date"].stats-date-input {
 
 .wear-history-date {
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.added-history-list {
+  display: grid;
+  gap: 6px;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.added-history-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 2fr) minmax(80px, 1fr) minmax(80px, 1fr) minmax(90px, auto) minmax(70px, auto);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 10px;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+}
+
+.added-history-head {
+  background: #efefef;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.added-history-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
