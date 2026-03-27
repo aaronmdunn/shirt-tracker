@@ -8625,6 +8625,75 @@ const collectAllStats = () => {
   };
 };
 
+const openWearHistoryDialog = (wearEvents) => {
+  const events = Array.isArray(wearEvents) ? wearEvents.slice() : [];
+  events.sort((a, b) => new Date(b.wornAt) - new Date(a.wornAt));
+
+  let dialog = document.getElementById("wear-history-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "wear-history-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Wear History</h3>
+        <div id="wear-history-summary" class="stats-hint"></div>
+        <div id="wear-history-list" class="wear-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="wear-history-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#wear-history-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#wear-history-summary");
+  const list = dialog.querySelector("#wear-history-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (events.length === 0) {
+    if (summary) summary.textContent = "No wear history logged yet.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No shirts have been logged yet.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) {
+    summary.textContent = `${events.length} total wear ${events.length === 1 ? "log" : "logs"}`;
+  }
+
+  events.forEach((event, index) => {
+    const item = document.createElement("div");
+    item.className = "wear-history-item";
+
+    const left = document.createElement("span");
+    left.className = "wear-history-name";
+    left.textContent = `${index + 1}. ${event.name} (${event.tab})`;
+
+    const right = document.createElement("span");
+    right.className = "wear-history-date";
+    right.textContent = new Date(event.wornAt).toLocaleDateString();
+
+    item.appendChild(left);
+    item.appendChild(right);
+    list.appendChild(item);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const openStatsDialog = () => {
   if (!statsDialog || !statsContent) return;
   const s = collectAllStats();
@@ -8869,7 +8938,7 @@ const openStatsDialog = () => {
     }
     if (s.wearEvents.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Worn on date</div>`;
-      wearBlock += `<div class="stats-date-lookup"><input id="stats-worn-date-input" class="stats-date-input" type="date" value="${todayKey}" max="${todayKey}"><div id="stats-worn-date-results" class="stats-date-results"></div></div>`;
+      wearBlock += `<div class="stats-date-lookup"><input id="stats-worn-date-input" class="stats-date-input" type="date" value="${todayKey}" max="${todayKey}"><div id="stats-worn-date-results" class="stats-date-results"></div><button type="button" id="stats-wear-history-link" class="stats-link-button">View full wear history</button></div>`;
     }
     if (s.bottom5LeastWorn.length) {
       wearBlock += `<div class="stats-section-title" style="margin-top:8px">Bottom 5 least worn</div>`;
@@ -8960,6 +9029,7 @@ const openStatsDialog = () => {
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
+  const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -8994,6 +9064,11 @@ const openStatsDialog = () => {
     wornDateInput.addEventListener("input", renderWornDateMatches);
     wornDateInput.addEventListener("change", renderWornDateMatches);
     renderWornDateMatches();
+  }
+  if (wearHistoryLink) {
+    wearHistoryLink.addEventListener("click", () => {
+      openWearHistoryDialog(s.wearEvents);
+    });
   }
 
   openDialog(statsDialog);
