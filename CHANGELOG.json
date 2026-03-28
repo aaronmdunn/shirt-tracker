@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.0.15",
+    "date": "2026-03-28",
+    "changes": [
+      "Added new Insights entry point in the Stats dialog footer on desktop and mobile",
+      "Added Insights dialog with Closet Audit Scorecard, Wear Next Queue, and Wear Calendar Heatmap sections",
+      "Added Wear Next Queue snooze controls (3-day hide) with local persistence",
+      "Added Wear Calendar Heatmap filters for year and brand with month-by-month daily intensity tiles",
+      "Added action-oriented Closet Audit recommendations tied to health score, inactive capital, and backlog metrics",
+      "Updated Wear Next scoring to prioritize never-worn items more strongly, including extra boosts for NWT/NWOT",
+      "Reduced value-driven queue pressure for Whale and Holiday tagged items while preserving core time/never-worn/value weighting",
+      "Added seasonal and date-aware queue boosts: flannel in cold months, Floral on Fridays, Holiday items near major holidays, Star Wars on May 4, Mickey on Mondays, and Whale on Wednesdays"
+    ]
+  },
+  {
     "version": "2.0.14",
     "date": "2026-03-27",
     "changes": [
