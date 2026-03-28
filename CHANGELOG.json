@@ -8,6 +8,10 @@
       "Added Wear Next Queue snooze controls (3-day hide) with local persistence",
       "Added Wear Calendar Heatmap filters for year and brand with month-by-month daily intensity tiles",
       "Added action-oriented Closet Audit recommendations tied to health score, inactive capital, and backlog metrics",
+      "Expanded Closet Audit scorecard from 4 to 6 cards by adding 30-day rotation coverage and no-buy streak metrics",
+      "Fixed Backlog Risk to use the full never-worn-since-added total instead of the 12-item preview cap",
+      "Added Personal Style DNA (Wrapped) in Insights with monthly and yearly highlight cards (top brand/type, peak day, streak, adds/spend, top fandom/tag)",
+      "Replaced DNA 'Top shirt' with a Spotlight Wear metric that ranks the most meaningful single wear event by impact signals",
       "Updated Wear Next scoring to prioritize never-worn items more strongly, including extra boosts for NWT/NWOT",
       "Reduced value-driven queue pressure for Whale and Holiday tagged items while preserving core time/never-worn/value weighting",
       "Added seasonal and date-aware queue boosts: flannel in cold months, Floral on Fridays, Holiday items near major holidays, Star Wars on May 4, Mickey on Mondays, and Whale on Wednesdays"
