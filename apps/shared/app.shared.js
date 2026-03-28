@@ -1238,7 +1238,9 @@ const getEmbeddedTabs = () => {
 };
 
 const sortTabs = () => {
-  tabsState.tabs.sort((a, b) => a.name.localeCompare(b.name));
+  // Manual tab order is user-defined (supports drag-and-drop reordering).
+  // Keep current array order intact.
+  tabsState.tabs = Array.isArray(tabsState.tabs) ? tabsState.tabs : [];
 };
 
 const setDefaultTabsState = () => {
@@ -4646,19 +4648,64 @@ const renderTabs = () => {
   if (!tabBar) return;
   tabBar.innerHTML = "";
   const tabContainer = (() => { const g = document.createElement("div"); g.className = "tab-grid"; return g; })();
-  tabsState.tabs
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .forEach((tab) => {
+  const canReorderTabs = !state.readOnly && !isViewerSession && PLATFORM === "desktop";
+  let draggedTabId = null;
+  const moveTab = (fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const fromIndex = tabsState.tabs.findIndex((tab) => tab.id === fromId);
+    const toIndex = tabsState.tabs.findIndex((tab) => tab.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = tabsState.tabs.splice(fromIndex, 1);
+    tabsState.tabs.splice(toIndex, 0, moved);
+    saveTabsState();
+    renderTabs();
+  };
+
+  tabsState.tabs.forEach((tab) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `tab-btn${tab.id === tabsState.activeTabId ? " active" : ""}`;
+    btn.dataset.tabId = tab.id;
     btn.textContent = tab.name;
     const count = getTabRowCount(tab.id);
     const badge = document.createElement("span");
     badge.className = "tab-count";
     badge.textContent = count;
     btn.appendChild(badge);
+
+    if (canReorderTabs && tabsState.tabs.length > 1) {
+      btn.draggable = true;
+      btn.setAttribute("aria-label", `${tab.name}. Drag to reorder tab`);
+      btn.addEventListener("dragstart", (event) => {
+        draggedTabId = tab.id;
+        btn.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", tab.id);
+        }
+      });
+      btn.addEventListener("dragover", (event) => {
+        if (!draggedTabId || draggedTabId === tab.id) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+        btn.classList.add("drag-over");
+      });
+      btn.addEventListener("dragleave", () => {
+        btn.classList.remove("drag-over");
+      });
+      btn.addEventListener("drop", (event) => {
+        event.preventDefault();
+        btn.classList.remove("drag-over");
+        const fromId = draggedTabId || (event.dataTransfer ? event.dataTransfer.getData("text/plain") : "");
+        moveTab(fromId, tab.id);
+      });
+      btn.addEventListener("dragend", () => {
+        draggedTabId = null;
+        btn.classList.remove("dragging");
+        tabContainer.querySelectorAll(".drag-over").forEach((el) => el.classList.remove("drag-over"));
+      });
+    }
+
     btn.addEventListener("click", () => switchTab(tab.id));
     tabContainer.appendChild(btn);
   });

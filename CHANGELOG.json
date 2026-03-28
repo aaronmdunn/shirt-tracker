@@ -14,7 +14,10 @@
       "Replaced DNA 'Top shirt' with a Spotlight Wear metric that ranks the most meaningful single wear event by impact signals",
       "Updated Wear Next scoring to prioritize never-worn items more strongly, including extra boosts for NWT/NWOT",
       "Reduced value-driven queue pressure for Whale and Holiday tagged items while preserving core time/never-worn/value weighting",
-      "Added seasonal and date-aware queue boosts: flannel in cold months, Floral on Fridays, Holiday items near major holidays, Star Wars on May 4, Mickey on Mondays, and Whale on Wednesdays"
+      "Added seasonal and date-aware queue boosts: flannel in cold months, Floral on Fridays, Holiday items near major holidays, Star Wars on May 4, Mickey on Mondays, and Whale on Wednesdays",
+      "Added desktop drag-and-drop tab reordering and persisted manual tab order across sessions/devices",
+      "Removed Cloudflare analytics integration and switched web app analytics script to Simple Analytics",
+      "Updated Netlify CSP to allow Simple Analytics script/queue endpoints and removed Cloudflare analytics allowances"
     ]
   },
   {
