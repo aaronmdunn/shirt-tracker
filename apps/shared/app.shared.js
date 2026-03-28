@@ -10092,6 +10092,41 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
+const normalizeHolidayTagKey = (value) => String(value || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "");
+
+const getLastMondayOfMay = (year) => {
+  const d = new Date(year, 4, 31);
+  while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
+  return d;
+};
+
+const getThanksgivingDate = (year) => {
+  const d = new Date(year, 10, 1);
+  while (d.getDay() !== 4) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + 21);
+  return d;
+};
+
+const getHanukkahStartDate = (year) => {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric", month: "long" });
+    const start = new Date(year, 10, 15);
+    for (let i = 0; i < 62; i += 1) {
+      const probe = new Date(start);
+      probe.setDate(start.getDate() + i);
+      const heb = fmt.format(probe).toLowerCase();
+      if (heb.includes("25") && heb.includes("kislev")) {
+        return probe;
+      }
+    }
+  } catch (error) {
+    // fallback below
+  }
+  return new Date(year, 11, 10);
+};
+
 const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const activeSnoozes = snoozes || {};
@@ -10111,25 +10146,60 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
-  const memorialDay = (() => {
-    const d = new Date(year, 4, 31); // May 31
-    while (d.getDay() !== 1) d.setDate(d.getDate() - 1); // last Monday in May
-    return d;
-  })();
-  const holidayTargets = [
-    new Date(year, 9, 31), // Halloween
-    new Date(year, 11, 25), // Christmas
-    new Date(year, 2, 17), // St Patrick's Day
-    new Date(year, 1, 14), // Valentine's Day
-    memorialDay, // Memorial Day
-    new Date(year, 6, 4), // July 4
+  const memorialDay = getLastMondayOfMay(year);
+  const thanksgivingDay = getThanksgivingDate(year);
+  const hanukkahStart = getHanukkahStartDate(year);
+  const holidayWindowDays = 21;
+  const holidayProfiles = [
+    {
+      id: "usa",
+      label: "USA holiday",
+      dates: [memorialDay, new Date(year, 6, 4)],
+      aliases: ["usa", "us", "america", "american"],
+    },
+    {
+      id: "july4",
+      label: "July 4",
+      dates: [new Date(year, 6, 4)],
+      aliases: ["july4", "july4th", "4thofjuly", "independenceday"],
+    },
+    {
+      id: "stpatricks",
+      label: "St. Patrick's Day",
+      dates: [new Date(year, 2, 17)],
+      aliases: ["stpatricksday", "stpatricks", "stpatrickday", "stpatricks"],
+    },
+    {
+      id: "valentines",
+      label: "Valentine's Day",
+      dates: [new Date(year, 1, 14)],
+      aliases: ["valentinesday", "valentines", "valentine"],
+    },
+    {
+      id: "thanksgiving",
+      label: "Thanksgiving",
+      dates: [thanksgivingDay],
+      aliases: ["thanksgiving", "thanks"],
+    },
+    {
+      id: "hanukkah",
+      label: "Hanukkah",
+      dates: [hanukkahStart],
+      aliases: ["hanukkah", "chanukah", "chanukkah"],
+    },
+    {
+      id: "christmas",
+      label: "Christmas",
+      dates: [new Date(year, 11, 25)],
+      aliases: ["christmas", "xmas"],
+    },
+    {
+      id: "halloween",
+      label: "Halloween",
+      dates: [new Date(year, 9, 31)],
+      aliases: ["halloween", "spooky"],
+    },
   ];
-  const holidayWindowDays = 7;
-  const nearestHolidayDays = holidayTargets.reduce((best, target) => {
-    const diff = daysBetween(safeNow, target);
-    return diff < best ? diff : best;
-  }, Infinity);
-  const isNearHolidayWindow = nearestHolidayDays <= holidayWindowDays;
 
   return items
     .map((item) => {
@@ -10145,6 +10215,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
+      const holidayTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
       const createdAt = item.createdAt || null;
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
@@ -10198,10 +10269,52 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (tagSet.has("floral") && dayOfWeek === 5) {
         addScore("Floral Friday boost", 42);
       }
-      if (tagSet.has("holiday") && isNearHolidayWindow) {
-        const proximityBoost = Math.max(16, 52 - (nearestHolidayDays * 5));
-        addScore("Holiday window proximity boost", proximityBoost);
+
+      const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
+        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
+      );
+      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
+      const nearestSpecificHoliday = matchedHolidayProfiles.length
+        ? matchedHolidayProfiles.reduce((best, profile) => {
+          const minDays = profile.dates.reduce((innerBest, d) => {
+            const diff = daysBetween(safeNow, d);
+            return diff < innerBest ? diff : innerBest;
+          }, Infinity);
+          return minDays < best.days ? { days: minDays, profile } : best;
+        }, { days: Infinity, profile: null })
+        : { days: Infinity, profile: null };
+      const nearestAnyHolidayDays = holidayProfiles.reduce((best, profile) => {
+        const minDays = profile.dates.reduce((innerBest, d) => {
+          const diff = daysBetween(safeNow, d);
+          return diff < innerBest ? diff : innerBest;
+        }, Infinity);
+        return minDays < best ? minDays : best;
+      }, Infinity);
+
+      if (nearestSpecificHoliday.profile) {
+        if (nearestSpecificHoliday.days <= holidayWindowDays) {
+          const boost = Math.max(18, 80 - (nearestSpecificHoliday.days * 3));
+          addScore(`${nearestSpecificHoliday.profile.label} proximity boost`, boost);
+        } else {
+          addScore("Out-of-season specific holiday penalty", -85);
+        }
       }
+
+      if (hasGenericHolidayTag) {
+        if (nearestSpecificHoliday.profile) {
+          if (nearestSpecificHoliday.days <= holidayWindowDays) {
+            addScore("Generic holiday support boost", 12);
+          } else {
+            addScore("Generic holiday out-of-season penalty", -28);
+          }
+        } else if (nearestAnyHolidayDays <= holidayWindowDays) {
+          const genericBoost = Math.max(12, 44 - (nearestAnyHolidayDays * 2));
+          addScore("Holiday window proximity boost", genericBoost);
+        } else {
+          addScore("Generic holiday out-of-season penalty", -55);
+        }
+      }
+
       if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
         addScore("Star Wars day boost (May 4)", 120);
       }
@@ -10223,7 +10336,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
       if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
-      if (tagSet.has("holiday") && isNearHolidayWindow) reasonParts.push("Holiday window boost");
+      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days <= holidayWindowDays) reasonParts.push(`${nearestSpecificHoliday.profile.label} boost`);
+      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days > holidayWindowDays) reasonParts.push("Out-of-season holiday penalty");
+      if (!nearestSpecificHoliday.profile && hasGenericHolidayTag && nearestAnyHolidayDays <= holidayWindowDays) reasonParts.push("Holiday window boost");
       if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
       if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
       if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
