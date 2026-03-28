@@ -10504,6 +10504,15 @@ const openInsightsDialog = (stats) => {
     const neverWornCount = Number.isFinite(adoption?.neverWornSinceAddedTotal)
       ? adoption.neverWornSinceAddedTotal
       : (Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0);
+    const wearableItems = Array.isArray(stats.wearableItems) ? stats.wearableItems : [];
+    const nowForRotation = Date.now();
+    const wornLast30Count = wearableItems.filter((item) => {
+      if (!item || !item.lastWorn) return false;
+      const ageDays = Math.floor((nowForRotation - new Date(item.lastWorn).getTime()) / 86400000);
+      return !Number.isNaN(ageDays) && ageDays <= 30;
+    }).length;
+    const noBuyCurrent = Number.isFinite(stats.noBuyCurrentDays) ? stats.noBuyCurrentDays : 0;
+    const noBuyLongest = Number.isFinite(stats.noBuyLongestDays) ? stats.noBuyLongestDays : 0;
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
@@ -10526,7 +10535,17 @@ const openInsightsDialog = (stats) => {
         <div class="insights-score-card">
           <div class="insights-score-title">Backlog risk</div>
           <div class="insights-score-value">${neverWornCount}</div>
-          <div class="insights-score-note">Items never worn since add date sample</div>
+          <div class="insights-score-note">Items never worn since add date (full total)</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">30-day rotation</div>
+          <div class="insights-score-value">${wornLast30Count}/${wearableItems.length || 0}</div>
+          <div class="insights-score-note">${health.recencyPct}% of wearable items were worn in the last 30 days</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">No-buy streak</div>
+          <div class="insights-score-value">${noBuyCurrent} days</div>
+          <div class="insights-score-note">Longest no-buy streak: ${noBuyLongest} days</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Recommended next actions</div>
