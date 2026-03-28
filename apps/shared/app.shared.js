@@ -10092,16 +10092,21 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
-const buildWearNextQueue = (stats, snoozes) => {
+const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const activeSnoozes = snoozes || {};
-  const nowMs = Date.now();
-  const todayKey = localDateKeyFromDate(new Date());
-  const now = new Date();
-  const monthIndex = now.getMonth();
-  const dayOfMonth = now.getDate();
-  const dayOfWeek = now.getDay(); // Sun=0..Sat=6
-  const year = now.getFullYear();
+  const defaultNow = new Date();
+  const simDateKey = options && /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
+    ? String(options.simDateKey)
+    : "";
+  const now = simDateKey ? new Date(`${simDateKey}T12:00:00`) : defaultNow;
+  const safeNow = Number.isNaN(now.getTime()) ? defaultNow : now;
+  const nowMs = safeNow.getTime();
+  const todayKey = localDateKeyFromDate(safeNow);
+  const monthIndex = safeNow.getMonth();
+  const dayOfMonth = safeNow.getDate();
+  const dayOfWeek = safeNow.getDay(); // Sun=0..Sat=6
+  const year = safeNow.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -10121,7 +10126,7 @@ const buildWearNextQueue = (stats, snoozes) => {
   ];
   const holidayWindowDays = 7;
   const nearestHolidayDays = holidayTargets.reduce((best, target) => {
-    const diff = daysBetween(now, target);
+    const diff = daysBetween(safeNow, target);
     return diff < best ? diff : best;
   }, Infinity);
   const isNearHolidayWindow = nearestHolidayDays <= holidayWindowDays;
@@ -10514,7 +10519,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
   };
 };
 
-const openInsightsDialog = (stats) => {
+const openInsightsDialog = (stats, options = {}) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
@@ -10558,8 +10563,11 @@ const openInsightsDialog = (stats) => {
     return;
   }
 
+  const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
+    ? String(options.simDateKey)
+    : localDateKeyFromDate(new Date());
   const snoozes = loadInsightsSnoozes();
-  const queue = buildWearNextQueue(stats, snoozes);
+  const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
@@ -10665,6 +10673,12 @@ const openInsightsDialog = (stats) => {
     html += section(
       "Wear next queue",
       `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Use "Why this ranked" for full score math. Snooze hides an item for 3 days.</div>
+      <div class="insights-controls insights-queue-sim-controls">
+        <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
+        <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
+        <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
+      </div>
+      <div class="stats-hint">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
       <div class="insights-queue-list">
         ${queue.map((item, idx) => `
           <div class="insights-queue-item">
@@ -10731,7 +10745,7 @@ const openInsightsDialog = (stats) => {
       until.setDate(until.getDate() + 3);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
-      openInsightsDialog(stats);
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });
 
@@ -10756,9 +10770,25 @@ const openInsightsDialog = (stats) => {
       const item = Number.isFinite(idx) ? queue[idx] : null;
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
-      openInsightsDialog(collectAllStats());
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });
+
+  const simDateInput = content.querySelector("#insights-queue-sim-date");
+  if (simDateInput) {
+    simDateInput.addEventListener("change", () => {
+      const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
+        ? String(simDateInput.value)
+        : localDateKeyFromDate(new Date());
+      openInsightsDialog(collectAllStats(), { simDateKey: nextKey });
+    });
+  }
+  const simTodayButton = content.querySelector("#insights-queue-sim-today");
+  if (simTodayButton) {
+    simTodayButton.addEventListener("click", () => {
+      openInsightsDialog(collectAllStats(), { simDateKey: localDateKeyFromDate(new Date()) });
+    });
+  }
 
   const yearSelect = content.querySelector("#insights-heatmap-year");
   const brandSelect = content.querySelector("#insights-heatmap-brand");

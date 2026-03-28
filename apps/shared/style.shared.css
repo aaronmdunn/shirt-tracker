@@ -2876,6 +2876,22 @@ input[type="date"].stats-date-input {
   min-width: 130px;
 }
 
+.insights-queue-sim-controls {
+  align-items: center;
+}
+
+.insights-sim-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.insights-queue-sim-date {
+  width: auto;
+  min-width: 150px;
+}
+
 .insights-queue-list {
   display: grid;
   gap: 8px;
