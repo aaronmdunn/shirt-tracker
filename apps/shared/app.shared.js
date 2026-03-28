@@ -10242,6 +10242,116 @@ const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
   mount.innerHTML = html;
 };
 
+const topCountEntry = (counts) => {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return null;
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { label: entries[0][0], count: entries[0][1] };
+};
+
+const longestConsecutiveDateRun = (dateKeys) => {
+  if (!Array.isArray(dateKeys) || !dateKeys.length) return 0;
+  const sorted = Array.from(new Set(dateKeys)).sort();
+  let best = 1;
+  let run = 1;
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prevMs = new Date(`${sorted[i - 1]}T00:00:00`).getTime();
+    const currMs = new Date(`${sorted[i]}T00:00:00`).getTime();
+    if (Number.isNaN(prevMs) || Number.isNaN(currMs)) continue;
+    const gap = Math.floor((currMs - prevMs) / 86400000);
+    if (gap === 1) run += 1;
+    else run = 1;
+    if (run > best) best = run;
+  }
+  return best;
+};
+
+const buildStyleDnaPeriod = (stats, startMs, endMs) => {
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const itemLookup = {};
+  wearableItems.forEach((item) => {
+    const key = getInsightsQueueKey(item);
+    if (!itemLookup[key]) itemLookup[key] = item;
+  });
+
+  const brandCounts = {};
+  const typeCounts = {};
+  const fandomCounts = {};
+  const tagCounts = {};
+  const dayCounts = {};
+  const itemCounts = {};
+  const wearDateKeys = [];
+  let totalWears = 0;
+
+  wearEvents.forEach((event) => {
+    const wornMs = new Date(event.wornAt).getTime();
+    if (Number.isNaN(wornMs) || wornMs < startMs || wornMs > endMs) return;
+
+    totalWears += 1;
+    const brand = String(event.tab || "Unknown").trim() || "Unknown";
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+    typeCounts[type] = (typeCounts[type] || 0) + 1;
+
+    const day = new Date(wornMs).getDay();
+    dayCounts[dayNames[day]] = (dayCounts[dayNames[day]] || 0) + 1;
+    if (event.dateKey) wearDateKeys.push(event.dateKey);
+
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    if (!itemCounts[key]) {
+      itemCounts[key] = {
+        name: event.name || "Unnamed",
+        tab: event.tab || "Unknown",
+        type: event.type || "Unknown",
+        count: 0,
+      };
+    }
+    itemCounts[key].count += 1;
+
+    const meta = itemLookup[key] || null;
+    const fandom = String(meta?.fandom || "").trim();
+    if (fandom) fandomCounts[fandom] = (fandomCounts[fandom] || 0) + 1;
+    const tags = Array.isArray(meta?.tags) ? meta.tags : [];
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      tagCounts[clean] = (tagCounts[clean] || 0) + 1;
+    });
+  });
+
+  let addsCount = 0;
+  let addsSpend = 0;
+  wearableItems.forEach((item) => {
+    if (!item.createdAt) return;
+    const createdMs = new Date(item.createdAt).getTime();
+    if (Number.isNaN(createdMs) || createdMs < startMs || createdMs > endMs) return;
+    addsCount += 1;
+    if (item.price !== null && item.price !== undefined && item.price > 0) {
+      addsSpend += item.price;
+    }
+  });
+
+  const topItem = Object.values(itemCounts)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))[0] || null;
+
+  return {
+    totalWears,
+    uniqueItems: Object.keys(itemCounts).length,
+    topBrand: topCountEntry(brandCounts),
+    topType: topCountEntry(typeCounts),
+    topFandom: topCountEntry(fandomCounts),
+    topTag: topCountEntry(tagCounts),
+    topDay: topCountEntry(dayCounts),
+    topItem,
+    longestStreak: longestConsecutiveDateRun(wearDateKeys),
+    addsCount,
+    addsSpend,
+  };
+};
+
 const openInsightsDialog = (stats) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
@@ -10258,12 +10368,14 @@ const openInsightsDialog = (stats) => {
     `;
     document.body.appendChild(dialog);
 
+    const bindClick = (el, handler) => {
+      if (!el) return;
+      el.addEventListener("click", handler);
+    };
     const closeButton = dialog.querySelector("#insights-close");
-    if (closeButton) {
-      closeButton.addEventListener("click", () => {
-        closeDialog(dialog);
-      });
-    }
+    bindClick(closeButton, () => {
+      closeDialog(dialog);
+    });
   }
 
   const content = dialog.querySelector("#insights-content");
@@ -10290,7 +10402,44 @@ const openInsightsDialog = (stats) => {
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
 
+  const now = new Date();
+  const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const yearStartMs = new Date(now.getFullYear(), 0, 1).getTime();
+  const nowMs = now.getTime();
+  const monthLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const yearLabel = String(now.getFullYear());
+  const monthDna = buildStyleDnaPeriod(stats, monthStartMs, nowMs);
+  const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
+
+  const renderDnaCard = (title, dna) => {
+    if (!dna || dna.totalWears === 0) {
+      return `<div class="insights-score-card"><div class="insights-score-title">${esc(title)}</div><div class="insights-score-note">No wear activity logged yet for this period.</div></div>`;
+    }
+    const topItemLabel = dna.topItem
+      ? `${dna.topItem.name} (${dna.topItem.tab}) - ${dna.topItem.type}`
+      : "n/a";
+    return `<div class="insights-score-card">
+      <div class="insights-score-title">${esc(title)}</div>
+      <div class="insights-score-value">${dna.totalWears} wears · ${dna.uniqueItems} items</div>
+      <div class="insights-score-note">Top brand: ${esc(dna.topBrand ? `${dna.topBrand.label} (${dna.topBrand.count})` : "n/a")}</div>
+      <div class="insights-score-note">Top type: ${esc(dna.topType ? `${dna.topType.label} (${dna.topType.count})` : "n/a")}</div>
+      <div class="insights-score-note">Top shirt: ${esc(topItemLabel)}</div>
+      <div class="insights-score-note">Peak day: ${esc(dna.topDay ? `${dna.topDay.label} (${dna.topDay.count})` : "n/a")} · Best streak: ${dna.longestStreak} days</div>
+      <div class="insights-score-note">Adds: ${dna.addsCount} · Spend: ${formatCurrency(dna.addsSpend)}</div>
+      <div class="insights-score-note">Top fandom: ${esc(dna.topFandom ? dna.topFandom.label : "n/a")} · Top tag: ${esc(dna.topTag ? dna.topTag.label : "n/a")}</div>
+    </div>`;
+  };
+
   let html = "";
+  html += section(
+    "Personal style DNA (Wrapped)",
+    `<div class="stats-hint">Auto-refreshes daily. A compact Spotify-style snapshot of your monthly and yearly style behavior.</div>
+     <div class="insights-score-grid">
+       ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
+       ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
+     </div>`
+  );
+
   if (health) {
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
     const neverWornCount = Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0;
