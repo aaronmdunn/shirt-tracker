@@ -1,5 +1,17 @@
 [
   {
+    "version": "2.0.16",
+    "date": "2026-03-28",
+    "changes": [
+      "Added Wear Next queue explainability drawer with per-item score breakdown (boosts, penalties, and total)",
+      "Added one-click 'Worn today' action in Wear Next queue to log wear directly from Insights",
+      "Updated Wear Next queue action label from 'Snooze 3 days' to 'Snooze' while keeping the 3-day snooze behavior",
+      "Added Theme/Day simulation mode in Insights with a date picker and 'Use today' reset to preview queue ranking changes by date",
+      "Expanded holiday weighting with date-aware tag matching for USA/July 4, St. Patrick's Day, Valentine's Day, Thanksgiving, Hanukkah, Christmas, and Halloween",
+      "Added out-of-season holiday penalties and stricter generic holiday cross-referencing to prevent mismatched seasonal recommendations"
+    ]
+  },
+  {
     "version": "2.0.15",
     "date": "2026-03-28",
     "changes": [
