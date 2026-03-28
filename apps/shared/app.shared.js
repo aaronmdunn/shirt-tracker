@@ -9234,6 +9234,7 @@ const collectAllStats = () => {
           type,
           price,
           condition: getCellValue(entry, "Condition") || "",
+          fandom: getCellValue(entry, "Fandom") || "",
           wearCount,
           lastWorn,
           wearLog,
@@ -10041,12 +10042,39 @@ const buildWearNextQueue = (stats, snoozes) => {
   const activeSnoozes = snoozes || {};
   const nowMs = Date.now();
   const todayKey = localDateKeyFromDate(new Date());
-  const monthIndex = new Date().getMonth();
+  const now = new Date();
+  const monthIndex = now.getMonth();
+  const dayOfMonth = now.getDate();
+  const dayOfWeek = now.getDay(); // Sun=0..Sat=6
+  const year = now.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
+
+  const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
+  const memorialDay = (() => {
+    const d = new Date(year, 4, 31); // May 31
+    while (d.getDay() !== 1) d.setDate(d.getDate() - 1); // last Monday in May
+    return d;
+  })();
+  const holidayTargets = [
+    new Date(year, 9, 31), // Halloween
+    new Date(year, 11, 25), // Christmas
+    new Date(year, 2, 17), // St Patrick's Day
+    new Date(year, 1, 14), // Valentine's Day
+    memorialDay, // Memorial Day
+    new Date(year, 6, 4), // July 4
+  ];
+  const holidayWindowDays = 7;
+  const nearestHolidayDays = holidayTargets.reduce((best, target) => {
+    const diff = daysBetween(now, target);
+    return diff < best ? diff : best;
+  }, Infinity);
+  const isNearHolidayWindow = nearestHolidayDays <= holidayWindowDays;
 
   return items
     .map((item) => {
       const name = item.name || "Unnamed";
+      const nameLower = String(name || "").trim().toLowerCase();
       const tab = item.tab || "Unknown";
       const type = item.type || "Unknown";
       const typeLower = String(type || "").trim().toLowerCase();
@@ -10054,6 +10082,7 @@ const buildWearNextQueue = (stats, snoozes) => {
       const wearCount = item.wearCount || 0;
       const price = item.price !== null && item.price !== undefined ? item.price : null;
       const condition = String(item.condition || "").trim().toLowerCase();
+      const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
       const createdAt = item.createdAt || null;
@@ -10095,6 +10124,24 @@ const buildWearNextQueue = (stats, snoozes) => {
         score += 45;
       }
 
+      // Date-aware thematic boosts (queue naturally changes day to day).
+      if (tagSet.has("floral") && dayOfWeek === 5) {
+        score += 42;
+      }
+      if (tagSet.has("holiday") && isNearHolidayWindow) {
+        const proximityBoost = Math.max(16, 52 - (nearestHolidayDays * 5));
+        score += proximityBoost;
+      }
+      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
+        score += 120;
+      }
+      if (nameLower.includes("mickey") && dayOfWeek === 1) {
+        score += 44;
+      }
+      if (tagSet.has("whale") && dayOfWeek === 3) {
+        score += 58;
+      }
+
       if (lastWornToday) score -= 200;
       if (isSnoozed) score -= 600;
 
@@ -10105,6 +10152,11 @@ const buildWearNextQueue = (stats, snoozes) => {
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
+      if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
+      if (tagSet.has("holiday") && isNearHolidayWindow) reasonParts.push("Holiday window boost");
+      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
+      if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
+      if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
       if (tagSet.has("whale")) reasonParts.push("Whale deprioritized");
       if (tagSet.has("holiday")) reasonParts.push("Holiday deprioritized");
       if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
