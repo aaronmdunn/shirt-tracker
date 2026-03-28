@@ -9279,14 +9279,16 @@ const collectAllStats = () => {
   firstWearLagAll.sort((a, b) => b.firstWearLagDays - a.firstWearLagDays || a.name.localeCompare(b.name));
   const firstWearLag = firstWearLagAll.slice(0, 10);
 
+  const neverWornSinceAddedSorted = neverWornSinceAdded
+    .sort((a, b) => (b.daysSinceAdded || 0) - (a.daysSinceAdded || 0) || a.name.localeCompare(b.name));
+
   const newItemAdoption = {
     itemsWithCreatedAt,
     wornAfterAddCount: adoptionDays.length,
     medianDaysToFirstWear: adoptionDays.length ? median(adoptionDays) : null,
     adoptionRatePct: itemsWithCreatedAt ? Math.round((adoptionDays.length / itemsWithCreatedAt) * 100) : 0,
-    neverWornSinceAdded: neverWornSinceAdded
-      .sort((a, b) => (b.daysSinceAdded || 0) - (a.daysSinceAdded || 0) || a.name.localeCompare(b.name))
-      .slice(0, 12),
+    neverWornSinceAddedTotal: neverWornSinceAddedSorted.length,
+    neverWornSinceAdded: neverWornSinceAddedSorted.slice(0, 12),
   };
 
   const monthlyMap = {};
@@ -9906,8 +9908,12 @@ const openAdvancedStatsDialog = (stats) => {
     const medianDays = adv.newItemAdoption.medianDaysToFirstWear;
     body += row("Median days to first wear", medianDays === null ? "n/a" : `${Math.round(medianDays)} days`);
     const never = Array.isArray(adv.newItemAdoption.neverWornSinceAdded) ? adv.newItemAdoption.neverWornSinceAdded : [];
+    const neverTotal = Number.isFinite(adv.newItemAdoption.neverWornSinceAddedTotal)
+      ? adv.newItemAdoption.neverWornSinceAddedTotal
+      : never.length;
+    body += row("Never worn since added", String(neverTotal));
     if (never.length) {
-      body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added</div>`;
+      body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added (top ${never.length})</div>`;
       never.forEach((item, idx) => {
         body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, "Unworn");
       });
@@ -10495,7 +10501,9 @@ const openInsightsDialog = (stats) => {
 
   if (health) {
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
-    const neverWornCount = Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0;
+    const neverWornCount = Number.isFinite(adoption?.neverWornSinceAddedTotal)
+      ? adoption.neverWornSinceAddedTotal
+      : (Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0);
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
