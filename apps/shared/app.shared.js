@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.15";
+const APP_VERSION = "2.0.16";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -3198,7 +3198,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.15",
+    version: "2.0.16",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -9276,6 +9276,8 @@ const collectAllStats = () => {
           ? entry.row.wearLog
           : (lastWorn ? [lastWorn] : []);
         wearableUniverse.push({
+          rowId: entry.row.id,
+          tabId: tab.id,
           name,
           tab: tab.name,
           type,
@@ -10090,39 +10092,114 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
-const buildWearNextQueue = (stats, snoozes) => {
+const normalizeHolidayTagKey = (value) => String(value || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "");
+
+const getLastMondayOfMay = (year) => {
+  const d = new Date(year, 4, 31);
+  while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
+  return d;
+};
+
+const getThanksgivingDate = (year) => {
+  const d = new Date(year, 10, 1);
+  while (d.getDay() !== 4) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + 21);
+  return d;
+};
+
+const getHanukkahStartDate = (year) => {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-u-ca-hebrew", { day: "numeric", month: "long" });
+    const start = new Date(year, 10, 15);
+    for (let i = 0; i < 62; i += 1) {
+      const probe = new Date(start);
+      probe.setDate(start.getDate() + i);
+      const heb = fmt.format(probe).toLowerCase();
+      if (heb.includes("25") && heb.includes("kislev")) {
+        return probe;
+      }
+    }
+  } catch (error) {
+    // fallback below
+  }
+  return new Date(year, 11, 10);
+};
+
+const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const activeSnoozes = snoozes || {};
-  const nowMs = Date.now();
-  const todayKey = localDateKeyFromDate(new Date());
-  const now = new Date();
-  const monthIndex = now.getMonth();
-  const dayOfMonth = now.getDate();
-  const dayOfWeek = now.getDay(); // Sun=0..Sat=6
-  const year = now.getFullYear();
+  const defaultNow = new Date();
+  const simDateKey = options && /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
+    ? String(options.simDateKey)
+    : "";
+  const now = simDateKey ? new Date(`${simDateKey}T12:00:00`) : defaultNow;
+  const safeNow = Number.isNaN(now.getTime()) ? defaultNow : now;
+  const nowMs = safeNow.getTime();
+  const todayKey = localDateKeyFromDate(safeNow);
+  const monthIndex = safeNow.getMonth();
+  const dayOfMonth = safeNow.getDate();
+  const dayOfWeek = safeNow.getDay(); // Sun=0..Sat=6
+  const year = safeNow.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
-  const memorialDay = (() => {
-    const d = new Date(year, 4, 31); // May 31
-    while (d.getDay() !== 1) d.setDate(d.getDate() - 1); // last Monday in May
-    return d;
-  })();
-  const holidayTargets = [
-    new Date(year, 9, 31), // Halloween
-    new Date(year, 11, 25), // Christmas
-    new Date(year, 2, 17), // St Patrick's Day
-    new Date(year, 1, 14), // Valentine's Day
-    memorialDay, // Memorial Day
-    new Date(year, 6, 4), // July 4
+  const memorialDay = getLastMondayOfMay(year);
+  const thanksgivingDay = getThanksgivingDate(year);
+  const hanukkahStart = getHanukkahStartDate(year);
+  const holidayWindowDays = 21;
+  const holidayProfiles = [
+    {
+      id: "usa",
+      label: "USA holiday",
+      dates: [memorialDay, new Date(year, 6, 4)],
+      aliases: ["usa", "us", "america", "american"],
+    },
+    {
+      id: "july4",
+      label: "July 4",
+      dates: [new Date(year, 6, 4)],
+      aliases: ["july4", "july4th", "4thofjuly", "independenceday"],
+    },
+    {
+      id: "stpatricks",
+      label: "St. Patrick's Day",
+      dates: [new Date(year, 2, 17)],
+      aliases: ["stpatricksday", "stpatricks", "stpatrickday", "stpatricks"],
+    },
+    {
+      id: "valentines",
+      label: "Valentine's Day",
+      dates: [new Date(year, 1, 14)],
+      aliases: ["valentinesday", "valentines", "valentine"],
+    },
+    {
+      id: "thanksgiving",
+      label: "Thanksgiving",
+      dates: [thanksgivingDay],
+      aliases: ["thanksgiving", "thanks"],
+    },
+    {
+      id: "hanukkah",
+      label: "Hanukkah",
+      dates: [hanukkahStart],
+      aliases: ["hanukkah", "chanukah", "chanukkah"],
+    },
+    {
+      id: "christmas",
+      label: "Christmas",
+      dates: [new Date(year, 11, 25)],
+      aliases: ["christmas", "xmas"],
+    },
+    {
+      id: "halloween",
+      label: "Halloween",
+      dates: [new Date(year, 9, 31)],
+      aliases: ["halloween", "spooky"],
+    },
   ];
-  const holidayWindowDays = 7;
-  const nearestHolidayDays = holidayTargets.reduce((best, target) => {
-    const diff = daysBetween(now, target);
-    return diff < best ? diff : best;
-  }, Infinity);
-  const isNearHolidayWindow = nearestHolidayDays <= holidayWindowDays;
 
   return items
     .map((item) => {
@@ -10138,6 +10215,7 @@ const buildWearNextQueue = (stats, snoozes) => {
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
+      const holidayTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
       const createdAt = item.createdAt || null;
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
@@ -10149,54 +10227,106 @@ const buildWearNextQueue = (stats, snoozes) => {
       const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
 
       let score = 0;
-      let valuePoints = 0;
+      const breakdown = [];
+      const addScore = (label, points) => {
+        if (!points) return;
+        score += points;
+        breakdown.push({ label, points });
+      };
+
       if (wearCount === 0) {
         // New and never-worn items should be surfaced aggressively.
-        score += 170;
-        if (daysSinceAdded !== null) score += Math.min(65, Math.floor(daysSinceAdded / 4));
+        addScore("Never worn baseline", 170);
+        if (daysSinceAdded !== null) addScore("Unworn age pressure", Math.min(65, Math.floor(daysSinceAdded / 4)));
         if (condition === "nwt" || condition === "nwot") {
-          score += 70;
+          addScore(`${condition.toUpperCase()} bonus`, 70);
         }
       }
-      if (daysSince !== null) score += Math.min(140, daysSince);
-      if (daysSince !== null && daysSince >= 90) score += 20;
-      if (daysSince !== null && daysSince >= 180) score += 30;
+
+      if (daysSince !== null) addScore("Days since last wear", Math.min(140, daysSince));
+      if (daysSince !== null && daysSince >= 90) addScore("90+ day idle bonus", 20);
+      if (daysSince !== null && daysSince >= 180) addScore("180+ day idle bonus", 30);
 
       if (price !== null && price > 0) {
-        valuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
+        const rawValuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
+        let valuePoints = rawValuePoints;
         // High-value Whale/Holiday items should be less aggressively prioritized.
         if (tagSet.has("whale")) valuePoints = Math.round(valuePoints * 0.25);
         if (tagSet.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
-        score += valuePoints;
+        addScore("Item value signal", valuePoints);
+        const valueDampener = valuePoints - rawValuePoints;
+        addScore("Tag value dampener", valueDampener);
       }
 
-      if (tagSet.has("whale")) score -= 28;
-      if (tagSet.has("holiday")) score -= 16;
+      if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
+      if (tagSet.has("holiday")) addScore("Holiday baseline penalty", -16);
 
       if (isColdMonth && typeLower.includes("flannel")) {
-        score += 45;
+        addScore("Flannel in cold-month season", 45);
       }
 
       // Date-aware thematic boosts (queue naturally changes day to day).
       if (tagSet.has("floral") && dayOfWeek === 5) {
-        score += 42;
-      }
-      if (tagSet.has("holiday") && isNearHolidayWindow) {
-        const proximityBoost = Math.max(16, 52 - (nearestHolidayDays * 5));
-        score += proximityBoost;
-      }
-      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
-        score += 120;
-      }
-      if (nameLower.includes("mickey") && dayOfWeek === 1) {
-        score += 44;
-      }
-      if (tagSet.has("whale") && dayOfWeek === 3) {
-        score += 58;
+        addScore("Floral Friday boost", 42);
       }
 
-      if (lastWornToday) score -= 200;
-      if (isSnoozed) score -= 600;
+      const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
+        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
+      );
+      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
+      const nearestSpecificHoliday = matchedHolidayProfiles.length
+        ? matchedHolidayProfiles.reduce((best, profile) => {
+          const minDays = profile.dates.reduce((innerBest, d) => {
+            const diff = daysBetween(safeNow, d);
+            return diff < innerBest ? diff : innerBest;
+          }, Infinity);
+          return minDays < best.days ? { days: minDays, profile } : best;
+        }, { days: Infinity, profile: null })
+        : { days: Infinity, profile: null };
+      const nearestAnyHolidayDays = holidayProfiles.reduce((best, profile) => {
+        const minDays = profile.dates.reduce((innerBest, d) => {
+          const diff = daysBetween(safeNow, d);
+          return diff < innerBest ? diff : innerBest;
+        }, Infinity);
+        return minDays < best ? minDays : best;
+      }, Infinity);
+
+      if (nearestSpecificHoliday.profile) {
+        if (nearestSpecificHoliday.days <= holidayWindowDays) {
+          const boost = Math.max(18, 80 - (nearestSpecificHoliday.days * 3));
+          addScore(`${nearestSpecificHoliday.profile.label} proximity boost`, boost);
+        } else {
+          addScore("Out-of-season specific holiday penalty", -85);
+        }
+      }
+
+      if (hasGenericHolidayTag) {
+        if (nearestSpecificHoliday.profile) {
+          if (nearestSpecificHoliday.days <= holidayWindowDays) {
+            addScore("Generic holiday support boost", 12);
+          } else {
+            addScore("Generic holiday out-of-season penalty", -28);
+          }
+        } else if (nearestAnyHolidayDays <= holidayWindowDays) {
+          const genericBoost = Math.max(12, 44 - (nearestAnyHolidayDays * 2));
+          addScore("Holiday window proximity boost", genericBoost);
+        } else {
+          addScore("Generic holiday out-of-season penalty", -55);
+        }
+      }
+
+      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
+        addScore("Star Wars day boost (May 4)", 120);
+      }
+      if (nameLower.includes("mickey") && dayOfWeek === 1) {
+        addScore("Monday Mickey boost", 44);
+      }
+      if (tagSet.has("whale") && dayOfWeek === 3) {
+        addScore("Wednesday Whale boost", 58);
+      }
+
+      if (lastWornToday) addScore("Already worn today penalty", -200);
+      if (isSnoozed) addScore("Snoozed item penalty", -600);
 
       const reasonParts = [];
       if (wearCount === 0) reasonParts.push("Never worn");
@@ -10206,7 +10336,9 @@ const buildWearNextQueue = (stats, snoozes) => {
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
       if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
-      if (tagSet.has("holiday") && isNearHolidayWindow) reasonParts.push("Holiday window boost");
+      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days <= holidayWindowDays) reasonParts.push(`${nearestSpecificHoliday.profile.label} boost`);
+      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days > holidayWindowDays) reasonParts.push("Out-of-season holiday penalty");
+      if (!nearestSpecificHoliday.profile && hasGenericHolidayTag && nearestAnyHolidayDays <= holidayWindowDays) reasonParts.push("Holiday window boost");
       if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
       if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
       if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
@@ -10216,17 +10348,62 @@ const buildWearNextQueue = (stats, snoozes) => {
 
       return {
         key,
+        rowId: item.rowId || null,
+        tabId: item.tabId || null,
         name,
         tab,
         type,
         score,
         reason: reasonParts.join(" · "),
+        breakdown,
         snoozeUntil,
       };
     })
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 10);
+};
+
+const markQueueItemWornToday = (queueItem) => {
+  if (!queueItem || !queueItem.tabId || !queueItem.rowId) return false;
+  const wornDate = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`).toISOString();
+  const applyWearToRow = (row) => {
+    if (!row) return false;
+    row.wearCount = (row.wearCount || 0) + 1;
+    row.lastWorn = wornDate;
+    if (!Array.isArray(row.wearLog)) row.wearLog = [];
+    row.wearLog.push(wornDate);
+    return true;
+  };
+
+  const rowLabel = `${queueItem.name || "Unnamed"} (${queueItem.tab || "Unknown"}) - ${queueItem.type || "Unknown"}`;
+
+  if (tabsState.activeTabId === queueItem.tabId) {
+    const target = state.rows.find((row) => row.id === queueItem.rowId);
+    if (!applyWearToRow(target)) return false;
+    updateShirtUpdateDate();
+    saveState();
+    renderRows();
+    renderFooter();
+    addEventLog("Logged wear", rowLabel);
+    return true;
+  }
+
+  try {
+    const stored = localStorage.getItem(getStorageKey(queueItem.tabId));
+    if (!stored) return false;
+    const parsed = JSON.parse(stored);
+    if (!parsed || !Array.isArray(parsed.rows)) return false;
+    const target = parsed.rows.find((row) => row.id === queueItem.rowId);
+    if (!applyWearToRow(target)) return false;
+    localStorage.setItem(getStorageKey(queueItem.tabId), JSON.stringify(parsed));
+    updateShirtUpdateDate();
+    scheduleSync();
+    addEventLog("Logged wear", rowLabel);
+    return true;
+  } catch (error) {
+    return false;
+  }
 };
 
 const heatmapLevelClass = (count, maxCount) => {
@@ -10457,7 +10634,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
   };
 };
 
-const openInsightsDialog = (stats) => {
+const openInsightsDialog = (stats, options = {}) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
@@ -10501,8 +10678,11 @@ const openInsightsDialog = (stats) => {
     return;
   }
 
+  const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
+    ? String(options.simDateKey)
+    : localDateKeyFromDate(new Date());
   const snoozes = loadInsightsSnoozes();
-  const queue = buildWearNextQueue(stats, snoozes);
+  const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
@@ -10607,7 +10787,13 @@ const openInsightsDialog = (stats) => {
   if (queue.length) {
     html += section(
       "Wear next queue",
-      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Snooze hides an item for 3 days.</div>
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Use "Why this ranked" for full score math. Snooze hides an item for 3 days.</div>
+      <div class="insights-controls insights-queue-sim-controls">
+        <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
+        <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
+        <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
+      </div>
+      <div class="stats-hint">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
       <div class="insights-queue-list">
         ${queue.map((item, idx) => `
           <div class="insights-queue-item">
@@ -10615,9 +10801,25 @@ const openInsightsDialog = (stats) => {
               <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
               <div class="insights-queue-score">Priority ${Math.round(item.score)}</div>
             </div>
-            <div class="insights-queue-meta">
-              <span>${esc(item.reason)}</span>
-              <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 3 days</button>
+              <div class="insights-queue-meta">
+                <span>${esc(item.reason)}</span>
+                <div class="insights-queue-actions">
+                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze</button>
+                </div>
+              </div>
+            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
+              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
+                <div class="insights-queue-breakdown-row">
+                  <span>${esc(line.label)}</span>
+                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
+                </div>
+              `).join("")}
+              <div class="insights-queue-breakdown-row total">
+                <span>Total priority score</span>
+                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
+              </div>
             </div>
           </div>`).join("")}
       </div>`
@@ -10658,9 +10860,50 @@ const openInsightsDialog = (stats) => {
       until.setDate(until.getDate() + 3);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
-      openInsightsDialog(stats);
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });
+
+  const explainButtons = content.querySelectorAll("[data-insights-explain-toggle]");
+  explainButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const panelId = button.getAttribute("data-insights-explain-toggle");
+      if (!panelId) return;
+      const panel = document.getElementById(panelId);
+      if (!panel) return;
+      const isHidden = panel.classList.contains("is-hidden");
+      panel.classList.toggle("is-hidden", !isHidden);
+      button.textContent = isHidden ? "Hide scoring" : "Why this ranked";
+    });
+  });
+
+  const wornTodayButtons = content.querySelectorAll("[data-insights-mark-worn]");
+  wornTodayButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (state.readOnly || isViewerSession) return;
+      const idx = Number(button.getAttribute("data-insights-mark-worn"));
+      const item = Number.isFinite(idx) ? queue[idx] : null;
+      if (!item) return;
+      if (!markQueueItemWornToday(item)) return;
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+    });
+  });
+
+  const simDateInput = content.querySelector("#insights-queue-sim-date");
+  if (simDateInput) {
+    simDateInput.addEventListener("change", () => {
+      const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
+        ? String(simDateInput.value)
+        : localDateKeyFromDate(new Date());
+      openInsightsDialog(collectAllStats(), { simDateKey: nextKey });
+    });
+  }
+  const simTodayButton = content.querySelector("#insights-queue-sim-today");
+  if (simTodayButton) {
+    simTodayButton.addEventListener("click", () => {
+      openInsightsDialog(collectAllStats(), { simDateKey: localDateKeyFromDate(new Date()) });
+    });
+  }
 
   const yearSelect = content.querySelector("#insights-heatmap-year");
   const brandSelect = content.querySelector("#insights-heatmap-brand");

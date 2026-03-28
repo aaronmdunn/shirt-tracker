@@ -2876,6 +2876,22 @@ input[type="date"].stats-date-input {
   min-width: 130px;
 }
 
+.insights-queue-sim-controls {
+  align-items: center;
+}
+
+.insights-sim-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.insights-queue-sim-date {
+  width: auto;
+  min-width: 150px;
+}
+
 .insights-queue-list {
   display: grid;
   gap: 8px;
@@ -2918,6 +2934,12 @@ input[type="date"].stats-date-input {
   gap: 8px;
 }
 
+.insights-queue-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .insights-queue-snooze {
   border: none;
   background: transparent;
@@ -2926,6 +2948,47 @@ input[type="date"].stats-date-input {
   cursor: pointer;
   padding: 0;
   font-size: 0.74rem;
+}
+
+.insights-queue-explain {
+  border-top: 1px dashed var(--line);
+  margin-top: 4px;
+  padding-top: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.insights-queue-explain.is-hidden {
+  display: none;
+}
+
+.insights-queue-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.insights-queue-breakdown-row.total {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.insights-queue-breakdown-points {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.insights-queue-breakdown-points.positive {
+  color: #18784f;
+}
+
+.insights-queue-breakdown-points.negative {
+  color: #9c1f1f;
 }
 
 .insights-month-grid-wrap {

@@ -3192,7 +3192,7 @@ dependencies = [
 
 [[package]]
 name = "shirt-tracker"
-version = "2.0.15"
+version = "2.0.16"
 dependencies = [
  "serde",
  "serde_json",
