@@ -10259,7 +10259,6 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       }
 
       if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
-      if (tagSet.has("holiday")) addScore("Holiday baseline penalty", -16);
 
       if (isColdMonth && typeLower.includes("flannel")) {
         addScore("Flannel in cold-month season", 45);
@@ -10285,6 +10284,11 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const matchedActiveHoliday = activeHolidayProfiles
         .filter((entry) => matchedHolidayProfiles.some((profile) => profile.id === entry.profile.id))
         .sort((a, b) => a.days - b.days)[0] || null;
+
+      // Only apply generic holiday baseline penalty when outside any holiday window.
+      if (hasGenericHolidayTag && !activeHolidayProfiles.length) {
+        addScore("Holiday baseline penalty", -16);
+      }
 
       if (matchedHolidayProfiles.length) {
         if (matchedActiveHoliday) {
@@ -10333,7 +10337,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
       if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
       if (tagSet.has("whale")) reasonParts.push("Whale deprioritized");
-      if (tagSet.has("holiday")) reasonParts.push("Holiday deprioritized");
+      if (hasGenericHolidayTag && !activeHolidayProfiles.length) reasonParts.push("Holiday deprioritized");
       if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
 
       return {
