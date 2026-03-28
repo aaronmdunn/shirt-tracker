@@ -10143,6 +10143,8 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const dayOfWeek = safeNow.getDay(); // Sun=0..Sat=6
   const year = safeNow.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
+  const isSummerMonth = [5, 6, 7].includes(monthIndex); // Jun, Jul, Aug
+  const isPeakHeatMonth = [6, 7].includes(monthIndex); // Jul, Aug
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
@@ -10205,9 +10207,11 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
     .map((item) => {
       const name = item.name || "Unnamed";
       const nameLower = String(name || "").trim().toLowerCase();
+      const nameKey = nameLower.replace(/[^a-z0-9]+/g, "");
       const tab = item.tab || "Unknown";
       const type = item.type || "Unknown";
       const typeLower = String(type || "").trim().toLowerCase();
+      const typeKey = typeLower.replace(/[^a-z0-9]+/g, "");
       const lastWorn = item.lastWorn || null;
       const wearCount = item.wearCount || 0;
       const price = item.price !== null && item.price !== undefined ? item.price : null;
@@ -10262,6 +10266,31 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
 
       if (isColdMonth && typeLower.includes("flannel")) {
         addScore("Flannel in cold-month season", 45);
+      }
+      if (isSummerMonth && typeLower.includes("flannel")) {
+        addScore("Flannel summer penalty", -170);
+      }
+      if (isPeakHeatMonth && typeLower.includes("flannel")) {
+        addScore("Flannel peak-heat penalty", -120);
+      }
+
+      const summerPriorityKeys = [
+        "kunuflex",
+        "bamboo",
+        "polo",
+        "fourwaystretchblend",
+        "spoonerkloth",
+        "candyfloss",
+        "bottleblend",
+      ];
+      const hasSummerPriorityMatch = summerPriorityKeys.some((key) =>
+        typeKey.includes(key) || nameKey.includes(key) || holidayTagKeys.has(key)
+      );
+      if (isSummerMonth && hasSummerPriorityMatch) {
+        addScore("Summer fabric/style boost", 72);
+      }
+      if (isPeakHeatMonth && hasSummerPriorityMatch) {
+        addScore("Peak-heat fabric/style boost", 36);
       }
 
       // Date-aware thematic boosts (queue naturally changes day to day).
@@ -10329,6 +10358,8 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
+      if (isSummerMonth && typeLower.includes("flannel")) reasonParts.push("Flannel summer penalty");
+      if (isSummerMonth && hasSummerPriorityMatch) reasonParts.push("Summer fabric boost");
       if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
       if (matchedActiveHoliday) reasonParts.push(`${matchedActiveHoliday.profile.label} boost`);
       if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
