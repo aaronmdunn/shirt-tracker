@@ -10272,9 +10272,16 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   const itemLookup = {};
+  const itemWearTimes = {};
   wearableItems.forEach((item) => {
     const key = getInsightsQueueKey(item);
     if (!itemLookup[key]) itemLookup[key] = item;
+    const wearLog = Array.isArray(item.wearLog) ? item.wearLog : [];
+    const stamps = wearLog
+      .map((stamp) => new Date(stamp).getTime())
+      .filter((ms) => !Number.isNaN(ms))
+      .sort((a, b) => a - b);
+    itemWearTimes[key] = stamps;
   });
 
   const brandCounts = {};
@@ -10283,6 +10290,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
   const tagCounts = {};
   const dayCounts = {};
   const itemCounts = {};
+  const spotlightCandidates = [];
   const wearDateKeys = [];
   let totalWears = 0;
 
@@ -10320,6 +10328,47 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
       if (!clean || clean.toLowerCase() === "original") return;
       tagCounts[clean] = (tagCounts[clean] || 0) + 1;
     });
+
+    // Spotlight wear: highlight a single meaningful wear event even when monthly repeats are rare.
+    const wearTimes = itemWearTimes[key] || [];
+    let previousWearMs = null;
+    for (let i = 0; i < wearTimes.length; i += 1) {
+      if (wearTimes[i] < wornMs) previousWearMs = wearTimes[i];
+      else break;
+    }
+    const gapDays = previousWearMs === null ? null : Math.max(0, Math.floor((wornMs - previousWearMs) / 86400000));
+    const value = meta && meta.price !== null && meta.price !== undefined && meta.price > 0 ? meta.price : 0;
+    const condition = String(meta?.condition || "").trim().toLowerCase();
+
+    let impactScore = 0;
+    if (gapDays === null) impactScore += 80;
+    else impactScore += Math.min(140, gapDays);
+    impactScore += Math.min(26, Math.round(Math.log10(value + 1) * 10));
+    if (condition === "nwt" || condition === "nwot") impactScore += 30;
+
+    const lowerTags = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()));
+    const wornDate = new Date(wornMs);
+    const wornDay = wornDate.getDay();
+    const wornMonth = wornDate.getMonth();
+    const wornDayOfMonth = wornDate.getDate();
+    if (lowerTags.has("floral") && wornDay === 5) impactScore += 24;
+    if (String(meta?.fandom || "").trim().toLowerCase() === "star wars" && wornMonth === 4 && wornDayOfMonth === 4) impactScore += 36;
+    if (String(event.name || "").toLowerCase().includes("mickey") && wornDay === 1) impactScore += 24;
+    if (lowerTags.has("whale") && wornDay === 3) impactScore += 24;
+
+    const reasons = [];
+    if (gapDays === null) reasons.push("First wear logged");
+    else reasons.push(`${gapDays}d gap before wear`);
+    if (condition === "nwt" || condition === "nwot") reasons.push(condition.toUpperCase());
+    if (value > 0) reasons.push(`Value ${formatCurrency(value)}`);
+
+    spotlightCandidates.push({
+      name: event.name || "Unnamed",
+      tab: event.tab || "Unknown",
+      type: event.type || "Unknown",
+      impactScore,
+      reason: reasons.join(" · "),
+    });
   });
 
   let addsCount = 0;
@@ -10336,6 +10385,8 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
 
   const topItem = Object.values(itemCounts)
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))[0] || null;
+  const spotlightWear = spotlightCandidates
+    .sort((a, b) => b.impactScore - a.impactScore || a.name.localeCompare(b.name))[0] || null;
 
   return {
     totalWears,
@@ -10346,6 +10397,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
     topTag: topCountEntry(tagCounts),
     topDay: topCountEntry(dayCounts),
     topItem,
+    spotlightWear,
     longestStreak: longestConsecutiveDateRun(wearDateKeys),
     addsCount,
     addsSpend,
@@ -10415,15 +10467,16 @@ const openInsightsDialog = (stats) => {
     if (!dna || dna.totalWears === 0) {
       return `<div class="insights-score-card"><div class="insights-score-title">${esc(title)}</div><div class="insights-score-note">No wear activity logged yet for this period.</div></div>`;
     }
-    const topItemLabel = dna.topItem
-      ? `${dna.topItem.name} (${dna.topItem.tab}) - ${dna.topItem.type}`
+    const spotlightLabel = dna.spotlightWear
+      ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
       : "n/a";
     return `<div class="insights-score-card">
       <div class="insights-score-title">${esc(title)}</div>
       <div class="insights-score-value">${dna.totalWears} wears · ${dna.uniqueItems} items</div>
       <div class="insights-score-note">Top brand: ${esc(dna.topBrand ? `${dna.topBrand.label} (${dna.topBrand.count})` : "n/a")}</div>
       <div class="insights-score-note">Top type: ${esc(dna.topType ? `${dna.topType.label} (${dna.topType.count})` : "n/a")}</div>
-      <div class="insights-score-note">Top shirt: ${esc(topItemLabel)}</div>
+      <div class="insights-score-note">Spotlight wear: ${esc(spotlightLabel)}</div>
+      <div class="insights-score-note">${esc(dna.spotlightWear ? dna.spotlightWear.reason : "No standout wear signal yet")}</div>
       <div class="insights-score-note">Peak day: ${esc(dna.topDay ? `${dna.topDay.label} (${dna.topDay.count})` : "n/a")} · Best streak: ${dna.longestStreak} days</div>
       <div class="insights-score-note">Adds: ${dna.addsCount} · Spend: ${formatCurrency(dna.addsSpend)}</div>
       <div class="insights-score-note">Top fandom: ${esc(dna.topFandom ? dna.topFandom.label : "n/a")} · Top tag: ${esc(dna.topTag ? dna.topTag.label : "n/a")}</div>
