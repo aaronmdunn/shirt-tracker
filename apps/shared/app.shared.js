@@ -9276,6 +9276,8 @@ const collectAllStats = () => {
           ? entry.row.wearLog
           : (lastWorn ? [lastWorn] : []);
         wearableUniverse.push({
+          rowId: entry.row.id,
+          tabId: tab.id,
           name,
           tab: tab.name,
           type,
@@ -10226,6 +10228,8 @@ const buildWearNextQueue = (stats, snoozes) => {
 
       return {
         key,
+        rowId: item.rowId || null,
+        tabId: item.tabId || null,
         name,
         tab,
         type,
@@ -10238,6 +10242,48 @@ const buildWearNextQueue = (stats, snoozes) => {
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 10);
+};
+
+const markQueueItemWornToday = (queueItem) => {
+  if (!queueItem || !queueItem.tabId || !queueItem.rowId) return false;
+  const wornDate = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`).toISOString();
+  const applyWearToRow = (row) => {
+    if (!row) return false;
+    row.wearCount = (row.wearCount || 0) + 1;
+    row.lastWorn = wornDate;
+    if (!Array.isArray(row.wearLog)) row.wearLog = [];
+    row.wearLog.push(wornDate);
+    return true;
+  };
+
+  const rowLabel = `${queueItem.name || "Unnamed"} (${queueItem.tab || "Unknown"}) - ${queueItem.type || "Unknown"}`;
+
+  if (tabsState.activeTabId === queueItem.tabId) {
+    const target = state.rows.find((row) => row.id === queueItem.rowId);
+    if (!applyWearToRow(target)) return false;
+    updateShirtUpdateDate();
+    saveState();
+    renderRows();
+    renderFooter();
+    addEventLog("Logged wear", rowLabel);
+    return true;
+  }
+
+  try {
+    const stored = localStorage.getItem(getStorageKey(queueItem.tabId));
+    if (!stored) return false;
+    const parsed = JSON.parse(stored);
+    if (!parsed || !Array.isArray(parsed.rows)) return false;
+    const target = parsed.rows.find((row) => row.id === queueItem.rowId);
+    if (!applyWearToRow(target)) return false;
+    localStorage.setItem(getStorageKey(queueItem.tabId), JSON.stringify(parsed));
+    updateShirtUpdateDate();
+    scheduleSync();
+    addEventLog("Logged wear", rowLabel);
+    return true;
+  } catch (error) {
+    return false;
+  }
 };
 
 const heatmapLevelClass = (count, maxCount) => {
@@ -10626,13 +10672,14 @@ const openInsightsDialog = (stats) => {
               <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
               <div class="insights-queue-score">Priority ${Math.round(item.score)}</div>
             </div>
-            <div class="insights-queue-meta">
-              <span>${esc(item.reason)}</span>
-              <div class="insights-queue-actions">
-                <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
-                <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 3 days</button>
+              <div class="insights-queue-meta">
+                <span>${esc(item.reason)}</span>
+                <div class="insights-queue-actions">
+                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze</button>
+                </div>
               </div>
-            </div>
             <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
               ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
                 <div class="insights-queue-breakdown-row">
@@ -10698,6 +10745,18 @@ const openInsightsDialog = (stats) => {
       const isHidden = panel.classList.contains("is-hidden");
       panel.classList.toggle("is-hidden", !isHidden);
       button.textContent = isHidden ? "Hide scoring" : "Why this ranked";
+    });
+  });
+
+  const wornTodayButtons = content.querySelectorAll("[data-insights-mark-worn]");
+  wornTodayButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (state.readOnly || isViewerSession) return;
+      const idx = Number(button.getAttribute("data-insights-mark-worn"));
+      const item = Number.isFinite(idx) ? queue[idx] : null;
+      if (!item) return;
+      if (!markQueueItemWornToday(item)) return;
+      openInsightsDialog(collectAllStats());
     });
   });
 
