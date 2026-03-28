@@ -26,14 +26,14 @@
     #   inline scripts for share-token pre-loading and UA routing. These are static, not
     #   user data. The XSS risk CSP script-src would normally guard against is separately
     #   addressed by the renderColumns() DOM-API refactor (Finding 1).
-    # - connect-src: self + Supabase project + Plausible + Cloudflare + Netlify RUM endpoints
+    # - connect-src: self + Supabase project + Netlify RUM endpoints
     # - img-src: self, data URIs, blob URLs (photo previews), and Supabase storage
     # - style-src: 'unsafe-inline' required by existing extensive inline styles
     # - font-src: self (fonts are self-hosted)
     # - frame-src: Netlify CDP iframe (auto-injected by Netlify)
     # - frame-ancestors 'none': prevents clickjacking from any origin
     # - form-action 'self': prevents form submissions to external sites
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; connect-src 'self' https://*.supabase.co https://cloudflareinsights.com https://*.nsvcs.net; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src https://app.netlify.com; frame-ancestors 'none'; form-action 'self';"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://*.supabase.co https://*.nsvcs.net; img-src 'self' data: blob: https://*.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src https://app.netlify.com; frame-ancestors 'none'; form-action 'self';"
 
 # Long-lived cache for fonts (immutable — versioned via deploy)
 [[headers]]
@@ -46,4 +46,3 @@
   for = "/*/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
