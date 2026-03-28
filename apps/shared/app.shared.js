@@ -9279,14 +9279,16 @@ const collectAllStats = () => {
   firstWearLagAll.sort((a, b) => b.firstWearLagDays - a.firstWearLagDays || a.name.localeCompare(b.name));
   const firstWearLag = firstWearLagAll.slice(0, 10);
 
+  const neverWornSinceAddedSorted = neverWornSinceAdded
+    .sort((a, b) => (b.daysSinceAdded || 0) - (a.daysSinceAdded || 0) || a.name.localeCompare(b.name));
+
   const newItemAdoption = {
     itemsWithCreatedAt,
     wornAfterAddCount: adoptionDays.length,
     medianDaysToFirstWear: adoptionDays.length ? median(adoptionDays) : null,
     adoptionRatePct: itemsWithCreatedAt ? Math.round((adoptionDays.length / itemsWithCreatedAt) * 100) : 0,
-    neverWornSinceAdded: neverWornSinceAdded
-      .sort((a, b) => (b.daysSinceAdded || 0) - (a.daysSinceAdded || 0) || a.name.localeCompare(b.name))
-      .slice(0, 12),
+    neverWornSinceAddedTotal: neverWornSinceAddedSorted.length,
+    neverWornSinceAdded: neverWornSinceAddedSorted.slice(0, 12),
   };
 
   const monthlyMap = {};
@@ -9906,8 +9908,12 @@ const openAdvancedStatsDialog = (stats) => {
     const medianDays = adv.newItemAdoption.medianDaysToFirstWear;
     body += row("Median days to first wear", medianDays === null ? "n/a" : `${Math.round(medianDays)} days`);
     const never = Array.isArray(adv.newItemAdoption.neverWornSinceAdded) ? adv.newItemAdoption.neverWornSinceAdded : [];
+    const neverTotal = Number.isFinite(adv.newItemAdoption.neverWornSinceAddedTotal)
+      ? adv.newItemAdoption.neverWornSinceAddedTotal
+      : never.length;
+    body += row("Never worn since added", String(neverTotal));
     if (never.length) {
-      body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added</div>`;
+      body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added (top ${never.length})</div>`;
       never.forEach((item, idx) => {
         body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, "Unworn");
       });
@@ -10242,6 +10248,168 @@ const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
   mount.innerHTML = html;
 };
 
+const topCountEntry = (counts) => {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return null;
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { label: entries[0][0], count: entries[0][1] };
+};
+
+const longestConsecutiveDateRun = (dateKeys) => {
+  if (!Array.isArray(dateKeys) || !dateKeys.length) return 0;
+  const sorted = Array.from(new Set(dateKeys)).sort();
+  let best = 1;
+  let run = 1;
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prevMs = new Date(`${sorted[i - 1]}T00:00:00`).getTime();
+    const currMs = new Date(`${sorted[i]}T00:00:00`).getTime();
+    if (Number.isNaN(prevMs) || Number.isNaN(currMs)) continue;
+    const gap = Math.floor((currMs - prevMs) / 86400000);
+    if (gap === 1) run += 1;
+    else run = 1;
+    if (run > best) best = run;
+  }
+  return best;
+};
+
+const buildStyleDnaPeriod = (stats, startMs, endMs) => {
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const itemLookup = {};
+  const itemWearTimes = {};
+  wearableItems.forEach((item) => {
+    const key = getInsightsQueueKey(item);
+    if (!itemLookup[key]) itemLookup[key] = item;
+    const wearLog = Array.isArray(item.wearLog) ? item.wearLog : [];
+    const stamps = wearLog
+      .map((stamp) => new Date(stamp).getTime())
+      .filter((ms) => !Number.isNaN(ms))
+      .sort((a, b) => a - b);
+    itemWearTimes[key] = stamps;
+  });
+
+  const brandCounts = {};
+  const typeCounts = {};
+  const fandomCounts = {};
+  const tagCounts = {};
+  const dayCounts = {};
+  const itemCounts = {};
+  const spotlightCandidates = [];
+  const wearDateKeys = [];
+  let totalWears = 0;
+
+  wearEvents.forEach((event) => {
+    const wornMs = new Date(event.wornAt).getTime();
+    if (Number.isNaN(wornMs) || wornMs < startMs || wornMs > endMs) return;
+
+    totalWears += 1;
+    const brand = String(event.tab || "Unknown").trim() || "Unknown";
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+    typeCounts[type] = (typeCounts[type] || 0) + 1;
+
+    const day = new Date(wornMs).getDay();
+    dayCounts[dayNames[day]] = (dayCounts[dayNames[day]] || 0) + 1;
+    if (event.dateKey) wearDateKeys.push(event.dateKey);
+
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    if (!itemCounts[key]) {
+      itemCounts[key] = {
+        name: event.name || "Unnamed",
+        tab: event.tab || "Unknown",
+        type: event.type || "Unknown",
+        count: 0,
+      };
+    }
+    itemCounts[key].count += 1;
+
+    const meta = itemLookup[key] || null;
+    const fandom = String(meta?.fandom || "").trim();
+    if (fandom) fandomCounts[fandom] = (fandomCounts[fandom] || 0) + 1;
+    const tags = Array.isArray(meta?.tags) ? meta.tags : [];
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      tagCounts[clean] = (tagCounts[clean] || 0) + 1;
+    });
+
+    // Spotlight wear: highlight a single meaningful wear event even when monthly repeats are rare.
+    const wearTimes = itemWearTimes[key] || [];
+    let previousWearMs = null;
+    for (let i = 0; i < wearTimes.length; i += 1) {
+      if (wearTimes[i] < wornMs) previousWearMs = wearTimes[i];
+      else break;
+    }
+    const gapDays = previousWearMs === null ? null : Math.max(0, Math.floor((wornMs - previousWearMs) / 86400000));
+    const value = meta && meta.price !== null && meta.price !== undefined && meta.price > 0 ? meta.price : 0;
+    const condition = String(meta?.condition || "").trim().toLowerCase();
+
+    let impactScore = 0;
+    if (gapDays === null) impactScore += 80;
+    else impactScore += Math.min(140, gapDays);
+    impactScore += Math.min(26, Math.round(Math.log10(value + 1) * 10));
+    if (condition === "nwt" || condition === "nwot") impactScore += 30;
+
+    const lowerTags = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()));
+    const wornDate = new Date(wornMs);
+    const wornDay = wornDate.getDay();
+    const wornMonth = wornDate.getMonth();
+    const wornDayOfMonth = wornDate.getDate();
+    if (lowerTags.has("floral") && wornDay === 5) impactScore += 24;
+    if (String(meta?.fandom || "").trim().toLowerCase() === "star wars" && wornMonth === 4 && wornDayOfMonth === 4) impactScore += 36;
+    if (String(event.name || "").toLowerCase().includes("mickey") && wornDay === 1) impactScore += 24;
+    if (lowerTags.has("whale") && wornDay === 3) impactScore += 24;
+
+    const reasons = [];
+    if (gapDays === null) reasons.push("First wear logged");
+    else reasons.push(`${gapDays}d gap before wear`);
+    if (condition === "nwt" || condition === "nwot") reasons.push(condition.toUpperCase());
+    if (value > 0) reasons.push(`Value ${formatCurrency(value)}`);
+
+    spotlightCandidates.push({
+      name: event.name || "Unnamed",
+      tab: event.tab || "Unknown",
+      type: event.type || "Unknown",
+      impactScore,
+      reason: reasons.join(" · "),
+    });
+  });
+
+  let addsCount = 0;
+  let addsSpend = 0;
+  wearableItems.forEach((item) => {
+    if (!item.createdAt) return;
+    const createdMs = new Date(item.createdAt).getTime();
+    if (Number.isNaN(createdMs) || createdMs < startMs || createdMs > endMs) return;
+    addsCount += 1;
+    if (item.price !== null && item.price !== undefined && item.price > 0) {
+      addsSpend += item.price;
+    }
+  });
+
+  const topItem = Object.values(itemCounts)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))[0] || null;
+  const spotlightWear = spotlightCandidates
+    .sort((a, b) => b.impactScore - a.impactScore || a.name.localeCompare(b.name))[0] || null;
+
+  return {
+    totalWears,
+    uniqueItems: Object.keys(itemCounts).length,
+    topBrand: topCountEntry(brandCounts),
+    topType: topCountEntry(typeCounts),
+    topFandom: topCountEntry(fandomCounts),
+    topTag: topCountEntry(tagCounts),
+    topDay: topCountEntry(dayCounts),
+    topItem,
+    spotlightWear,
+    longestStreak: longestConsecutiveDateRun(wearDateKeys),
+    addsCount,
+    addsSpend,
+  };
+};
+
 const openInsightsDialog = (stats) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
@@ -10258,12 +10426,14 @@ const openInsightsDialog = (stats) => {
     `;
     document.body.appendChild(dialog);
 
+    const bindClick = (el, handler) => {
+      if (!el) return;
+      el.addEventListener("click", handler);
+    };
     const closeButton = dialog.querySelector("#insights-close");
-    if (closeButton) {
-      closeButton.addEventListener("click", () => {
-        closeDialog(dialog);
-      });
-    }
+    bindClick(closeButton, () => {
+      closeDialog(dialog);
+    });
   }
 
   const content = dialog.querySelector("#insights-content");
@@ -10290,10 +10460,59 @@ const openInsightsDialog = (stats) => {
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
 
+  const now = new Date();
+  const monthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const yearStartMs = new Date(now.getFullYear(), 0, 1).getTime();
+  const nowMs = now.getTime();
+  const monthLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const yearLabel = String(now.getFullYear());
+  const monthDna = buildStyleDnaPeriod(stats, monthStartMs, nowMs);
+  const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
+
+  const renderDnaCard = (title, dna) => {
+    if (!dna || dna.totalWears === 0) {
+      return `<div class="insights-score-card"><div class="insights-score-title">${esc(title)}</div><div class="insights-score-note">No wear activity logged yet for this period.</div></div>`;
+    }
+    const spotlightLabel = dna.spotlightWear
+      ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
+      : "n/a";
+    return `<div class="insights-score-card">
+      <div class="insights-score-title">${esc(title)}</div>
+      <div class="insights-score-value">${dna.totalWears} wears · ${dna.uniqueItems} items</div>
+      <div class="insights-score-note">Top brand: ${esc(dna.topBrand ? `${dna.topBrand.label} (${dna.topBrand.count})` : "n/a")}</div>
+      <div class="insights-score-note">Top type: ${esc(dna.topType ? `${dna.topType.label} (${dna.topType.count})` : "n/a")}</div>
+      <div class="insights-score-note">Spotlight wear: ${esc(spotlightLabel)}</div>
+      <div class="insights-score-note">${esc(dna.spotlightWear ? dna.spotlightWear.reason : "No standout wear signal yet")}</div>
+      <div class="insights-score-note">Peak day: ${esc(dna.topDay ? `${dna.topDay.label} (${dna.topDay.count})` : "n/a")} · Best streak: ${dna.longestStreak} days</div>
+      <div class="insights-score-note">Adds: ${dna.addsCount} · Spend: ${formatCurrency(dna.addsSpend)}</div>
+      <div class="insights-score-note">Top fandom: ${esc(dna.topFandom ? dna.topFandom.label : "n/a")} · Top tag: ${esc(dna.topTag ? dna.topTag.label : "n/a")}</div>
+    </div>`;
+  };
+
   let html = "";
+  html += section(
+    "Personal style DNA (Wrapped)",
+    `<div class="stats-hint">Auto-refreshes daily. A compact Spotify-style snapshot of your monthly and yearly style behavior.</div>
+     <div class="insights-score-grid">
+       ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
+       ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
+     </div>`
+  );
+
   if (health) {
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
-    const neverWornCount = Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0;
+    const neverWornCount = Number.isFinite(adoption?.neverWornSinceAddedTotal)
+      ? adoption.neverWornSinceAddedTotal
+      : (Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0);
+    const wearableItems = Array.isArray(stats.wearableItems) ? stats.wearableItems : [];
+    const nowForRotation = Date.now();
+    const wornLast30Count = wearableItems.filter((item) => {
+      if (!item || !item.lastWorn) return false;
+      const ageDays = Math.floor((nowForRotation - new Date(item.lastWorn).getTime()) / 86400000);
+      return !Number.isNaN(ageDays) && ageDays <= 30;
+    }).length;
+    const noBuyCurrent = Number.isFinite(stats.noBuyCurrentDays) ? stats.noBuyCurrentDays : 0;
+    const noBuyLongest = Number.isFinite(stats.noBuyLongestDays) ? stats.noBuyLongestDays : 0;
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
@@ -10316,7 +10535,17 @@ const openInsightsDialog = (stats) => {
         <div class="insights-score-card">
           <div class="insights-score-title">Backlog risk</div>
           <div class="insights-score-value">${neverWornCount}</div>
-          <div class="insights-score-note">Items never worn since add date sample</div>
+          <div class="insights-score-note">Items never worn since add date (full total)</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">30-day rotation</div>
+          <div class="insights-score-value">${wornLast30Count}/${wearableItems.length || 0}</div>
+          <div class="insights-score-note">${health.recencyPct}% of wearable items were worn in the last 30 days</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">No-buy streak</div>
+          <div class="insights-score-value">${noBuyCurrent} days</div>
+          <div class="insights-score-note">Longest no-buy streak: ${noBuyLongest} days</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Recommended next actions</div>
