@@ -10149,54 +10149,64 @@ const buildWearNextQueue = (stats, snoozes) => {
       const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
 
       let score = 0;
-      let valuePoints = 0;
+      const breakdown = [];
+      const addScore = (label, points) => {
+        if (!points) return;
+        score += points;
+        breakdown.push({ label, points });
+      };
+
       if (wearCount === 0) {
         // New and never-worn items should be surfaced aggressively.
-        score += 170;
-        if (daysSinceAdded !== null) score += Math.min(65, Math.floor(daysSinceAdded / 4));
+        addScore("Never worn baseline", 170);
+        if (daysSinceAdded !== null) addScore("Unworn age pressure", Math.min(65, Math.floor(daysSinceAdded / 4)));
         if (condition === "nwt" || condition === "nwot") {
-          score += 70;
+          addScore(`${condition.toUpperCase()} bonus`, 70);
         }
       }
-      if (daysSince !== null) score += Math.min(140, daysSince);
-      if (daysSince !== null && daysSince >= 90) score += 20;
-      if (daysSince !== null && daysSince >= 180) score += 30;
+
+      if (daysSince !== null) addScore("Days since last wear", Math.min(140, daysSince));
+      if (daysSince !== null && daysSince >= 90) addScore("90+ day idle bonus", 20);
+      if (daysSince !== null && daysSince >= 180) addScore("180+ day idle bonus", 30);
 
       if (price !== null && price > 0) {
-        valuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
+        const rawValuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
+        let valuePoints = rawValuePoints;
         // High-value Whale/Holiday items should be less aggressively prioritized.
         if (tagSet.has("whale")) valuePoints = Math.round(valuePoints * 0.25);
         if (tagSet.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
-        score += valuePoints;
+        addScore("Item value signal", valuePoints);
+        const valueDampener = valuePoints - rawValuePoints;
+        addScore("Tag value dampener", valueDampener);
       }
 
-      if (tagSet.has("whale")) score -= 28;
-      if (tagSet.has("holiday")) score -= 16;
+      if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
+      if (tagSet.has("holiday")) addScore("Holiday baseline penalty", -16);
 
       if (isColdMonth && typeLower.includes("flannel")) {
-        score += 45;
+        addScore("Flannel in cold-month season", 45);
       }
 
       // Date-aware thematic boosts (queue naturally changes day to day).
       if (tagSet.has("floral") && dayOfWeek === 5) {
-        score += 42;
+        addScore("Floral Friday boost", 42);
       }
       if (tagSet.has("holiday") && isNearHolidayWindow) {
         const proximityBoost = Math.max(16, 52 - (nearestHolidayDays * 5));
-        score += proximityBoost;
+        addScore("Holiday window proximity boost", proximityBoost);
       }
       if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
-        score += 120;
+        addScore("Star Wars day boost (May 4)", 120);
       }
       if (nameLower.includes("mickey") && dayOfWeek === 1) {
-        score += 44;
+        addScore("Monday Mickey boost", 44);
       }
       if (tagSet.has("whale") && dayOfWeek === 3) {
-        score += 58;
+        addScore("Wednesday Whale boost", 58);
       }
 
-      if (lastWornToday) score -= 200;
-      if (isSnoozed) score -= 600;
+      if (lastWornToday) addScore("Already worn today penalty", -200);
+      if (isSnoozed) addScore("Snoozed item penalty", -600);
 
       const reasonParts = [];
       if (wearCount === 0) reasonParts.push("Never worn");
@@ -10221,6 +10231,7 @@ const buildWearNextQueue = (stats, snoozes) => {
         type,
         score,
         reason: reasonParts.join(" · "),
+        breakdown,
         snoozeUntil,
       };
     })
@@ -10607,7 +10618,7 @@ const openInsightsDialog = (stats) => {
   if (queue.length) {
     html += section(
       "Wear next queue",
-      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Snooze hides an item for 3 days.</div>
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Use "Why this ranked" for full score math. Snooze hides an item for 3 days.</div>
       <div class="insights-queue-list">
         ${queue.map((item, idx) => `
           <div class="insights-queue-item">
@@ -10617,7 +10628,22 @@ const openInsightsDialog = (stats) => {
             </div>
             <div class="insights-queue-meta">
               <span>${esc(item.reason)}</span>
-              <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 3 days</button>
+              <div class="insights-queue-actions">
+                <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
+                <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 3 days</button>
+              </div>
+            </div>
+            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
+              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
+                <div class="insights-queue-breakdown-row">
+                  <span>${esc(line.label)}</span>
+                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
+                </div>
+              `).join("")}
+              <div class="insights-queue-breakdown-row total">
+                <span>Total priority score</span>
+                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
+              </div>
             </div>
           </div>`).join("")}
       </div>`
@@ -10659,6 +10685,19 @@ const openInsightsDialog = (stats) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       openInsightsDialog(stats);
+    });
+  });
+
+  const explainButtons = content.querySelectorAll("[data-insights-explain-toggle]");
+  explainButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const panelId = button.getAttribute("data-insights-explain-toggle");
+      if (!panelId) return;
+      const panel = document.getElementById(panelId);
+      if (!panel) return;
+      const isHidden = panel.classList.contains("is-hidden");
+      panel.classList.toggle("is-hidden", !isHidden);
+      button.textContent = isHidden ? "Hide scoring" : "Why this ranked";
     });
   });
 
