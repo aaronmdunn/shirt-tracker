@@ -50,6 +50,7 @@ const FOR_SALE_TAG = "For Sale";
 const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
+const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -636,6 +637,7 @@ const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
 const statsAdvancedButton = document.getElementById("stats-advanced");
 const statsExportButton = document.getElementById("stats-export");
+const statsInsightsButton = document.getElementById("stats-insights");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
@@ -9533,6 +9535,7 @@ const collectAllStats = () => {
     unwornOverSixMonths,
     last5Worn,
     wearEvents,
+    wearableItems: wearableUniverse,
     brandByDayOfWeek,
     brandByMonth,
     advanced,
@@ -9994,6 +9997,332 @@ const openAdvancedStatsDialog = (stats) => {
   resetDialogScroll(dialog);
 };
 
+const localDateKeyFromDate = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+
+const loadInsightsSnoozes = () => {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(localStorage.getItem(INSIGHTS_SNOOZE_KEY) || "{}");
+  } catch (error) {
+    parsed = {};
+  }
+  if (!parsed || typeof parsed !== "object") return {};
+  const todayKey = localDateKeyFromDate(new Date());
+  const next = {};
+  Object.entries(parsed).forEach(([key, until]) => {
+    const normalized = String(until || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized >= todayKey) {
+      next[key] = normalized;
+    }
+  });
+  if (Object.keys(next).length !== Object.keys(parsed).length) {
+    try {
+      localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(next));
+    } catch (error) {
+      // ignore
+    }
+  }
+  return next;
+};
+
+const saveInsightsSnoozes = (value) => {
+  try {
+    localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(value || {}));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
+
+const buildWearNextQueue = (stats, snoozes) => {
+  const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const activeSnoozes = snoozes || {};
+  const nowMs = Date.now();
+  const todayKey = localDateKeyFromDate(new Date());
+
+  return items
+    .map((item) => {
+      const name = item.name || "Unnamed";
+      const tab = item.tab || "Unknown";
+      const type = item.type || "Unknown";
+      const lastWorn = item.lastWorn || null;
+      const wearCount = item.wearCount || 0;
+      const price = item.price !== null && item.price !== undefined ? item.price : null;
+      const createdAt = item.createdAt || null;
+      const key = getInsightsQueueKey({ name, tab, type });
+      const snoozeUntil = activeSnoozes[key] || "";
+      const isSnoozed = snoozeUntil && snoozeUntil >= todayKey;
+      const lwMs = lastWorn ? new Date(lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lwMs) ? null : Math.max(0, Math.floor((nowMs - lwMs) / 86400000));
+      const lastWornToday = lastWorn ? localDateKeyFromDate(new Date(lastWorn)) === todayKey : false;
+      const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+      const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
+
+      let score = 0;
+      if (wearCount === 0) {
+        score += 120;
+        if (daysSinceAdded !== null) score += Math.min(40, Math.floor(daysSinceAdded / 7));
+      }
+      if (daysSince !== null) score += Math.min(140, daysSince);
+      if (daysSince !== null && daysSince >= 90) score += 20;
+      if (daysSince !== null && daysSince >= 180) score += 30;
+      if (price !== null && price > 0) score += Math.min(24, Math.round(Math.log10(price + 1) * 10));
+      if (lastWornToday) score -= 200;
+      if (isSnoozed) score -= 600;
+
+      const reasonParts = [];
+      if (wearCount === 0) reasonParts.push("Never worn");
+      else if (daysSince !== null) reasonParts.push(`${daysSince}d since last wear`);
+      else reasonParts.push("No wear date logged");
+      if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
+      if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
+
+      return {
+        key,
+        name,
+        tab,
+        type,
+        score,
+        reason: reasonParts.join(" · "),
+        snoozeUntil,
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 10);
+};
+
+const heatmapLevelClass = (count, maxCount) => {
+  if (!count || maxCount <= 0) return "level-0";
+  const ratio = count / maxCount;
+  if (ratio <= 0.25) return "level-1";
+  if (ratio <= 0.5) return "level-2";
+  if (ratio <= 0.75) return "level-3";
+  return "level-4";
+};
+
+const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
+  if (!mount) return;
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const filteredEvents = wearEvents.filter((event) => {
+    const dateKey = String(event.dateKey || "");
+    if (!dateKey.startsWith(`${year}-`)) return false;
+    if (brandFilter && brandFilter !== "all" && event.tab !== brandFilter) return false;
+    return true;
+  });
+
+  const countByDate = {};
+  filteredEvents.forEach((event) => {
+    const key = String(event.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    countByDate[key] = (countByDate[key] || 0) + 1;
+  });
+  const maxCount = Math.max(0, ...Object.values(countByDate));
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  let html = "";
+  html += `<div class="stats-hint">${filteredEvents.length ? `${filteredEvents.length} total wear ${filteredEvents.length === 1 ? "log" : "logs"} in ${year}.` : `No wear logs found for ${year} with the current filter.`}</div>`;
+  html += `<div class="insights-month-grid-wrap">`;
+  for (let month = 0; month < 12; month += 1) {
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthStartMon = (firstDay.getDay() + 6) % 7;
+    const cells = Array.from({ length: 42 }, () => null);
+    let monthCount = 0;
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const idx = monthStartMon + (day - 1);
+      const count = countByDate[dateKey] || 0;
+      monthCount += count;
+      cells[idx] = { day, count, dateKey };
+    }
+
+    html += `<div class="insights-month"><div class="insights-month-title"><span>${monthNames[month]}</span><span>${monthCount}</span></div><div class="insights-heatmap-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="insights-month-grid">`;
+    cells.forEach((cell) => {
+      if (!cell) {
+        html += `<div class="insights-heat-cell empty"></div>`;
+        return;
+      }
+      const cls = heatmapLevelClass(cell.count, maxCount);
+      const title = `${cell.dateKey}: ${cell.count} ${cell.count === 1 ? "wear" : "wears"}`;
+      html += `<div class="insights-heat-cell ${cls}" title="${esc(title)}">${cell.day}</div>`;
+    });
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+  mount.innerHTML = html;
+};
+
+const openInsightsDialog = (stats) => {
+  let dialog = document.getElementById("insights-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "insights-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Insights</h3>
+        <div id="insights-content" class="insights-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="insights-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#insights-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#insights-content");
+  if (!content) return;
+  content.textContent = "";
+
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+
+  if (!stats || !stats.isInventory) {
+    content.innerHTML = `<div class="stats-hint">Insights are currently available in Inventory mode.</div>`;
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  const snoozes = loadInsightsSnoozes();
+  const queue = buildWearNextQueue(stats, snoozes);
+  const health = stats.advanced?.closetHealth || null;
+  const inactive = stats.advanced?.inactiveCapital || null;
+  const adoption = stats.advanced?.newItemAdoption || null;
+
+  let html = "";
+  if (health) {
+    const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
+    const neverWornCount = Array.isArray(adoption?.neverWornSinceAdded) ? adoption.neverWornSinceAdded.length : 0;
+    html += section(
+      "Closet audit scorecard",
+      `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
+      <div class="insights-score-grid">
+        <div class="insights-score-card">
+          <div class="insights-score-title">Health score</div>
+          <div class="insights-score-value">${health.score}/100 (${grade})</div>
+          <div class="insights-score-note">${health.recencyPct}% worn in last 30 days · ${health.neverWornPct}% never worn</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Idle capital</div>
+          <div class="insights-score-value">${formatCurrency(inactive?.inactive180Value || 0)}</div>
+          <div class="insights-score-note">${inactive?.inactive180Count || 0} items inactive over 180 days</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Adoption lag</div>
+          <div class="insights-score-value">${adoption?.medianDaysToFirstWear === null || adoption?.medianDaysToFirstWear === undefined ? "n/a" : `${Math.round(adoption.medianDaysToFirstWear)}d`}</div>
+          <div class="insights-score-note">${adoption?.adoptionRatePct || 0}% adoption rate from add date to first wear</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Backlog risk</div>
+          <div class="insights-score-value">${neverWornCount}</div>
+          <div class="insights-score-note">Items never worn since add date sample</div>
+        </div>
+      </div>
+      <div class="stats-section-title" style="margin-top:8px">Recommended next actions</div>
+      <div class="insights-action-list">
+        <div class="stats-row stats-sub"><span class="stats-label">1. Wear-next queue</span><span class="stats-value">${queue.length} suggestions</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">2. Inactive >180d</span><span class="stats-value">${inactive?.inactive180Count || 0} items</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items</span></div>
+      </div>`
+    );
+  }
+
+  if (queue.length) {
+    html += section(
+      "Wear next queue",
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Snooze hides an item for 3 days.</div>
+      <div class="insights-queue-list">
+        ${queue.map((item, idx) => `
+          <div class="insights-queue-item">
+            <div class="insights-queue-head">
+              <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
+              <div class="insights-queue-score">Priority ${Math.round(item.score)}</div>
+            </div>
+            <div class="insights-queue-meta">
+              <span>${esc(item.reason)}</span>
+              <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 3 days</button>
+            </div>
+          </div>`).join("")}
+      </div>`
+    );
+  } else {
+    html += section("Wear next queue", `<div class="stats-hint">Queue is clear for now. Log fresh wears or remove snoozes to regenerate suggestions.</div>`);
+  }
+
+  const wearEvents = Array.isArray(stats.wearEvents) ? stats.wearEvents : [];
+  const years = Array.from(new Set(wearEvents
+    .map((event) => {
+      const key = String(event.dateKey || "");
+      return /^\d{4}-\d{2}-\d{2}$/.test(key) ? Number(key.slice(0, 4)) : null;
+    })
+    .filter((year) => year !== null)))
+    .sort((a, b) => b - a);
+  const selectedYear = years.length ? years[0] : new Date().getFullYear();
+  const brands = Array.from(new Set(wearEvents.map((event) => event.tab).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  html += section(
+    "Wear calendar heatmap",
+    `<div class="stats-hint">Daily wear intensity map for spotting dead zones and strong rotation months.</div>
+     <div class="insights-controls">
+       <select id="insights-heatmap-year">${(years.length ? years : [selectedYear]).map((year) => `<option value="${year}">${year}</option>`).join("")}</select>
+       <select id="insights-heatmap-brand"><option value="all">All brands</option>${brands.map((brand) => `<option value="${esc(brand)}">${esc(brand)}</option>`).join("")}</select>
+     </div>
+     <div id="insights-heatmap-body"></div>`
+  );
+
+  content.innerHTML = html;
+
+  const snoozeButtons = content.querySelectorAll("[data-insights-snooze]");
+  snoozeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.getAttribute("data-insights-snooze");
+      if (!key) return;
+      const next = loadInsightsSnoozes();
+      const until = new Date();
+      until.setDate(until.getDate() + 3);
+      next[key] = localDateKeyFromDate(until);
+      saveInsightsSnoozes(next);
+      openInsightsDialog(stats);
+    });
+  });
+
+  const yearSelect = content.querySelector("#insights-heatmap-year");
+  const brandSelect = content.querySelector("#insights-heatmap-brand");
+  const heatmapBody = content.querySelector("#insights-heatmap-body");
+  const rerenderHeatmap = () => {
+    const selected = yearSelect ? Number(yearSelect.value) : selectedYear;
+    const brand = brandSelect ? brandSelect.value : "all";
+    renderInsightsHeatmap(stats, selected, brand, heatmapBody);
+  };
+  const bindChange = (el, handler) => {
+    if (!el) return;
+    el.addEventListener("change", handler);
+  };
+  bindChange(yearSelect, rerenderHeatmap);
+  bindChange(brandSelect, rerenderHeatmap);
+  rerenderHeatmap();
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const openStatsDialog = () => {
   if (!statsDialog || !statsContent) return;
   const s = collectAllStats();
@@ -10376,6 +10705,11 @@ const openStatsDialog = () => {
   if (statsAdvancedButton) {
     statsAdvancedButton.onclick = () => {
       openAdvancedStatsDialog(s);
+    };
+  }
+  if (statsInsightsButton) {
+    statsInsightsButton.onclick = () => {
+      openInsightsDialog(s);
     };
   }
   if (statsExportButton) {

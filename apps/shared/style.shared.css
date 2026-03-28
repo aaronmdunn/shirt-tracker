@@ -2804,11 +2804,193 @@ input[type="date"].stats-date-input {
   color: var(--muted);
 }
 
+.insights-content {
+  display: grid;
+  gap: 10px;
+}
+
+.insights-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.insights-score-card {
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.insights-score-title {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.insights-score-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 2px;
+}
+
+.insights-score-note {
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.insights-action-list {
+  display: grid;
+  gap: 4px;
+}
+
+.insights-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.insights-controls select {
+  width: auto;
+  min-width: 130px;
+}
+
+.insights-queue-list {
+  display: grid;
+  gap: 8px;
+}
+
+.insights-queue-item {
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.insights-queue-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.insights-queue-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.insights-queue-score {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.insights-queue-meta {
+  font-size: 0.76rem;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.insights-queue-snooze {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.74rem;
+}
+
+.insights-month-grid-wrap {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.insights-month {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f7f7;
+  padding: 8px;
+}
+
+.insights-month-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.insights-heatmap-weekdays,
+.insights-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.insights-heatmap-weekdays span {
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.insights-heat-cell {
+  height: 16px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d8d8d8;
+  color: #525252;
+  background: #f2f2f2;
+}
+
+.insights-heat-cell.level-1 {
+  background: #d5ece0;
+  border-color: #c0dfcf;
+}
+
+.insights-heat-cell.level-2 {
+  background: #a8d8bd;
+  border-color: #8ec6a8;
+}
+
+.insights-heat-cell.level-3 {
+  background: #6bb88d;
+  border-color: #59a77d;
+  color: #123a29;
+}
+
+.insights-heat-cell.level-4 {
+  background: #2f8d62;
+  border-color: #287a55;
+  color: #f2fff8;
+}
+
+.insights-heat-cell.empty {
+  visibility: hidden;
+}
+
 #wear-history-dialog,
 #unworn-six-months-dialog,
 #all-added-dialog,
 #advanced-stats-dialog,
-#first-wear-lag-dialog {
+#first-wear-lag-dialog,
+#insights-dialog {
   max-width: 620px;
   width: 90vw;
 }
@@ -2817,7 +2999,8 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
-#first-wear-lag-dialog .dialog-body {
+#first-wear-lag-dialog .dialog-body,
+#insights-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
@@ -2827,7 +3010,8 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-actions,
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
-#first-wear-lag-dialog .dialog-actions {
+#first-wear-lag-dialog .dialog-actions,
+#insights-dialog .dialog-actions {
   justify-content: center;
 }
 
