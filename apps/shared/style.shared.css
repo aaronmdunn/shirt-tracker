@@ -1064,6 +1064,23 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 
+/* PLATFORM:desktop */
+.tab-btn[draggable="true"] {
+  cursor: grab;
+}
+
+.tab-btn[draggable="true"].dragging {
+  cursor: grabbing;
+  opacity: 0.45;
+}
+
+.tab-btn.drag-over {
+  opacity: 1;
+  outline: 2px dashed var(--accent);
+  outline-offset: 1px;
+}
+/* /PLATFORM:desktop */
+
 .tab-btn:hover {
   opacity: 1;
   background: #f0f0f0;
