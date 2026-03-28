@@ -8,7 +8,10 @@
       "Updated Wear Next queue action label from 'Snooze 3 days' to 'Snooze' while keeping the 3-day snooze behavior",
       "Added Theme/Day simulation mode in Insights with a date picker and 'Use today' reset to preview queue ranking changes by date",
       "Expanded holiday weighting with date-aware tag matching for USA/July 4, St. Patrick's Day, Valentine's Day, Thanksgiving, Hanukkah, Christmas, and Halloween",
-      "Added out-of-season holiday penalties and stricter generic holiday cross-referencing to prevent mismatched seasonal recommendations"
+      "Added out-of-season holiday penalties and stricter generic holiday cross-referencing to prevent mismatched seasonal recommendations",
+      "Fixed holiday priority behavior so active holiday windows no longer show 'Holiday deprioritized' on matching dates",
+      "Adjusted queue seasonality to strongly suppress flannels during summer (especially July/August peak heat)",
+      "Added warm-weather summer boosts (Jun-Aug) for Kunuflex, Bamboo, Polo, Four-way Stretch Blend, Spoonerkloth, Candy Floss, and Bottleblend with case/punctuation-insensitive matching"
     ]
   },
   {
