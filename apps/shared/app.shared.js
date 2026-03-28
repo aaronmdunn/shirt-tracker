@@ -10149,13 +10149,13 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const memorialDay = getLastMondayOfMay(year);
   const thanksgivingDay = getThanksgivingDate(year);
   const hanukkahStart = getHanukkahStartDate(year);
-  const holidayWindowDays = 21;
+  const holidayWindowDays = 7;
   const holidayProfiles = [
     {
       id: "usa",
       label: "USA holiday",
       dates: [memorialDay, new Date(year, 6, 4)],
-      aliases: ["usa", "us", "america", "american"],
+      aliases: ["usa", "us", "america", "american", "patriotic"],
     },
     {
       id: "july4",
@@ -10167,7 +10167,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       id: "stpatricks",
       label: "St. Patrick's Day",
       dates: [new Date(year, 2, 17)],
-      aliases: ["stpatricksday", "stpatricks", "stpatrickday", "stpatricks"],
+      aliases: ["stpatricksday", "stpatricks", "stpatrickday", "stpatricksday"],
     },
     {
       id: "valentines",
@@ -10270,46 +10270,36 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         addScore("Floral Friday boost", 42);
       }
 
-      const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
-        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
-      );
-      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
-      const nearestSpecificHoliday = matchedHolidayProfiles.length
-        ? matchedHolidayProfiles.reduce((best, profile) => {
-          const minDays = profile.dates.reduce((innerBest, d) => {
-            const diff = daysBetween(safeNow, d);
-            return diff < innerBest ? diff : innerBest;
-          }, Infinity);
-          return minDays < best.days ? { days: minDays, profile } : best;
-        }, { days: Infinity, profile: null })
-        : { days: Infinity, profile: null };
-      const nearestAnyHolidayDays = holidayProfiles.reduce((best, profile) => {
+      const holidayDistances = holidayProfiles.map((profile) => {
         const minDays = profile.dates.reduce((innerBest, d) => {
           const diff = daysBetween(safeNow, d);
           return diff < innerBest ? diff : innerBest;
         }, Infinity);
-        return minDays < best ? minDays : best;
-      }, Infinity);
+        return { profile, days: minDays };
+      });
+      const activeHolidayProfiles = holidayDistances.filter((entry) => entry.days <= holidayWindowDays);
+      const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
+        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
+      );
+      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
+      const matchedActiveHoliday = activeHolidayProfiles
+        .filter((entry) => matchedHolidayProfiles.some((profile) => profile.id === entry.profile.id))
+        .sort((a, b) => a.days - b.days)[0] || null;
 
-      if (nearestSpecificHoliday.profile) {
-        if (nearestSpecificHoliday.days <= holidayWindowDays) {
-          const boost = Math.max(18, 80 - (nearestSpecificHoliday.days * 3));
-          addScore(`${nearestSpecificHoliday.profile.label} proximity boost`, boost);
+      if (matchedHolidayProfiles.length) {
+        if (matchedActiveHoliday) {
+          const boost = Math.max(45, 125 - (matchedActiveHoliday.days * 11));
+          addScore(`${matchedActiveHoliday.profile.label} proximity boost`, boost);
         } else {
-          addScore("Out-of-season specific holiday penalty", -85);
+          // Strongly suppress specific holiday shirts when they do not match the simulated/current holiday window.
+          const penalty = activeHolidayProfiles.length ? -220 : -110;
+          addScore("Out-of-season specific holiday penalty", penalty);
         }
       }
 
       if (hasGenericHolidayTag) {
-        if (nearestSpecificHoliday.profile) {
-          if (nearestSpecificHoliday.days <= holidayWindowDays) {
-            addScore("Generic holiday support boost", 12);
-          } else {
-            addScore("Generic holiday out-of-season penalty", -28);
-          }
-        } else if (nearestAnyHolidayDays <= holidayWindowDays) {
-          const genericBoost = Math.max(12, 44 - (nearestAnyHolidayDays * 2));
-          addScore("Holiday window proximity boost", genericBoost);
+        if (activeHolidayProfiles.length) {
+          addScore("Generic holiday support boost", 22);
         } else {
           addScore("Generic holiday out-of-season penalty", -55);
         }
@@ -10336,9 +10326,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
       if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
-      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days <= holidayWindowDays) reasonParts.push(`${nearestSpecificHoliday.profile.label} boost`);
-      if (nearestSpecificHoliday.profile && nearestSpecificHoliday.days > holidayWindowDays) reasonParts.push("Out-of-season holiday penalty");
-      if (!nearestSpecificHoliday.profile && hasGenericHolidayTag && nearestAnyHolidayDays <= holidayWindowDays) reasonParts.push("Holiday window boost");
+      if (matchedActiveHoliday) reasonParts.push(`${matchedActiveHoliday.profile.label} boost`);
+      if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
+      if (hasGenericHolidayTag && activeHolidayProfiles.length) reasonParts.push("Holiday window boost");
       if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
       if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
       if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
