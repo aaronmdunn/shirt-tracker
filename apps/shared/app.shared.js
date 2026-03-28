@@ -9233,6 +9233,7 @@ const collectAllStats = () => {
           tab: tab.name,
           type,
           price,
+          condition: getCellValue(entry, "Condition") || "",
           wearCount,
           lastWorn,
           wearLog,
@@ -10040,15 +10041,21 @@ const buildWearNextQueue = (stats, snoozes) => {
   const activeSnoozes = snoozes || {};
   const nowMs = Date.now();
   const todayKey = localDateKeyFromDate(new Date());
+  const monthIndex = new Date().getMonth();
+  const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
 
   return items
     .map((item) => {
       const name = item.name || "Unnamed";
       const tab = item.tab || "Unknown";
       const type = item.type || "Unknown";
+      const typeLower = String(type || "").trim().toLowerCase();
       const lastWorn = item.lastWorn || null;
       const wearCount = item.wearCount || 0;
       const price = item.price !== null && item.price !== undefined ? item.price : null;
+      const condition = String(item.condition || "").trim().toLowerCase();
+      const tags = Array.isArray(item.tags) ? item.tags : [];
+      const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
       const createdAt = item.createdAt || null;
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
@@ -10060,14 +10067,34 @@ const buildWearNextQueue = (stats, snoozes) => {
       const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
 
       let score = 0;
+      let valuePoints = 0;
       if (wearCount === 0) {
-        score += 120;
-        if (daysSinceAdded !== null) score += Math.min(40, Math.floor(daysSinceAdded / 7));
+        // New and never-worn items should be surfaced aggressively.
+        score += 170;
+        if (daysSinceAdded !== null) score += Math.min(65, Math.floor(daysSinceAdded / 4));
+        if (condition === "nwt" || condition === "nwot") {
+          score += 70;
+        }
       }
       if (daysSince !== null) score += Math.min(140, daysSince);
       if (daysSince !== null && daysSince >= 90) score += 20;
       if (daysSince !== null && daysSince >= 180) score += 30;
-      if (price !== null && price > 0) score += Math.min(24, Math.round(Math.log10(price + 1) * 10));
+
+      if (price !== null && price > 0) {
+        valuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
+        // High-value Whale/Holiday items should be less aggressively prioritized.
+        if (tagSet.has("whale")) valuePoints = Math.round(valuePoints * 0.25);
+        if (tagSet.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
+        score += valuePoints;
+      }
+
+      if (tagSet.has("whale")) score -= 28;
+      if (tagSet.has("holiday")) score -= 16;
+
+      if (isColdMonth && typeLower.includes("flannel")) {
+        score += 45;
+      }
+
       if (lastWornToday) score -= 200;
       if (isSnoozed) score -= 600;
 
@@ -10076,6 +10103,10 @@ const buildWearNextQueue = (stats, snoozes) => {
       else if (daysSince !== null) reasonParts.push(`${daysSince}d since last wear`);
       else reasonParts.push("No wear date logged");
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
+      if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
+      if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
+      if (tagSet.has("whale")) reasonParts.push("Whale deprioritized");
+      if (tagSet.has("holiday")) reasonParts.push("Holiday deprioritized");
       if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
 
       return {
