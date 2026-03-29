@@ -9915,8 +9915,6 @@ const openAdvancedStatsDialog = (stats) => {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
-  const toneClass = (tone) => (tone === "good" ? "tone-good" : tone === "bad" ? "tone-bad" : "");
-  const insightValue = (valueHtml, tone) => `<div class="insights-score-value${toneClass(tone) ? ` ${toneClass(tone)}` : ""}">${valueHtml}</div>`;
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
 
@@ -11547,6 +11545,8 @@ const openInsightsDialog = (stats, options = {}) => {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+  const toneClass = (tone) => (tone === "good" ? "tone-good" : tone === "bad" ? "tone-bad" : "");
+  const insightValue = (valueHtml, tone) => `<div class="insights-score-value${toneClass(tone) ? ` ${toneClass(tone)}` : ""}">${valueHtml}</div>`;
 
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Insights are currently available in Inventory mode.</div>`;
