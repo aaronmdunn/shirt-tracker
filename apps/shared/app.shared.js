@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.19";
+const APP_VERSION = "2.0.20";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -3201,7 +3201,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.19",
+    version: "2.0.20",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -10641,6 +10641,59 @@ const exportNoBuyLogJson = (state) => {
   window.setTimeout(() => URL.revokeObjectURL(href), 0);
 };
 
+const deleteNoBuyLogEntry = (state, descriptor = {}) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const source = String(descriptor.source || "");
+  const type = String(descriptor.type || "");
+  const reason = String(descriptor.reason || "");
+  const at = String(descriptor.at || "");
+  const dateKey = String(descriptor.dateKey || "");
+  const index = Number(descriptor.index);
+
+  if (source === "actionLog" && Number.isInteger(index) && index >= 0 && index < safe.actionLog.length) {
+    safe.actionLog.splice(index, 1);
+  }
+
+  const targetDateKey = /^\d{4}-\d{2}-\d{2}$/.test(dateKey)
+    ? dateKey
+    : (() => {
+        if (!at) return "";
+        const ms = new Date(at).getTime();
+        if (!Number.isFinite(ms)) return "";
+        return localDateKeyFromDate(new Date(ms));
+      })();
+
+  if (type === "purchase") {
+    let removed = false;
+    safe.buyLog = safe.buyLog.filter((entry) => {
+      if (removed) return true;
+      if (String(entry?.dateKey || "") !== targetDateKey) return true;
+      if (String(entry?.reason || "") !== reason) return true;
+      removed = true;
+      return false;
+    });
+    if (removed && safe.totalBuysLogged > 0) safe.totalBuysLogged -= 1;
+
+    const latestBuy = safe.buyLog
+      .slice()
+      .sort((a, b) => String(a.dateKey || "").localeCompare(String(b.dateKey || "")))
+      .slice(-1)[0] || null;
+    safe.lastBuyDate = latestBuy ? String(latestBuy.dateKey || "") : "";
+    safe.lastBuyReason = latestBuy ? String(latestBuy.reason || "") : "";
+  }
+
+  if (type === "temptation") {
+    safe.dailyCheckins = safe.dailyCheckins.map((entry) => {
+      if (String(entry?.dateKey || "") !== targetDateKey) return entry;
+      if (!entry?.tempted) return entry;
+      if (String(entry?.trigger || "") !== reason) return entry;
+      return { dateKey: String(entry.dateKey || ""), tempted: false, trigger: "" };
+    });
+  }
+
+  return pushNoBuySnapshot(safe, "delete-log");
+};
+
 const progressNoBuyRecoveryOnWear = () => {
   const safe = loadNoBuyGamifyState();
   if (!safe.activeRecovery || safe.activeRecovery.completedAt) return;
@@ -12851,10 +12904,12 @@ const openNoBuyGameDialog = (stats) => {
     const fromActionLog = Array.isArray(gamify.actionLog)
       ? gamify.actionLog
           .filter((entry) => entry && typeof entry === "object")
-          .map((entry) => ({
+          .map((entry, idx) => ({
             at: String(entry.at || ""),
             type: String(entry.type || ""),
             reason: String(entry.reason || "other"),
+            source: "actionLog",
+            sourceIndex: idx,
           }))
       : [];
     if (fromActionLog.length) {
@@ -12873,6 +12928,8 @@ const openNoBuyGameDialog = (stats) => {
           at: `${dateKey}T12:00:00`,
           type: "purchase",
           reason: String(entry?.reason || "other"),
+          source: "buyLog",
+          dateKey,
         });
       });
     }
@@ -12885,6 +12942,8 @@ const openNoBuyGameDialog = (stats) => {
           at: `${dateKey}T12:00:00`,
           type: "temptation",
           reason: String(entry?.trigger || "other"),
+          source: "dailyCheckins",
+          dateKey,
         });
       });
     }
@@ -12985,7 +13044,7 @@ const openNoBuyGameDialog = (stats) => {
             : "Unknown date";
           const typeLabel = entry.type === "purchase" ? "Buy logged" : "Tempted";
           const toneClass = entry.type === "purchase" ? "tone-bad" : "tone-good";
-          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span></div>`;
+          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
 
@@ -13051,6 +13110,30 @@ const openNoBuyGameDialog = (stats) => {
       exportNoBuyLogJson(loadNoBuyGamifyState());
     });
   }
+
+  const deleteButtons = content.querySelectorAll("[data-nobuy-delete='1']");
+  deleteButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const source = String(button.getAttribute("data-nobuy-source") || "");
+      const indexRaw = button.getAttribute("data-nobuy-index");
+      const index = indexRaw === null || indexRaw === "" ? NaN : Number(indexRaw);
+      const type = String(button.getAttribute("data-nobuy-type") || "");
+      const at = String(button.getAttribute("data-nobuy-at") || "");
+      const reason = String(button.getAttribute("data-nobuy-reason") || "");
+      const dateKey = String(button.getAttribute("data-nobuy-date") || "");
+      const next = deleteNoBuyLogEntry(loadNoBuyGamifyState(), {
+        source,
+        index: Number.isFinite(index) ? index : null,
+        type,
+        at,
+        reason,
+        dateKey,
+      });
+      saveNoBuyGamifyState(next);
+      if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
+      refresh();
+    });
+  });
 
   openDialog(dialog);
   resetDialogScroll(dialog);
