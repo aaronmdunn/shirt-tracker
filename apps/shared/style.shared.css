@@ -2589,6 +2589,8 @@ dialog {
 
 #stats-dialog .dialog-actions {
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   margin: 8px 20px 16px;
@@ -2907,8 +2909,16 @@ input[type="date"].stats-date-input {
   color: #1f8a4c;
 }
 
+.stats-label.tone-good {
+  color: #1f8a4c;
+}
+
 .insights-score-value.tone-bad,
 .stats-value.tone-bad {
+  color: #b13a3a;
+}
+
+.stats-label.tone-bad {
   color: #b13a3a;
 }
 
@@ -3306,6 +3316,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog,
 #advanced-stats-dialog,
 #first-wear-lag-dialog,
+#no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
   width: 92vw;
@@ -3316,6 +3327,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
+#no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
@@ -3327,14 +3339,66 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
+#no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   margin: 8px 20px 16px;
   padding: 8px 10px;
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls {
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#no-buy-game-dialog .no-buy-actions-row {
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+#no-buy-game-dialog .no-buy-actions-row .btn {
+  font-size: 0.78rem;
+  padding: 7px 12px;
+  white-space: nowrap;
+}
+
+#no-buy-game-dialog .no-buy-trigger-row {
+  justify-items: center;
+  text-align: center;
+}
+
+#no-buy-game-dialog .no-buy-select-row {
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+#no-buy-game-dialog .no-buy-select-group {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+#no-buy-game-dialog .no-buy-select-group .insights-queue-sim-date {
+  width: 12.5em;
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls .btn {
+  padding: 7px 12px;
+  font-size: 0.78rem;
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls .insights-queue-sim-date {
+  margin-bottom: 4px;
 }
 
 .advanced-stats-content {

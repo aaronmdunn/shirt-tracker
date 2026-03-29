@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.18";
+const APP_VERSION = "2.0.19";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -52,6 +52,7 @@ const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
 const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
+const NO_BUY_GAMIFY_KEY = "shirts-no-buy-gamify-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -639,6 +640,7 @@ const statsCloseButton = document.getElementById("stats-close");
 const statsAdvancedButton = document.getElementById("stats-advanced");
 const statsExportButton = document.getElementById("stats-export");
 const statsInsightsButton = document.getElementById("stats-insights");
+const statsNoBuyButton = document.getElementById("stats-no-buy");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
@@ -3199,7 +3201,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.18",
+    version: "2.0.19",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -10192,6 +10194,308 @@ const trackInsightsQueueSelection = (queueKey, dateKey) => {
   saveInsightsQueueActivity(next);
 };
 
+const defaultNoBuyGamifyState = () => ({
+  xp: 0,
+  level: 1,
+  currentStreak: 0,
+  longestStreak: 0,
+  lastNoBuyDate: "",
+  lastBuyDate: "",
+  lastBuyReason: "",
+  buyCredits: 0,
+  cooldownUntil: "",
+  totalBuysLogged: 0,
+  totalRecoveriesCompleted: 0,
+  noBuyDaysTotal: 0,
+  lastXpDate: "",
+  lastSyncDate: "",
+  lastObservedStreak: 0,
+  activeRecovery: null,
+  buyLog: [],
+  actionLog: [],
+  dailyCheckins: [],
+});
+
+const computeNoBuyLevel = (xp) => {
+  const safeXp = Math.max(0, Number(xp || 0));
+  return Math.floor(Math.sqrt(safeXp / 100)) + 1;
+};
+
+const normalizeNoBuyGamifyState = (value) => {
+  const base = defaultNoBuyGamifyState();
+  const raw = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : value;
+  const out = {
+    ...base,
+    xp: Math.max(0, Number(raw.xp || 0)),
+    level: Math.max(1, Number(raw.level || 1)),
+    currentStreak: Math.max(0, Number(raw.currentStreak || 0)),
+    longestStreak: Math.max(0, Number(raw.longestStreak || 0)),
+    lastNoBuyDate: String(raw.lastNoBuyDate || ""),
+    lastBuyDate: String(raw.lastBuyDate || ""),
+    lastBuyReason: String(raw.lastBuyReason || ""),
+    buyCredits: Math.max(0, Number(raw.buyCredits || 0)),
+    cooldownUntil: String(raw.cooldownUntil || ""),
+    totalBuysLogged: Math.max(0, Number(raw.totalBuysLogged || 0)),
+    totalRecoveriesCompleted: Math.max(0, Number(raw.totalRecoveriesCompleted || 0)),
+    noBuyDaysTotal: Math.max(0, Number(raw.noBuyDaysTotal || 0)),
+    lastXpDate: String(raw.lastXpDate || ""),
+    lastSyncDate: String(raw.lastSyncDate || ""),
+    lastObservedStreak: Math.max(0, Number(raw.lastObservedStreak || 0)),
+    activeRecovery: raw.activeRecovery && typeof raw.activeRecovery === "object" && !Array.isArray(raw.activeRecovery)
+      ? {
+          startedAt: String(raw.activeRecovery.startedAt || ""),
+          goalType: String(raw.activeRecovery.goalType || "wear_items"),
+          target: Math.max(1, Number(raw.activeRecovery.target || 3)),
+          progress: Math.max(0, Number(raw.activeRecovery.progress || 0)),
+          deadline: String(raw.activeRecovery.deadline || ""),
+          completedAt: String(raw.activeRecovery.completedAt || ""),
+        }
+      : null,
+    buyLog: Array.isArray(raw.buyLog)
+      ? raw.buyLog
+          .slice(-120)
+          .map((entry) => ({
+            dateKey: String(entry?.dateKey || ""),
+            reason: String(entry?.reason || ""),
+          }))
+      : [],
+    actionLog: Array.isArray(raw.actionLog)
+      ? raw.actionLog
+          .slice(-300)
+          .map((entry) => ({
+            at: String(entry?.at || ""),
+            type: String(entry?.type || ""),
+            reason: String(entry?.reason || ""),
+          }))
+      : [],
+    dailyCheckins: Array.isArray(raw.dailyCheckins)
+      ? raw.dailyCheckins
+          .slice(-120)
+          .map((entry) => ({
+            dateKey: String(entry?.dateKey || ""),
+            tempted: Boolean(entry?.tempted),
+            trigger: String(entry?.trigger || ""),
+          }))
+      : [],
+  };
+  out.level = computeNoBuyLevel(out.xp);
+  if (out.currentStreak > out.longestStreak) out.longestStreak = out.currentStreak;
+  return out;
+};
+
+const loadNoBuyGamifyState = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NO_BUY_GAMIFY_KEY) || "{}");
+    return normalizeNoBuyGamifyState(parsed);
+  } catch (error) {
+    return normalizeNoBuyGamifyState({});
+  }
+};
+
+const saveNoBuyGamifyState = (state) => {
+  try {
+    localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(normalizeNoBuyGamifyState(state)));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const getNoBuyMilestones = () => [7, 14, 30, 60, 90];
+
+const noBuyReasonLabel = (value) => {
+  const key = String(value || "").trim().toLowerCase();
+  const map = {
+    sale: "Sale",
+    gooddeal: "Good deal",
+    rarefind: "Rare find",
+    fomo: "FOMO",
+    boredom: "Boredom",
+    drop: "New drop",
+    gotpaid: "Got paid/Extra money",
+    marketed: "Marketed",
+    promo: "Promo/Sale",
+    other: "Other",
+  };
+  if (map[key]) return map[key];
+  if (!key) return "Other";
+  return key.replace(/[-_]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+};
+
+const getNoBuyNextMilestone = (streak) => {
+  const safeStreak = Math.max(0, Number(streak || 0));
+  const next = getNoBuyMilestones().find((day) => day > safeStreak);
+  return next || null;
+};
+
+const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
+  const counts = {};
+  safe.dailyCheckins.forEach((entry) => {
+    if (!entry?.tempted) return;
+    const key = String(entry.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const trigger = String(entry.trigger || "other").trim() || "other";
+    counts[trigger] = (counts[trigger] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label, count]) => ({ label, count }));
+};
+
+const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
+  const counts = {};
+
+  safe.dailyCheckins.forEach((entry) => {
+    if (!entry?.tempted) return;
+    const key = String(entry.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const trigger = String(entry.trigger || "other").trim() || "other";
+    const label = `Temptation: ${noBuyReasonLabel(trigger)}`;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+
+  safe.buyLog.forEach((entry) => {
+    const key = String(entry?.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const reason = String(entry?.reason || "other").trim() || "other";
+    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label, count]) => ({ label, count }));
+};
+
+const createNoBuyRecoveryMission = (state, nowIso) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  if (safe.activeRecovery && !safe.activeRecovery.completedAt) return safe;
+  const start = Number.isFinite(new Date(nowIso).getTime()) ? new Date(nowIso) : new Date();
+  const deadline = new Date(start);
+  deadline.setDate(deadline.getDate() + 7);
+  safe.activeRecovery = {
+    startedAt: start.toISOString(),
+    goalType: "wear_idle_items",
+    target: 3,
+    progress: 0,
+    deadline: deadline.toISOString(),
+    completedAt: "",
+  };
+  return safe;
+};
+
+const isNoBuyCooldownActive = (state) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  if (!safe.cooldownUntil) return false;
+  const ms = new Date(safe.cooldownUntil).getTime();
+  return Number.isFinite(ms) && ms > Date.now();
+};
+
+const startNoBuyCooldown = (state, hours = 24) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  if (isNoBuyCooldownActive(safe)) return safe;
+  const until = new Date();
+  until.setHours(until.getHours() + Math.max(1, Number(hours) || 24));
+  safe.cooldownUntil = until.toISOString();
+  return safe;
+};
+
+const logNoBuyBuyEvent = (state, reason = "") => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const todayKey = localDateKeyFromDate(new Date());
+  const cleanReason = String(reason || "other").trim() || "other";
+  const nowIso = new Date().toISOString();
+  if (safe.lastBuyDate !== todayKey) {
+    safe.totalBuysLogged += 1;
+    safe.lastBuyDate = todayKey;
+    safe.lastBuyReason = cleanReason;
+    safe.buyLog.push({ dateKey: todayKey, reason: cleanReason });
+    safe.buyLog = safe.buyLog.slice(-120);
+  }
+  safe.actionLog.push({ at: nowIso, type: "purchase", reason: cleanReason });
+  safe.actionLog = safe.actionLog.slice(-300);
+  safe.currentStreak = 0;
+  safe.lastObservedStreak = 0;
+  safe.cooldownUntil = "";
+  if (safe.buyCredits > 0) safe.buyCredits -= 1;
+  return createNoBuyRecoveryMission(safe, new Date().toISOString());
+};
+
+const recordNoBuyCheckin = (state, tempted, trigger = "") => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const todayKey = localDateKeyFromDate(new Date());
+  const nextTrigger = tempted ? (String(trigger || "other").trim() || "other") : "";
+  const nowIso = new Date().toISOString();
+  const existing = safe.dailyCheckins.find((entry) => entry.dateKey === todayKey);
+  if (existing) {
+    existing.tempted = Boolean(tempted);
+    existing.trigger = nextTrigger;
+  } else {
+    safe.dailyCheckins.push({ dateKey: todayKey, tempted: Boolean(tempted), trigger: nextTrigger });
+    safe.dailyCheckins = safe.dailyCheckins.slice(-120);
+  }
+  if (tempted) {
+    safe.actionLog.push({ at: nowIso, type: "temptation", reason: nextTrigger || "other" });
+    safe.actionLog = safe.actionLog.slice(-300);
+  }
+  return safe;
+};
+
+const syncNoBuyGamifyStateFromStats = (stats) => {
+  const safeStats = stats || {};
+  const safe = loadNoBuyGamifyState();
+  const todayKey = localDateKeyFromDate(new Date());
+  const currentStreak = Math.max(0, Number(safeStats.noBuyCurrentDays || 0));
+  if (safe.lastXpDate !== todayKey && currentStreak > 0) {
+    let xpGain = 10;
+    if (currentStreak >= 7) xpGain += 5;
+    if (currentStreak >= 14) xpGain += 10;
+    if (currentStreak >= 30) xpGain += 20;
+    if (currentStreak >= 60) xpGain += 20;
+    safe.xp += xpGain;
+    safe.noBuyDaysTotal += 1;
+    safe.lastXpDate = todayKey;
+    safe.lastNoBuyDate = todayKey;
+    if (safe.noBuyDaysTotal > 0 && safe.noBuyDaysTotal % 10 === 0) safe.buyCredits += 1;
+  }
+  // Manual-only buy logging: do NOT auto-log buys from streak drops.
+  // Users can add gifted/traded shirts without triggering buy events.
+  safe.currentStreak = currentStreak;
+  if (currentStreak > safe.longestStreak) safe.longestStreak = currentStreak;
+  safe.lastObservedStreak = currentStreak;
+  safe.level = computeNoBuyLevel(safe.xp);
+  safe.lastSyncDate = todayKey;
+  saveNoBuyGamifyState(safe);
+  return safe;
+};
+
+const progressNoBuyRecoveryOnWear = () => {
+  const safe = loadNoBuyGamifyState();
+  if (!safe.activeRecovery || safe.activeRecovery.completedAt) return;
+  const deadlineMs = new Date(safe.activeRecovery.deadline).getTime();
+  if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
+    saveNoBuyGamifyState(safe);
+    return;
+  }
+  safe.activeRecovery.progress = Math.min(safe.activeRecovery.target, (safe.activeRecovery.progress || 0) + 1);
+  if (safe.activeRecovery.progress >= safe.activeRecovery.target) {
+    safe.activeRecovery.completedAt = new Date().toISOString();
+    safe.totalRecoveriesCompleted += 1;
+    safe.xp += 50;
+    safe.level = computeNoBuyLevel(safe.xp);
+  }
+  saveNoBuyGamifyState(safe);
+};
+
 const safePercent = (numerator, denominator) => {
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
   return Math.round((numerator / denominator) * 100);
@@ -11265,6 +11569,7 @@ const markQueueItemWornToday = (queueItem) => {
     renderRows();
     renderFooter();
     addEventLog("Logged wear", rowLabel);
+    progressNoBuyRecoveryOnWear();
     return true;
   }
 
@@ -11279,6 +11584,7 @@ const markQueueItemWornToday = (queueItem) => {
     updateShirtUpdateDate();
     scheduleSync();
     addEventLog("Logged wear", rowLabel);
+    progressNoBuyRecoveryOnWear();
     return true;
   } catch (error) {
     return false;
@@ -11975,7 +12281,8 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
       ${bench.length
     ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
-    : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}`
+    : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}
+      `
     );
   };
 
@@ -12334,6 +12641,201 @@ const openInsightsDialog = (stats, options = {}) => {
       storyOpen = true;
       storyIndex = 0;
       renderStory();
+    });
+  }
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openNoBuyGameDialog = (stats) => {
+  let dialog = document.getElementById("no-buy-game-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "no-buy-game-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>No-Buy Challenge</h3>
+        <div id="no-buy-game-content" class="insights-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="no-buy-game-close">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeBtn = dialog.querySelector("#no-buy-game-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#no-buy-game-content");
+  if (!content) return;
+
+  const sourceStats = stats || collectAllStats();
+  const gamify = syncNoBuyGamifyStateFromStats(sourceStats);
+  const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
+  const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
+  const cooldownActive = isNoBuyCooldownActive(gamify);
+  const cooldownLabel = cooldownActive
+    ? `${Math.max(1, Math.ceil((new Date(gamify.cooldownUntil).getTime() - Date.now()) / 3600000))}h left`
+    : "inactive";
+  const trends = getNoBuyTrendSummary(gamify, 30);
+  const topTrend = trends.length ? `${trends[0].label} (${trends[0].count})` : "none";
+  const recentActions = Array.isArray(gamify.actionLog)
+    ? gamify.actionLog
+        .slice()
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+        .slice(0, 10)
+    : [];
+  const recovery = gamify.activeRecovery;
+  const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryLabel = recoveryActive
+    ? `${recovery.progress}/${recovery.target} by ${new Date(recovery.deadline).toLocaleDateString()}`
+    : "none";
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+
+  content.innerHTML = `
+    <div class="stats-hint">Daily anti-buy loop: build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
+    <div class="insights-score-grid">
+      <div class="insights-score-card">
+        <div class="insights-score-title">Current streak</div>
+        <div class="insights-score-value">${gamify.currentStreak} days</div>
+        <div class="insights-score-note">Longest streak: ${gamify.longestStreak} days</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">XP & level</div>
+        <div class="insights-score-value">Lv${gamify.level} · ${gamify.xp} XP</div>
+        <div class="insights-score-note">Total no-buy days banked: ${gamify.noBuyDaysTotal}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Buy credits</div>
+        <div class="insights-score-value">${gamify.buyCredits}</div>
+        <div class="insights-score-note">Earn 1 credit per 10 no-buy days</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Next milestone</div>
+        <div class="insights-score-value">${nextMilestone ? `${nextMilestone}d` : "Complete"}</div>
+        <div class="insights-score-note">${nextMilestone ? `${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} to go` : "All milestones reached"}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Cooldown</div>
+        <div class="insights-score-value">${cooldownLabel}</div>
+        <div class="insights-score-note">Use a 24h pause before committing to a buy</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Recovery mission</div>
+        <div class="insights-score-value">${esc(recoveryLabel)}</div>
+        <div class="insights-score-note">Complete to gain +50 XP</div>
+      </div>
+    </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Actions</div>
+    <div class="insights-controls no-buy-actions-row" style="margin-top:4px">
+      <button type="button" class="btn secondary" id="nobuy-start-cooldown">Start 24h cooldown</button>
+      <button type="button" class="btn secondary" id="nobuy-log-buy">Log buy now</button>
+      <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
+      <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
+    </div>
+    <div class="no-buy-select-row" style="margin-top:8px">
+      <div class="no-buy-select-group">
+        <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
+        <select id="nobuy-trigger" class="insights-queue-sim-date">
+          <option value="" selected disabled>Select reason</option>
+          <option value="sale">Sale</option>
+          <option value="gooddeal">Good deal</option>
+          <option value="rarefind">Rare find</option>
+          <option value="fomo">FOMO</option>
+          <option value="boredom">Boredom</option>
+          <option value="drop">New drop</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="no-buy-select-group">
+        <label class="insights-sim-label" for="nobuy-buy-reason">Buying reason</label>
+        <select id="nobuy-buy-reason" class="insights-queue-sim-date">
+          <option value="" selected disabled>Select reason</option>
+          <option value="gooddeal">Good deal</option>
+          <option value="rarefind">Rare find</option>
+          <option value="boredom">Boredom</option>
+          <option value="gotpaid">Got paid/Extra money</option>
+          <option value="marketed">Marketed</option>
+          <option value="promo">Promo/Sale</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Recent button log</div>
+    <div class="stats-hint">Last 10 clicks for Tempted today and Log buy now, with timestamp and reason.</div>
+    ${recentActions.length
+      ? `<div class="insights-action-list">${recentActions.map((entry, idx) => {
+          const whenMs = new Date(entry.at).getTime();
+          const whenLabel = Number.isFinite(whenMs)
+            ? new Date(whenMs).toLocaleString()
+            : "Unknown date";
+          const typeLabel = entry.type === "purchase" ? "Buy logged" : "Tempted";
+          const toneClass = entry.type === "purchase" ? "tone-bad" : "tone-good";
+          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span></div>`;
+        }).join("")}</div>`
+      : `<div class="stats-hint">No button activity yet.</div>`}
+
+    <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
+    ${trends.length
+      ? `<div class="insights-action-list">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count}</span></div>`).join("")}</div>`
+      : `<div class="stats-hint">No trend data yet. Use Tempted today and Log buy now to capture both temptation and purchase reasons.</div>`}
+
+    <div class="stats-section-title" style="margin-top:8px">Status summary</div>
+    <div class="insights-action-list">
+      <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
+    </div>
+  `;
+
+  const refresh = () => openNoBuyGameDialog(collectAllStats());
+  const startCooldownBtn = content.querySelector("#nobuy-start-cooldown");
+  const logBuyBtn = content.querySelector("#nobuy-log-buy");
+  const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
+  const clearBtn = content.querySelector("#nobuy-checkin-clear");
+  const triggerSelect = content.querySelector("#nobuy-trigger");
+  const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
+
+  if (startCooldownBtn) {
+    startCooldownBtn.addEventListener("click", () => {
+      const next = startNoBuyCooldown(loadNoBuyGamifyState(), 24);
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (logBuyBtn) {
+    logBuyBtn.addEventListener("click", () => {
+      const reason = buyReasonSelect ? String(buyReasonSelect.value || "other") : "other";
+      const next = logNoBuyBuyEvent(loadNoBuyGamifyState(), reason);
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (temptedBtn) {
+    temptedBtn.addEventListener("click", () => {
+      const trigger = triggerSelect ? String(triggerSelect.value || "other") : "other";
+      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, trigger);
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), false, "");
+      saveNoBuyGamifyState(next);
+      refresh();
     });
   }
 
@@ -12728,6 +13230,11 @@ const openStatsDialog = () => {
   if (statsInsightsButton) {
     statsInsightsButton.onclick = () => {
       openInsightsDialog(s);
+    };
+  }
+  if (statsNoBuyButton) {
+    statsNoBuyButton.onclick = () => {
+      openNoBuyGameDialog(s);
     };
   }
   if (statsExportButton) {
