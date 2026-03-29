@@ -9,6 +9,11 @@
       "Upgraded Main Stats with a collector snapshot, today’s-story summary, richer whale context, recent-add activation status, and lighter collapsible treatment for lower-priority sections",
       "Upgraded Advanced Stats with stronger strongest/weakest callouts, grace-window-adjusted backlog reads, monthly verdicts, seasonal quiet-window detection, and sleeper-vs-overloaded tag reads",
       "Added extra summary cards in Insights, Advanced Stats, and No-Buy so marketplace, activation, and trigger grids feel fuller and more informative",
+      "Added Work Appropriate and Formal lane coverage summaries in Insights and Advanced Stats so special-purpose tagged shirts show up as their own collector lanes",
+      "Updated queue telemetry so row-level Log Wear actions count toward queue acceptance stats after the undo window, even when the wear is backdated",
+      "Extended holiday-tag matching to Easter, Mardi Gras, and Dia de los Muertos so holiday recommendations and out-of-season handling include the new tags",
+      "Treat Borlandflex as flannel-like in seasonal recommendation logic so RSVLTS flannels receive the same boosts, penalties, and seasonal-window labeling",
+      "Fixed the shared flannel-like helper scope so the new Borlandflex holiday/seasonal logic does not throw when opening Insights",
       "Refreshed stats-related dialogs with a softer multi-color visual system across cards, sections, bars, links, and headings so analytics feel richer without becoming harsh",
       "Shipped routine release maintenance: version references updated to 2.1.0 across web, shared, and Tauri metadata"
     ]
