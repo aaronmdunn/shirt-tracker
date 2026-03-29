@@ -4774,16 +4774,29 @@ const buildDuplicateRiskMatches = async (wishlistRow, wishlistColumns, chosenTab
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 };
 
-const openDuplicateRiskDialog = (matches, chosenBrandName) => new Promise((resolve) => {
-  const topMatches = matches.slice(0, 3);
-  const strongest = matches[0] || null;
+const summarizeDuplicateRiskMatches = (matches) => {
+  const list = Array.isArray(matches) ? matches : [];
+  const strongest = list[0] || null;
   const maxScore = strongest ? strongest.score : 0;
-  const visualMatches = matches.filter((match) => match.imageCompared).length;
-  const riskLevel = maxScore >= 80 || (matches.length >= 3 && maxScore >= 55)
+  const visualMatches = list.filter((match) => match.imageCompared).length;
+  const riskLevel = maxScore >= 80 || (list.length >= 3 && maxScore >= 55)
     ? "High"
-    : maxScore >= 55 || matches.length >= 2
+    : maxScore >= 55 || list.length >= 2
       ? "Medium"
       : "Low";
+  return {
+    flagged: list.length > 0,
+    riskLevel: list.length ? riskLevel : "Clear",
+    similarCount: list.length,
+    visualMatchCount: visualMatches,
+    strongestScore: strongest ? strongest.score : 0,
+    strongestLabel: strongest ? `${strongest.name} (${strongest.brand}) - ${strongest.type}` : "",
+  };
+};
+
+const openDuplicateRiskDialog = (matches, chosenBrandName) => new Promise((resolve) => {
+  const topMatches = matches.slice(0, 3);
+  const summary = summarizeDuplicateRiskMatches(matches);
   const esc = (str) => String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -4796,10 +4809,10 @@ const openDuplicateRiskDialog = (matches, chosenBrandName) => new Promise((resol
       <h3 style="margin-top:0">Duplicate Risk Check</h3>
       <div class="stats-hint">This wishlist item looks close to ${matches.length} owned item${matches.length === 1 ? "" : "s"}${chosenBrandName ? ` in ${esc(chosenBrandName)}` : ""}. Photo similarity leads when previews are available; text fields only fill the gaps.</div>
       <div class="stats-section" style="margin-top:12px">
-        <div class="stats-row"><span class="stats-label">Risk level</span><span class="stats-value">${esc(riskLevel)}</span></div>
+        <div class="stats-row"><span class="stats-label">Risk level</span><span class="stats-value">${esc(summary.riskLevel)}</span></div>
         <div class="stats-row"><span class="stats-label">Similar owned items</span><span class="stats-value">${matches.length}</span></div>
-        <div class="stats-row"><span class="stats-label">Photo-based matches</span><span class="stats-value">${visualMatches}</span></div>
-        <div class="stats-row"><span class="stats-label">Strongest match</span><span class="stats-value">${strongest ? esc(`${strongest.name} (${strongest.brand}) - ${strongest.type}`) : "n/a"}</span></div>
+        <div class="stats-row"><span class="stats-label">Photo-based matches</span><span class="stats-value">${summary.visualMatchCount}</span></div>
+        <div class="stats-row"><span class="stats-label">Strongest match</span><span class="stats-value">${summary.strongestLabel ? esc(summary.strongestLabel) : "n/a"}</span></div>
       </div>
       <div class="stats-section-title" style="margin-top:12px">Closest matches</div>
       <div class="insights-action-list">${topMatches.map((match, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${match.name} (${match.brand}) - ${match.type}`)}</span><span class="stats-value">Score ${match.score} · ${esc(match.reasons.join(" · "))}</span></div>`).join("")}</div>
@@ -4909,6 +4922,7 @@ const moveRowToInventory = async (rowId) => {
   });
   const chosenTab = invTabs.find((tab) => tab.id === chosenTabId);
   const duplicateMatches = await buildDuplicateRiskMatches(row, wishlistColumns, chosenTab);
+  const duplicateRiskSummary = summarizeDuplicateRiskMatches(duplicateMatches);
   if (duplicateMatches.length) {
     const shouldContinue = await openDuplicateRiskDialog(
       duplicateMatches,
@@ -4976,6 +4990,7 @@ const moveRowToInventory = async (rowId) => {
       wishlistAddedAt: row.createdAt || "",
       type: cellValuesByName["type"] || "",
       brand: chosenTab ? chosenTab.name : (cellValuesByName["brand"] || ""),
+      duplicateRisk: duplicateRiskSummary,
     });
     // Prune to 500 entries max, tracking trimmed count for lifetime total
     const GOT_IT_CAP = 500;
@@ -9911,6 +9926,12 @@ const collectAllStats = () => {
     trackedCount: 0,
     linkedInventoryCount: 0,
     legacyCount: 0,
+    buyGateReviewedCount: 0,
+    duplicateFlaggedCount: 0,
+    flaggedFirstWearPct: null,
+    clearFirstWearPct: null,
+    flaggedRepeatWearPct: null,
+    clearRepeatWearPct: null,
     firstWearCount: 0,
     repeatWearCount: 0,
     firstWearPct: null,
@@ -9973,6 +9994,11 @@ const collectAllStats = () => {
     const linkedItems = [];
     const wishlistToGotItSamples = [];
     const gotItToFirstWearSamples = [];
+    const pctFor = (items, key) => {
+      if (!items.length) return null;
+      const yesCount = items.filter((item) => Boolean(item[key])).length;
+      return Math.round((yesCount / items.length) * 100);
+    };
 
     gotItLog.forEach((entry) => {
       if (!entry || typeof entry !== "object") return;
@@ -10016,6 +10042,15 @@ const collectAllStats = () => {
       }
 
       const repeatWear = wearCount >= 2;
+      const duplicateRisk = entry && entry.duplicateRisk && typeof entry.duplicateRisk === "object"
+        ? {
+          flagged: Boolean(entry.duplicateRisk.flagged),
+          riskLevel: String(entry.duplicateRisk.riskLevel || (entry.duplicateRisk.flagged ? "Flagged" : "Clear")),
+          similarCount: Math.max(0, Number(entry.duplicateRisk.similarCount || 0)),
+          visualMatchCount: Math.max(0, Number(entry.duplicateRisk.visualMatchCount || 0)),
+          strongestLabel: String(entry.duplicateRisk.strongestLabel || ""),
+        }
+        : null;
       let status = "Inventory row missing";
       if (inventoryEntry) {
         if (firstWearAt && repeatWear) {
@@ -10042,6 +10077,10 @@ const collectAllStats = () => {
         wearCount,
         repeatWear,
         inventoryFound: Boolean(inventoryEntry),
+        duplicateRisk,
+        riskLabel: duplicateRisk
+          ? (duplicateRisk.flagged ? `${duplicateRisk.riskLevel} risk` : "Clear buy gate")
+          : "Legacy",
         status,
       };
       trackedItems.push(item);
@@ -10051,11 +10090,20 @@ const collectAllStats = () => {
     trackedItems.sort((a, b) => new Date(b.obtainedAt || 0) - new Date(a.obtainedAt || 0) || a.name.localeCompare(b.name));
     const firstWearCount = linkedItems.filter((item) => item.firstWearAt).length;
     const repeatWearCount = linkedItems.filter((item) => item.repeatWear).length;
+    const reviewedItems = linkedItems.filter((item) => item.duplicateRisk);
+    const flaggedItems = reviewedItems.filter((item) => item.duplicateRisk && item.duplicateRisk.flagged);
+    const clearItems = reviewedItems.filter((item) => item.duplicateRisk && !item.duplicateRisk.flagged);
     wishlistConversion = {
       lifetimeTotal: gotItLog.length + trimmedCount,
       trackedCount: trackedItems.length,
       linkedInventoryCount: linkedItems.length,
       legacyCount: gotItLog.filter((entry) => !String(entry?.inventoryRowId || "").trim()).length + trimmedCount,
+      buyGateReviewedCount: reviewedItems.length,
+      duplicateFlaggedCount: flaggedItems.length,
+      flaggedFirstWearPct: pctFor(flaggedItems, "firstWearAt"),
+      clearFirstWearPct: pctFor(clearItems, "firstWearAt"),
+      flaggedRepeatWearPct: pctFor(flaggedItems, "repeatWear"),
+      clearRepeatWearPct: pctFor(clearItems, "repeatWear"),
       firstWearCount,
       repeatWearCount,
       firstWearPct: linkedItems.length ? Math.round((firstWearCount / linkedItems.length) * 100) : null,
@@ -10369,12 +10417,15 @@ const openWishlistConversionDialog = (funnel) => {
     const firstWearLabel = funnel && typeof funnel.firstWearPct === "number"
       ? `${funnel.firstWearPct}% first-wear rate`
       : "No first-wear data yet";
-    summary.textContent = `${items.length} tracked conversion${items.length === 1 ? "" : "s"} · ${firstWearLabel}`;
+    const gateLabel = funnel && typeof funnel.duplicateFlaggedCount === "number"
+      ? `${funnel.duplicateFlaggedCount} duplicate-flagged`
+      : "No buy-gate data yet";
+    summary.textContent = `${items.length} tracked conversion${items.length === 1 ? "" : "s"} · ${firstWearLabel} · ${gateLabel}`;
   }
 
   const head = document.createElement("div");
   head.className = "added-history-item added-history-head";
-  head.innerHTML = "<span>Name</span><span>Brand</span><span>Type</span><span>Obtained</span><span>Status</span>";
+  head.innerHTML = "<span>Name</span><span>Brand</span><span>Type</span><span>Risk</span><span>Obtained</span><span>Status</span>";
   list.appendChild(head);
 
   items.forEach((item) => {
@@ -10385,6 +10436,7 @@ const openWishlistConversionDialog = (funnel) => {
       item.name || "Unnamed",
       item.brand || "\u2014",
       item.type || "\u2014",
+      item.riskLabel || "Legacy",
       obtainedLabel,
       item.status || "\u2014",
     ];
@@ -14139,6 +14191,30 @@ const openStatsDialog = () => {
     );
     wishBlock += row("Top converting brand", topBrand);
     wishBlock += row("Top converting type", topType);
+    wishBlock += row(
+      "Buy gate reviewed",
+      funnel.buyGateReviewedCount ? `${funnel.buyGateReviewedCount} tracked buys` : "n/a"
+    );
+    wishBlock += row(
+      "Duplicate-flagged buys",
+      funnel.buyGateReviewedCount ? `${funnel.duplicateFlaggedCount}/${funnel.buyGateReviewedCount}` : "n/a"
+    );
+    wishBlock += row(
+      "Flagged first-wear rate",
+      funnel.flaggedFirstWearPct === null ? "n/a" : `${funnel.flaggedFirstWearPct}%`
+    );
+    wishBlock += row(
+      "Clear-buy first-wear rate",
+      funnel.clearFirstWearPct === null ? "n/a" : `${funnel.clearFirstWearPct}%`
+    );
+    wishBlock += row(
+      "Flagged repeat-wear rate",
+      funnel.flaggedRepeatWearPct === null ? "n/a" : `${funnel.flaggedRepeatWearPct}%`
+    );
+    wishBlock += row(
+      "Clear-buy repeat-wear rate",
+      funnel.clearRepeatWearPct === null ? "n/a" : `${funnel.clearRepeatWearPct}%`
+    );
     wishBlock += `<div class="stats-hint" style="margin-top:8px">Conversion metrics use newer Got It! logs with stable wishlist-to-inventory links. Older obtained history still counts toward lifetime totals but may not have precise funnel data.</div>`;
     wishBlock += `<div style="margin-top:8px"><button type="button" class="btn secondary" id="stats-wishlist-funnel-link">View conversion details</button></div>`;
     html += section(wishBlock);
