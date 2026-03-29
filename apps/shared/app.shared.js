@@ -10765,12 +10765,15 @@ const normalizeInsightsQueueActivity = (value) => {
       exposures: Number(entry.exposures || 0),
       selections: Number(entry.selections || 0),
       snoozes: Number(entry.snoozes || 0),
+      softPasses: Number(entry.softPasses || 0),
       exposureDays: Number(entry.exposureDays || 0),
       selectionDays: Number(entry.selectionDays || 0),
       snoozeDays: Number(entry.snoozeDays || 0),
+      softPassDays: Number(entry.softPassDays || 0),
       lastExposureDate: String(entry.lastExposureDate || ""),
       lastSelectedDate: String(entry.lastSelectedDate || ""),
       lastSnoozeDate: String(entry.lastSnoozeDate || ""),
+      lastSoftPassDate: String(entry.lastSoftPassDate || ""),
     };
   });
   return next;
@@ -10819,7 +10822,7 @@ const trackInsightsQueueExposure = (queueItems, dateKey) => {
     const key = String(item?.key || "");
     if (!key) return;
     if (!next[key] || typeof next[key] !== "object") {
-      next[key] = { exposures: 0, selections: 0, snoozes: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "" };
+      next[key] = { exposures: 0, selections: 0, snoozes: 0, softPasses: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, softPassDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "", lastSoftPassDate: "" };
     }
     if (next[key].lastExposureDate === todayKey) return;
     next[key].exposures = (next[key].exposures || 0) + 1;
@@ -10839,9 +10842,9 @@ const trackInsightsQueueSelection = (queueKey, dateKey) => {
   if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
   }
-    if (!next[key] || typeof next[key] !== "object") {
-      next[key] = { exposures: 0, selections: 0, snoozes: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "" };
-    }
+  if (!next[key] || typeof next[key] !== "object") {
+    next[key] = { exposures: 0, selections: 0, snoozes: 0, softPasses: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, softPassDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "", lastSoftPassDate: "" };
+  }
   if (next[key].lastSelectedDate === todayKey) {
     saveInsightsQueueActivity(next);
     return;
@@ -10863,12 +10866,32 @@ const trackInsightsQueueSnooze = (queueKey, dateKey) => {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
   }
   if (!next[key] || typeof next[key] !== "object") {
-    next[key] = { exposures: 0, selections: 0, snoozes: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "" };
+    next[key] = { exposures: 0, selections: 0, snoozes: 0, softPasses: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, softPassDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "", lastSoftPassDate: "" };
   }
   next[key].snoozes = (next[key].snoozes || 0) + 1;
   if (next[key].lastSnoozeDate !== todayKey) {
     next[key].snoozeDays = (next[key].snoozeDays || 0) + 1;
     next[key].lastSnoozeDate = todayKey;
+  }
+  saveInsightsQueueActivity(next);
+};
+
+const trackInsightsQueueSoftPass = (queueKey, dateKey) => {
+  const key = String(queueKey || "");
+  if (!key) return;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return;
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
+    next.__daily[todayKey] = { exposures: 0, selections: 0 };
+  }
+  if (!next[key] || typeof next[key] !== "object") {
+    next[key] = { exposures: 0, selections: 0, snoozes: 0, softPasses: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, softPassDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "", lastSoftPassDate: "" };
+  }
+  next[key].softPasses = (next[key].softPasses || 0) + 1;
+  if (next[key].lastSoftPassDate !== todayKey) {
+    next[key].softPassDays = (next[key].softPassDays || 0) + 1;
+    next[key].lastSoftPassDate = todayKey;
   }
   saveInsightsQueueActivity(next);
 };
@@ -11567,7 +11590,11 @@ const buildBehaviorInsights = (stats, queue = []) => {
     return Number.isFinite(createdMs) && createdMs > (nowMs - (120 * dayMs));
   }).length;
   const seasonalExemptCount = wearableItems.filter((item) => isSeasonalExempt(item)).length;
-  const expectedTouchesPerMonth = Math.max(8, Math.min(20, Math.round(wearableItems.length * 0.07)));
+  const recent90UniqueTouches = new Set(recentEvents
+    .filter((event) => event.wornMs >= (nowMs - (90 * dayMs)) && event.wornMs <= nowMs)
+    .map((event) => getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type }))).size;
+  const actualTouchesPerMonth = Math.max(1, Math.round((recent90UniqueTouches / 3) * 10) / 10);
+  const expectedTouchesPerMonth = Math.max(6, Math.min(24, Math.round(Math.max(actualTouchesPerMonth, covered365Count / 12 || 0, wearableItems.length * 0.04))));
 
   const coverageScore = Math.max(0, Math.min(100, Math.round(((annualCoveragePct - 35) / 40) * 100)));
   const tierATargetMid = 58;
@@ -11578,6 +11605,36 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const tierCPct = safePercent(dormantCount, wearableItems.length);
   const tierPenalty = Math.abs(tierAPct - tierATargetMid) + Math.abs(tierBPct - tierBTargetMid) + Math.abs(tierCPct - tierCTargetMid);
   const tierBalanceScore = Math.max(0, Math.min(100, 100 - Math.round(tierPenalty * 0.9)));
+  const recent365BrandCounts = {};
+  recentEvents.forEach((event) => {
+    if (!Number.isFinite(event.wornMs) || event.wornMs < annualWindowMs || event.wornMs > nowMs) return;
+    const brand = String(event.tab || "Unknown").trim() || "Unknown";
+    recent365BrandCounts[brand] = (recent365BrandCounts[brand] || 0) + 1;
+  });
+  const topBrandDominanceEntry = Object.entries(recent365BrandCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+  const topBrandDominance = topBrandDominanceEntry
+    ? {
+      label: topBrandDominanceEntry[0],
+      count: topBrandDominanceEntry[1],
+      sharePct: safePercent(topBrandDominanceEntry[1], recentEvents.filter((event) => Number.isFinite(event.wornMs) && event.wornMs >= annualWindowMs && event.wornMs <= nowMs).length),
+    }
+    : null;
+  const parkedIntentional = { count: 0, value: 0 };
+  const parkedUncertain = { count: 0, value: 0 };
+  wearableItems.forEach((item) => {
+    const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    const daysSince = Number.isNaN(lastWornMs) ? Infinity : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+    if (daysSince < 365) return;
+    const value = Number(item?.price || 0);
+    if (isProtectedTagged(item) || isSeasonalExempt(item)) {
+      parkedIntentional.count += 1;
+      if (value > 0) parkedIntentional.value += value;
+      return;
+    }
+    parkedUncertain.count += 1;
+    if (value > 0) parkedUncertain.value += value;
+  });
 
   const weekly = {};
   recentEvents.forEach((event) => {
@@ -11813,10 +11870,11 @@ const buildBehaviorInsights = (stats, queue = []) => {
       const exposures = Number(activity.exposures || 0);
       const selections = Number(activity.selections || 0);
       const snoozes = Number(activity.snoozes || 0);
+      const softPasses = Number(activity.softPasses || 0);
       const selectionRate = exposures > 0 ? selections / exposures : 0;
       const skips = Math.max(0, exposures - selections);
       const browseAllowance = Math.min(skips, Math.floor(Number(activity.exposureDays || 0) * 0.6));
-      const adjustedSkips = Math.max(0, skips - browseAllowance);
+      const adjustedSkips = Math.max(0, skips - browseAllowance - softPasses);
       const lastExposureMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastExposureDate || ""))
         ? new Date(`${activity.lastExposureDate}T12:00:00`).getTime()
         : NaN;
@@ -11826,9 +11884,13 @@ const buildBehaviorInsights = (stats, queue = []) => {
       const lastSnoozeMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastSnoozeDate || ""))
         ? new Date(`${activity.lastSnoozeDate}T12:00:00`).getTime()
         : NaN;
+      const lastSoftPassMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastSoftPassDate || ""))
+        ? new Date(`${activity.lastSoftPassDate}T12:00:00`).getTime()
+        : NaN;
       const daysSinceSeen = Number.isNaN(lastExposureMs) ? null : Math.max(0, Math.floor((nowMs - lastExposureMs) / dayMs));
       const daysSincePicked = Number.isNaN(lastSelectedMs) ? null : Math.max(0, Math.floor((nowMs - lastSelectedMs) / dayMs));
       const daysSinceSnoozed = Number.isNaN(lastSnoozeMs) ? null : Math.max(0, Math.floor((nowMs - lastSnoozeMs) / dayMs));
+      const daysSinceSoftPass = Number.isNaN(lastSoftPassMs) ? null : Math.max(0, Math.floor((nowMs - lastSoftPassMs) / dayMs));
       const pressureScore = Math.round(
         (adjustedSkips * 4)
         + Math.max(0, (1 - selectionRate) * 26)
@@ -11837,6 +11899,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
         + Math.min(18, Number(activity.snoozeDays || 0) * 6)
         + (daysSincePicked !== null && daysSincePicked > 21 ? 8 : 0)
         + (daysSinceSnoozed !== null && daysSinceSnoozed <= 14 ? 8 : 0)
+        - Math.min(14, softPasses * 4)
+        - (daysSinceSoftPass !== null && daysSinceSoftPass <= 7 ? 6 : 0)
       );
       if (snoozes === 0 && exposures < 7) return null;
       if (selectionRate >= 0.4 && snoozes === 0 && pressureScore < 55) return null;
@@ -11851,13 +11915,16 @@ const buildBehaviorInsights = (stats, queue = []) => {
         skips,
         adjustedSkips,
         snoozes,
+        softPasses,
         selectionRate,
         pressureScore,
         exposureDays: Number(activity.exposureDays || 0),
         snoozeDays: Number(activity.snoozeDays || 0),
+        softPassDays: Number(activity.softPassDays || 0),
         daysSinceSeen,
         daysSincePicked,
         daysSinceSnoozed,
+        daysSinceSoftPass,
       };
     })
     .filter(Boolean)
@@ -11926,20 +11993,29 @@ const buildBehaviorInsights = (stats, queue = []) => {
       const queueKey = getInsightsQueueKey(item);
       const activity = queueActivity[queueKey] || null;
       const snoozes = Number(activity?.snoozes || 0);
+      const reasons = [];
       let score = 0;
       score += Math.min(50, wearCount * 7);
+      if (wearCount <= 1) reasons.push("low repeat depth");
+      else if (wearCount <= 3) reasons.push("still building repeat depth");
       if (medianGap === null) score += 12;
       else if (medianGap <= 180) score += 24;
       else if (medianGap <= 365) score += 20;
       else if (medianGap <= 540) score += 16;
       else if (medianGap <= 730) score += 12;
       else score += 8;
+      if (medianGap !== null && medianGap > 540) reasons.push("very long repeat gap");
       if (daysSince !== null) {
         if (daysSince <= 365) score += 22;
         else if (daysSince <= 730) score += 14;
         else if (daysSince <= 1095) score += 7;
+        if (daysSince > 730) reasons.push("long time since last wear");
       }
-      if (snoozes > 0) score -= Math.min(12, snoozes * 4);
+      if (snoozes > 0) {
+        score -= Math.min(12, snoozes * 4);
+        reasons.push(snoozes === 1 ? "recently snoozed" : `snoozed ${snoozes}x`);
+      }
+      if (!reasons.length) reasons.push("collector-normal spacing");
       return {
         key: queueKey,
         name: String(item?.name || "Unnamed"),
@@ -11949,6 +12025,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
         medianGap,
         daysSince,
         snoozes,
+        reasonText: reasons.slice(0, 2).join(" · "),
         confidenceScore: Math.max(0, Math.min(100, Math.round(score))),
       };
     })
@@ -11997,10 +12074,10 @@ const buildBehaviorInsights = (stats, queue = []) => {
   };
 
   const marketplaceTagStats = {
-    bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
-    ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
-    mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
-    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
+    ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
+    mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
+    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
   };
 
   const confidenceByKey = {};
@@ -12034,6 +12111,11 @@ const buildBehaviorInsights = (stats, queue = []) => {
         bucket.totalValue += price;
         bucket.cpwSamples.push(price / Math.max(1, wearCount));
       }
+      bucket.wearSamples.push(wearCount);
+      const confidenceHit = confidenceByKey[getInsightsQueueKey(item)] || null;
+      if (wearCount >= 3 && ((daysSince !== null && daysSince <= 365) || (confidenceHit && confidenceHit.confidenceScore >= 60))) {
+        bucket.strongKeepers += 1;
+      }
     });
   });
 
@@ -12042,7 +12124,12 @@ const buildBehaviorInsights = (stats, queue = []) => {
       const avg = bucket.cpwSamples.reduce((sum, value) => sum + value, 0) / bucket.cpwSamples.length;
       bucket.avgCpw = Math.round(avg * 10) / 10;
     }
+    if (bucket.wearSamples.length) {
+      const avg = bucket.wearSamples.reduce((sum, value) => sum + value, 0) / bucket.wearSamples.length;
+      bucket.avgWears = Math.round(avg * 10) / 10;
+    }
     delete bucket.cpwSamples;
+    delete bucket.wearSamples;
   });
 
   const sellSuggestions = wearableItems
@@ -12093,12 +12180,14 @@ const buildBehaviorInsights = (stats, queue = []) => {
       if (daysSince !== null && daysSince <= 30) score -= 25;
 
       if (score < 45) return null;
+      const actionLabel = score >= 78 ? "Sell candidate" : "Review";
       return {
         key,
         name: String(item?.name || "Unnamed"),
         tab: String(item?.tab || "Unknown"),
         type: String(item?.type || "Unknown"),
         score,
+        actionLabel,
         reasons,
         daysSince,
         wearCount,
@@ -12182,11 +12271,17 @@ const buildBehaviorInsights = (stats, queue = []) => {
       coverageScore,
       tierBalanceScore,
       expectedTouchesPerMonth,
+      actualTouchesPerMonth,
       eligibleBacklogCount: backlogEligible.length,
       neverWornEligibleCount: neverWornEligible.length,
       adjustedBacklogPct,
       graceCount,
       seasonalExemptCount,
+      topBrandDominance,
+      parkedValueSplit: {
+        intentional: parkedIntentional,
+        uncertain: parkedUncertain,
+      },
     },
     acquisition: {
       score: acquisitionScore,
@@ -12517,6 +12612,17 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
       else if (wearCount >= 2 && daysSince !== null && daysSince >= 120) lane = "Safe return";
       const laneKey = String(lane || "rotation-pick").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const laneHint = lane === "First wear"
+        ? "New pickup ready for an intentional first spin."
+        : lane === "Seasonal window"
+          ? "Timing, weather, or event logic makes this a smart moment."
+          : lane === "Value wear"
+            ? "High-value piece that is worth bringing back on purpose."
+            : lane === "Deep cut"
+              ? "Long-idle favorite that deserves a fresh look."
+              : lane === "Safe return"
+                ? "Proven shirt with enough distance to feel fresh again."
+                : "Well-rounded pick from the current rotation mix.";
 
       return {
         key,
@@ -12527,6 +12633,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         type,
         lane,
         laneKey,
+        laneHint,
         score,
         reason: reasonParts.join(" · "),
         breakdown,
@@ -12654,7 +12761,8 @@ const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
       cells[idx] = { day, count, dateKey };
     }
 
-    html += `<div class="insights-month"><div class="insights-month-title"><span>${monthNames[month]}</span><span>${monthCount}</span></div><div class="insights-heatmap-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="insights-month-grid">`;
+    const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+    html += `<div class="insights-month"><div class="insights-month-title"><span>${monthNames[month]}</span>${monthCount > 0 ? `<button type="button" class="insights-month-summary" data-insights-heat-month="${esc(monthKey)}">${monthCount}</button>` : `<span>${monthCount}</span>`}</div><div class="insights-heatmap-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="insights-month-grid">`;
     cells.forEach((cell) => {
       if (!cell) {
         html += `<div class="insights-heat-cell empty"></div>`;
@@ -12681,6 +12789,20 @@ const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
       const dateLabel = new Date(`${dateKey}T12:00:00`).toLocaleDateString();
       const filterLabel = brandFilter && brandFilter !== "all" ? ` for ${brandFilter}` : "";
       openWearHistoryDialog(dayEvents, {
+        title: `Wear History · ${dateLabel}${filterLabel}`,
+        emptySummary: `No wear history logged for ${dateLabel}${filterLabel}.`,
+      });
+    });
+  });
+  const monthButtons = mount.querySelectorAll("[data-insights-heat-month]");
+  monthButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const monthKey = String(button.getAttribute("data-insights-heat-month") || "");
+      if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
+      const monthEvents = filteredEvents.filter((event) => String(event.dateKey || "").startsWith(`${monthKey}-`));
+      const dateLabel = new Date(`${monthKey}-01T12:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+      const filterLabel = brandFilter && brandFilter !== "all" ? ` for ${brandFilter}` : "";
+      openWearHistoryDialog(monthEvents, {
         title: `Wear History · ${dateLabel}${filterLabel}`,
         emptySummary: `No wear history logged for ${dateLabel}${filterLabel}.`,
       });
@@ -12883,6 +13005,11 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
   const topTags = Array.isArray(dna.topTags)
     ? dna.topTags.map((tag) => `${tag.label} (${tag.count})`).join(" · ")
     : "";
+  const collectorLesson = dna.addsCount > dna.uniqueItems
+    ? "Adds outpaced unique wears, so the smartest move next period is to revive a couple of existing favorites before buying further into the same lane."
+    : dna.uniqueItems >= Math.max(12, Math.round(dna.totalWears * 0.65))
+      ? "Your rotation breadth stayed healthy, so the best move next period is to keep that spread alive with one deliberate deep cut."
+      : "A few lanes carried most of the period, so the best move next period is to give one overlooked in-season piece a protected slot.";
 
   return [
     {
@@ -12918,6 +13045,11 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
       title: "Flavor check",
       stat: `${dna.topFandom?.label || "n/a"} fandom · ${dna.topTag?.label || "n/a"} tag`,
       narration: `Flavor check is your style identity snapshot, not a score. It combines fandom signal (${dna.topFandom?.label || "n/a"}) with your strongest tag signal (${dna.topTag?.label || "n/a"}) to show what your closet "voice" sounded like this period. Recommendation: keep one flavor anchor, then rotate one deep-cut alternative when you want freshness without losing identity.`,
+    },
+    {
+      title: "Collector lesson",
+      stat: `${dna.uniqueItems} unique items · ${dna.addsCount} adds`,
+      narration: collectorLesson,
     },
   ];
 };
@@ -13027,11 +13159,14 @@ const openInsightsDialog = (stats, options = {}) => {
       coverageScore: 0,
       tierBalanceScore: 0,
       expectedTouchesPerMonth: 0,
+      actualTouchesPerMonth: 0,
       eligibleBacklogCount: 0,
       neverWornEligibleCount: 0,
       adjustedBacklogPct: 0,
       graceCount: 0,
       seasonalExemptCount: 0,
+      topBrandDominance: null,
+      parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } },
     };
     const fatigue = behavior?.fatigue || { count: 0, themes: [] };
     const friction = behavior?.friction || { avgAcceptance: 0, highFrictionDays: 0, worstDay: null, weekdayRows: [], totalDays: 0 };
@@ -13077,13 +13212,16 @@ const openInsightsDialog = (stats, options = {}) => {
       : "n/a";
     const playbookCount = Array.isArray(reactivation.playbook) ? reactivation.playbook.length : 0;
     const sellLead = sellSuggestions.length
-      ? `${sellSuggestions[0].name} (${sellSuggestions[0].score})`
+      ? `${sellSuggestions[0].name} (${sellSuggestions[0].actionLabel})`
       : "n/a";
     const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
       .join(" · ");
     const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
+    const dominanceLabel = rotationModel.topBrandDominance
+      ? `${rotationModel.topBrandDominance.label} (${rotationModel.topBrandDominance.sharePct}% of last-year wears)`
+      : "No dominant brand lane yet";
 
     const volatilityTone = volatility.score <= 24 ? "good" : volatility.score >= 44 ? "bad" : "";
     const personaTone = persona && persona.similarity >= 70 ? "good" : persona && persona.similarity < 45 ? "bad" : "";
@@ -13197,6 +13335,7 @@ const openInsightsDialog = (stats, options = {}) => {
           ${insightValue(`${rotationModel.coverageScore}/100 (${rotationModel.annualCoveragePct}% touched)`, coverageTone)}
           <div class="insights-score-note">${rotationModel.covered365Count}/${rotationModel.closetSize} wearable items worn at least once in the last 365 days.</div>
           <div class="insights-score-note">Collector-normal target pace: ~${rotationModel.expectedTouchesPerMonth} unique touches per month.</div>
+          <div class="insights-score-note">Your recent pace: ~${rotationModel.actualTouchesPerMonth} unique touches per month.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Wildcard pick of the week</div>
@@ -13209,6 +13348,7 @@ const openInsightsDialog = (stats, options = {}) => {
           ${insightValue(`${rotationModel.neverWornEligibleCount}/${rotationModel.eligibleBacklogCount} (${rotationModel.adjustedBacklogPct}%)`, adjustedBacklogTone)}
           <div class="insights-score-note">Excludes <120d adds, Whale/sentimental/archive items, and out-of-season exempt pieces.</div>
           <div class="insights-score-note">Grace window items (not penalized yet): ${rotationModel.graceCount}.</div>
+          <div class="insights-score-note">Target pace is learned from your recent collector cadence, not a generic closet rule.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Theme fatigue detector</div>
@@ -13235,6 +13375,11 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Most fragile signal: ${esc(confidenceLead)}</div>
         </div>
         <div class="insights-score-card">
+          <div class="insights-score-title">Top brand lane</div>
+          ${insightValue(esc(dominanceLabel), rotationModel.topBrandDominance && rotationModel.topBrandDominance.sharePct >= 38 ? "bad" : rotationModel.topBrandDominance && rotationModel.topBrandDominance.sharePct <= 24 ? "good" : "")}
+          <div class="insights-score-note">Helps catch variety drift when one brand quietly starts carrying too much of the year.</div>
+        </div>
+        <div class="insights-score-card">
           <div class="insights-score-title">Adaptive queue profile</div>
           ${insightValue(`${adaptive.sampleSize} type signals`, adaptiveTone)}
           <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
@@ -13247,10 +13392,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Sell suggestions</div>
+          <div class="insights-score-title">Sell / review shortlist</div>
           ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
-          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
+          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, with review-first handling for borderline cases.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
@@ -13267,6 +13412,7 @@ const openInsightsDialog = (stats, options = {}) => {
         <div class="stats-row stats-sub"><span class="stats-label">Tier C (dormant >730d)</span><span class="stats-value">${rotationModel.tierC.count} items (${rotationModel.tierC.pct}%)</span></div>
         <div class="stats-row stats-sub"><span class="stats-label">Tier balance score</span><span class="stats-value">${rotationModel.tierBalanceScore}/100</span></div>
         <div class="stats-row stats-sub"><span class="stats-label">Seasonal exemptions this cycle</span><span class="stats-value">${rotationModel.seasonalExemptCount} items</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Top brand lane</span><span class="stats-value">${esc(dominanceLabel)}</span></div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
       <div class="stats-hint">Historically strong items now cooling off over a real collector interval; useful when you want safe re-entry pieces without overreacting to normal rotation gaps (protected archive/sentimental/Whale items are excluded).</div>
@@ -13291,7 +13437,7 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
       <div class="stats-hint">Items with weak repeat confidence based on actual repeat evidence, very long gaps, and explicit queue push-away signals. Collector-normal yearly spacing is treated more gently here.</div>
       ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
-    ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`} · snoozed ${item.snoozes || 0}x</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${esc(item.reasonText || "low signal")} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Confidence curve is healthy. Low-signal list appears when a worn item drifts into weak repeat confidence.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
       <div class="stats-hint">Type-level boost/cool suggestions derived from actual queue exposure vs selection outcomes.</div>
@@ -13303,18 +13449,18 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Suggested sell shortlist</div>
-      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag (protected archive/sentimental/Whale items are excluded).</div>
+      <div class="stats-section-title" style="margin-top:8px">Sell / review shortlist</div>
+      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag. Borderline cases are framed as review first, not automatic sell calls (protected archive/sentimental/Whale items are excluded).</div>
       ${sellSuggestions.length
-    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
-      <div class="stats-hint">Breaks down BST/eBay/Mercari/XXChange-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
-      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
+      <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
+      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
-      <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
+      <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency. Use Not today when a pass is about timing, not rejection.</div>
       ${bench.length
-    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · snoozed ${item.snoozes}x · adjusted skips ${item.adjustedSkips} · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · snoozed ${item.snoozes}x · not today ${item.softPasses || 0}x · adjusted skips ${item.adjustedSkips} · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}
       `
     );
@@ -13377,6 +13523,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-title">Parked value</div>
           ${insightValue(`${formatCurrency(inactive?.inactive365Value || 0)}`, idleTone)}
           <div class="insights-score-note">${inactive?.inactive365Count || 0} items parked over ${inactiveWindow} days</div>
+          <div class="insights-score-note">Intentional: ${rotationModel.parkedValueSplit.intentional.count} · uncertain: ${rotationModel.parkedValueSplit.uncertain.count}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Adoption lag</div>
@@ -13408,7 +13555,7 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
         <div>
           <div class="stats-row stats-sub"><span class="stats-label">2. Parked >${inactiveWindow}d</span><span class="stats-value">${inactive?.inactive365Count || 0} items · ${formatCurrency(inactive?.inactive365Value || 0)}</span></div>
-          <div class="stats-hint">These items have been parked for a long collector cycle. Suggested move: revisit 1-2 in-season pieces, then decide keep/archive/sell.</div>
+          <div class="stats-hint">These items have been parked for a long collector cycle. Intentional parked value: ${rotationModel.parkedValueSplit.intentional.count} items. Uncertain parked value: ${rotationModel.parkedValueSplit.uncertain.count} items.</div>
         </div>
         <div>
           <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items (${neverWornPctOfWearables}% of wearables)</span></div>
@@ -13421,7 +13568,7 @@ const openInsightsDialog = (stats, options = {}) => {
   if (queue.length) {
     html += section(
       "Wear next queue",
-      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Each pick now carries a lane like First wear, Seasonal window, Safe return, Deep cut, or Value wear so the queue feels more intentional. "Why this ranked" shows the full score math. Snooze hides an item for 3 days.</div>
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Each pick carries a lane and a quick explanation so the queue feels intentional. "Why this ranked" shows the full score math. Snooze hides an item for 3 days.</div>
       <div class="insights-controls insights-queue-sim-controls">
         <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
         <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
@@ -13435,11 +13582,13 @@ const openInsightsDialog = (stats, options = {}) => {
               <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
               <div class="insights-queue-score lane-${esc(item.laneKey || "rotation-pick")}">${esc(item.lane || "Rotation pick")} · ${Math.round(item.score)}</div>
             </div>
+              <div class="stats-hint insights-queue-lane-hint">${esc(item.laneHint || "")}</div>
               <div class="insights-queue-meta">
                 <span>${esc(item.reason)}</span>
                 <div class="insights-queue-actions">
                   <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
                   <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-soft-pass="${esc(item.key)}">Not today</button>
                   <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze</button>
                 </div>
               </div>
@@ -13474,7 +13623,7 @@ const openInsightsDialog = (stats, options = {}) => {
   const brands = Array.from(new Set(wearEvents.map((event) => event.tab).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   html += section(
     "Wear calendar heatmap",
-    `<div class="stats-hint">Daily wear intensity map for spotting dead zones and strong rotation months.</div>
+    `<div class="stats-hint">Daily wear intensity map for spotting dead zones and strong rotation months. Click a day for that date, or a month total for the full month.</div>
      <div class="insights-controls">
        <select id="insights-heatmap-year">${(years.length ? years : [selectedYear]).map((year) => `<option value="${year}">${year}</option>`).join("")}</select>
        <select id="insights-heatmap-brand"><option value="all">All brands</option>${brands.map((brand) => `<option value="${esc(brand)}">${esc(brand)}</option>`).join("")}</select>
@@ -13495,6 +13644,21 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       trackInsightsQueueSnooze(key, localDateKeyFromDate(new Date()));
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+    });
+  });
+
+  const softPassButtons = content.querySelectorAll("[data-insights-soft-pass]");
+  softPassButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.getAttribute("data-insights-soft-pass");
+      if (!key) return;
+      const next = loadInsightsSnoozes();
+      const until = new Date();
+      until.setDate(until.getDate() + 1);
+      next[key] = localDateKeyFromDate(until);
+      saveInsightsSnoozes(next);
+      trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
       openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });

@@ -3220,6 +3220,10 @@ input[type="date"].stats-date-input {
   gap: 8px;
 }
 
+.insights-queue-lane-hint {
+  margin-top: -2px;
+}
+
 .insights-queue-actions {
   display: inline-flex;
   align-items: center;
@@ -3298,6 +3302,16 @@ input[type="date"].stats-date-input {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+}
+
+.insights-month-summary {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
 }
 
 .insights-heatmap-weekdays,
