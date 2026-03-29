@@ -10631,6 +10631,124 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const adaptiveBoosts = typePerfRows.filter((row) => row.rate >= 0.35).slice(0, 3);
   const adaptiveSuppressions = typePerfRows.slice().sort((a, b) => a.rate - b.rate || b.exposures - a.exposures).filter((row) => row.rate <= 0.16).slice(0, 3);
 
+  const getMarketplaceMatches = (item) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    const normalized = tags.map((tag) => String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const set = new Set(normalized);
+    const matches = [];
+    if (set.has("bst")) matches.push("bst");
+    if (set.has("ebay")) matches.push("ebay");
+    if (set.has("mercari")) matches.push("mercari");
+    return matches;
+  };
+
+  const marketplaceTagStats = {
+    bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+  };
+
+  const confidenceByKey = {};
+  confidenceRows.forEach((row) => {
+    if (row?.key) confidenceByKey[row.key] = row;
+  });
+
+  const benchByKey = {};
+  benchPressure.forEach((row) => {
+    if (row?.key) benchByKey[row.key] = row;
+  });
+
+  const recoveryByKey = {};
+  valueRecoveryCandidates.forEach((row) => {
+    if (row?.key) recoveryByKey[row.key] = row;
+  });
+
+  wearableItems.forEach((item) => {
+    const price = Number(item?.price || 0);
+    const wearCount = Math.max(0, Number(item?.wearCount || 0));
+    const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+    const matches = getMarketplaceMatches(item);
+    matches.forEach((id) => {
+      const bucket = marketplaceTagStats[id];
+      if (!bucket) return;
+      bucket.count += 1;
+      if (wearCount === 0) bucket.neverWorn += 1;
+      if (daysSince !== null && daysSince >= 180) bucket.inactive180 += 1;
+      if (price > 0) {
+        bucket.totalValue += price;
+        bucket.cpwSamples.push(price / Math.max(1, wearCount));
+      }
+    });
+  });
+
+  Object.values(marketplaceTagStats).forEach((bucket) => {
+    if (bucket.cpwSamples.length) {
+      const avg = bucket.cpwSamples.reduce((sum, value) => sum + value, 0) / bucket.cpwSamples.length;
+      bucket.avgCpw = Math.round(avg * 10) / 10;
+    }
+    delete bucket.cpwSamples;
+  });
+
+  const sellSuggestions = wearableItems
+    .map((item) => {
+      const key = getInsightsQueueKey(item);
+      const wearCount = Math.max(0, Number(item?.wearCount || 0));
+      const price = Number(item?.price || 0);
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      let score = 0;
+      const reasons = [];
+      if (wearCount === 0) {
+        score += 55;
+        reasons.push("never worn");
+      }
+      if (daysSince !== null && daysSince >= 365) {
+        score += 40;
+        reasons.push(`${daysSince}d idle`);
+      } else if (daysSince !== null && daysSince >= 180) {
+        score += 28;
+        reasons.push(`${daysSince}d inactive`);
+      }
+      const benchHit = benchByKey[key] || null;
+      if (benchHit) {
+        score += Math.min(35, Math.round(benchHit.pressureScore * 0.35));
+        reasons.push(`bench pressure ${benchHit.pressureScore}`);
+      }
+      const confidenceHit = confidenceByKey[key] || null;
+      if (confidenceHit && confidenceHit.confidenceScore <= 45) {
+        score += Math.round((50 - confidenceHit.confidenceScore) * 0.6);
+        reasons.push(`confidence ${confidenceHit.confidenceScore}`);
+      }
+      const recoveryHit = recoveryByKey[key] || null;
+      if (recoveryHit) {
+        score += Math.min(26, Math.round(recoveryHit.currentCpw));
+        reasons.push(`${Math.round(recoveryHit.currentCpw)}/wear`);
+      }
+      const marketMatches = getMarketplaceMatches(item);
+      if (marketMatches.length) {
+        score += 8;
+        reasons.push(`tagged ${marketMatches.map((id) => marketplaceTagStats[id]?.label || id).join("/")}`);
+      }
+      if (daysSince !== null && daysSince <= 30) score -= 25;
+
+      if (score < 45) return null;
+      return {
+        key,
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        score,
+        reasons,
+        daysSince,
+        wearCount,
+        price,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
+    .slice(0, 3);
+
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
     if (!item?.key || queueByKey[item.key]) return;
@@ -10727,6 +10845,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
     reactivation: {
       playbook,
     },
+    sellSuggestions,
+    marketplaceTags: marketplaceTagStats,
     comebackCandidates,
     benchPressure,
   };
@@ -11468,6 +11588,12 @@ const openInsightsDialog = (stats, options = {}) => {
     const confidence = behavior?.confidence || { avgConfidence: 0, lowConfidence: [], totalTracked: 0 };
     const adaptive = behavior?.adaptive || { boosts: [], suppressions: [], sampleSize: 0 };
     const reactivation = behavior?.reactivation || { playbook: [] };
+    const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
+    const marketplaceTags = behavior?.marketplaceTags || {
+      bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+    };
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
     const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
     const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
@@ -11499,6 +11625,14 @@ const openInsightsDialog = (stats, options = {}) => {
       ? `${adaptive.boosts[0].type} (${Math.round(adaptive.boosts[0].rate * 100)}%)`
       : "n/a";
     const playbookCount = Array.isArray(reactivation.playbook) ? reactivation.playbook.length : 0;
+    const sellLead = sellSuggestions.length
+      ? `${sellSuggestions[0].name} (${sellSuggestions[0].score})`
+      : "n/a";
+    const marketSummary = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+      .map((row) => `${row.label} ${row.count}`)
+      .join(" · ");
+    const marketValueTotal = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+      .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
 
     const comebackByKey = {};
     comeback.forEach((item) => {
@@ -11647,6 +11781,18 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Built from comeback, bench pressure, and value-recovery priorities.</div>
           <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Sell suggestions</div>
+          <div class="insights-score-value">${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}</div>
+          <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
+          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">BST/eBay/Mercari tags</div>
+          <div class="insights-score-value">${esc(marketSummary)}</div>
+          <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
+          <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
+        </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
       ${comeback.length
@@ -11676,6 +11822,12 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Suggested sell shortlist</div>
+      ${sellSuggestions.length
+    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
+      <div class="insights-action-list">${[marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari].map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       ${bench.length
     ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
