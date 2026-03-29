@@ -2843,6 +2843,7 @@ input[type="date"].stats-date-input {
 
 .stats-date-lookup .stats-link-button,
 #stats-unworn-six-months-link {
+  display: block;
   margin: 0 auto;
   text-align: center;
 }
