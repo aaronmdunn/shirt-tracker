@@ -10372,7 +10372,6 @@ const syncNoBuyGamifyStateFromStats = (stats) => {
   const safe = loadNoBuyGamifyState();
   const todayKey = localDateKeyFromDate(new Date());
   const currentStreak = Math.max(0, Number(safeStats.noBuyCurrentDays || 0));
-  const prevObserved = Math.max(0, Number(safe.lastObservedStreak || 0));
   if (safe.lastXpDate !== todayKey && currentStreak > 0) {
     let xpGain = 10;
     if (currentStreak >= 7) xpGain += 5;
@@ -10385,11 +10384,8 @@ const syncNoBuyGamifyStateFromStats = (stats) => {
     safe.lastNoBuyDate = todayKey;
     if (safe.noBuyDaysTotal > 0 && safe.noBuyDaysTotal % 10 === 0) safe.buyCredits += 1;
   }
-  if (prevObserved > 0 && currentStreak === 0 && safe.lastBuyDate !== todayKey) {
-    safe.totalBuysLogged += 1;
-    safe.lastBuyDate = todayKey;
-    createNoBuyRecoveryMission(safe, new Date().toISOString());
-  }
+  // Manual-only buy logging: do NOT auto-log buys from streak drops.
+  // Users can add gifted/traded shirts without triggering buy events.
   safe.currentStreak = currentStreak;
   if (currentStreak > safe.longestStreak) safe.longestStreak = currentStreak;
   safe.lastObservedStreak = currentStreak;
