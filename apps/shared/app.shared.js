@@ -11745,10 +11745,6 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead"];
   const holidayMonths = new Set([1, 2, 3, 4, 6, 9, 10, 11]);
   const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
-  const isFlannelLikeText = (text) => {
-    const normalized = String(text || "").toLowerCase();
-    return normalized.includes("flannel") || normalized.includes("borlandflex");
-  };
   const isSeasonalExempt = (item) => {
     const typeText = `${String(item?.type || "")} ${String(item?.name || "")}`.toLowerCase();
     const flannelOffSeason = monthNow >= 5 && monthNow <= 7 && isFlannelLikeText(typeText);
@@ -12522,6 +12518,11 @@ const buildBehaviorInsights = (stats, queue = []) => {
 const normalizeHolidayTagKey = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
+
+const isFlannelLikeText = (text) => {
+  const normalized = String(text || "").toLowerCase();
+  return normalized.includes("flannel") || normalized.includes("borlandflex");
+};
 
 const buildTaggedLaneStats = (items, aliases, options = {}) => {
   const allItems = Array.isArray(items) ? items : [];
