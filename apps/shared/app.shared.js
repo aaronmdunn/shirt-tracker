@@ -51,6 +51,7 @@ const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
+const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -10092,6 +10093,286 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
+const loadInsightsQueueActivity = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY) || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch (error) {
+    return {};
+  }
+};
+
+const saveInsightsQueueActivity = (value) => {
+  try {
+    localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(value || {}));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const trackInsightsQueueExposure = (queueItems, dateKey) => {
+  if (!Array.isArray(queueItems) || !queueItems.length) return;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return;
+  const next = loadInsightsQueueActivity();
+  queueItems.forEach((item) => {
+    const key = String(item?.key || "");
+    if (!key) return;
+    if (!next[key] || typeof next[key] !== "object") {
+      next[key] = { exposures: 0, selections: 0, lastExposureDate: "", lastSelectedDate: "" };
+    }
+    if (next[key].lastExposureDate === todayKey) return;
+    next[key].exposures = (next[key].exposures || 0) + 1;
+    next[key].lastExposureDate = todayKey;
+  });
+  saveInsightsQueueActivity(next);
+};
+
+const trackInsightsQueueSelection = (queueKey, dateKey) => {
+  const key = String(queueKey || "");
+  if (!key) return;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return;
+  const next = loadInsightsQueueActivity();
+  if (!next[key] || typeof next[key] !== "object") {
+    next[key] = { exposures: 0, selections: 0, lastExposureDate: "", lastSelectedDate: "" };
+  }
+  if (next[key].lastSelectedDate === todayKey) {
+    saveInsightsQueueActivity(next);
+    return;
+  }
+  next[key].selections = (next[key].selections || 0) + 1;
+  next[key].lastSelectedDate = todayKey;
+  saveInsightsQueueActivity(next);
+};
+
+const safePercent = (numerator, denominator) => {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+};
+
+const toDateMsFromWearEvent = (event) => {
+  const direct = new Date(event?.wornAt).getTime();
+  if (!Number.isNaN(direct)) return direct;
+  const key = String(event?.dateKey || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+    const fromKey = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isNaN(fromKey)) return fromKey;
+  }
+  return null;
+};
+
+const toWeekStartKey = (ms) => {
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0, 0, 0, 0);
+  return localDateKeyFromDate(d);
+};
+
+const normalizeCounts = (counts) => {
+  const entries = Object.entries(counts || {});
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (!total) return {};
+  const out = {};
+  entries.forEach(([label, count]) => {
+    out[label] = count / total;
+  });
+  return out;
+};
+
+const distributionDrift = (aCounts, bCounts) => {
+  const a = normalizeCounts(aCounts);
+  const b = normalizeCounts(bCounts);
+  const labels = new Set([...Object.keys(a), ...Object.keys(b)]);
+  if (!labels.size) return 0;
+  let sumAbs = 0;
+  labels.forEach((label) => {
+    sumAbs += Math.abs((a[label] || 0) - (b[label] || 0));
+  });
+  return Math.min(1, sumAbs / 2);
+};
+
+const topCounts = (counts, limit) => Object.entries(counts || {})
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  .slice(0, limit)
+  .map(([label, count]) => ({ label, count }));
+
+const buildBehaviorInsights = (stats) => {
+  const nowMs = Date.now();
+  const dayMs = 86400000;
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const itemLookup = {};
+  wearableItems.forEach((item) => {
+    const key = getInsightsQueueKey(item);
+    if (!itemLookup[key]) itemLookup[key] = item;
+  });
+
+  const recentEvents = wearEvents
+    .map((event) => ({ ...event, wornMs: toDateMsFromWearEvent(event) }))
+    .filter((event) => Number.isFinite(event.wornMs));
+
+  const weekly = {};
+  recentEvents.forEach((event) => {
+    const ageDays = Math.floor((nowMs - event.wornMs) / dayMs);
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > 7 * 12) return;
+    const weekKey = toWeekStartKey(event.wornMs);
+    if (!weekKey) return;
+    if (!weekly[weekKey]) weekly[weekKey] = { typeCounts: {}, total: 0 };
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    weekly[weekKey].typeCounts[type] = (weekly[weekKey].typeCounts[type] || 0) + 1;
+    weekly[weekKey].total += 1;
+  });
+  const weeklyKeys = Object.keys(weekly).sort();
+  const weeklyDrifts = [];
+  for (let i = 1; i < weeklyKeys.length; i += 1) {
+    const prev = weekly[weeklyKeys[i - 1]].typeCounts;
+    const next = weekly[weeklyKeys[i]].typeCounts;
+    weeklyDrifts.push(Math.round(distributionDrift(prev, next) * 100));
+  }
+  const volatilityScore = weeklyDrifts.length
+    ? Math.round(weeklyDrifts.reduce((sum, value) => sum + value, 0) / weeklyDrifts.length)
+    : 0;
+  const volatilityLabel = volatilityScore < 18 ? "Stable" : volatilityScore < 36 ? "Shifting" : "Volatile";
+
+  const split = {
+    weekday: { brandCounts: {}, typeCounts: {}, tagCounts: {}, total: 0 },
+    weekend: { brandCounts: {}, typeCounts: {}, tagCounts: {}, total: 0 },
+  };
+  recentEvents.forEach((event) => {
+    const ageDays = Math.floor((nowMs - event.wornMs) / dayMs);
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > 120) return;
+    const day = new Date(event.wornMs).getDay();
+    const bucket = day === 5 || day === 6 || day === 0 ? split.weekend : split.weekday;
+    const brand = String(event.tab || "Unknown").trim() || "Unknown";
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    bucket.brandCounts[brand] = (bucket.brandCounts[brand] || 0) + 1;
+    bucket.typeCounts[type] = (bucket.typeCounts[type] || 0) + 1;
+    bucket.total += 1;
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    const tags = Array.isArray(itemLookup[key]?.tags) ? itemLookup[key].tags : [];
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      bucket.tagCounts[clean] = (bucket.tagCounts[clean] || 0) + 1;
+    });
+  });
+  const personaSimilarity = Math.max(0, 100 - Math.round(distributionDrift(split.weekday.typeCounts, split.weekend.typeCounts) * 100));
+
+  const makeTopLabel = (counts) => {
+    const top = topCounts(counts, 1)[0];
+    return top ? `${top.label} (${top.count})` : "n/a";
+  };
+
+  const coreStartMs = nowMs - (180 * dayMs);
+  const priorStartMs = nowMs - (60 * dayMs);
+  const windowStartMs = nowMs - (30 * dayMs);
+  const baselineTypeCounts = {};
+  const windowTypeCounts = {};
+  const priorTypeCounts = {};
+  recentEvents.forEach((event) => {
+    if (event.wornMs < coreStartMs || event.wornMs > nowMs) return;
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    if (event.wornMs < priorStartMs) baselineTypeCounts[type] = (baselineTypeCounts[type] || 0) + 1;
+    else if (event.wornMs < windowStartMs) priorTypeCounts[type] = (priorTypeCounts[type] || 0) + 1;
+    else windowTypeCounts[type] = (windowTypeCounts[type] || 0) + 1;
+  });
+  const coreTypes = new Set(topCounts(baselineTypeCounts, 3).map((item) => item.label));
+  const countCore = (counts) => Object.entries(counts).reduce((sum, [label, count]) => sum + (coreTypes.has(label) ? count : 0), 0);
+  const windowTotal = Object.values(windowTypeCounts).reduce((sum, count) => sum + count, 0);
+  const priorTotal = Object.values(priorTypeCounts).reduce((sum, count) => sum + count, 0);
+  const windowExploration = windowTotal - countCore(windowTypeCounts);
+  const priorExploration = priorTotal - countCore(priorTypeCounts);
+  const explorationPct = safePercent(windowExploration, windowTotal);
+  const priorExplorationPct = safePercent(priorExploration, priorTotal);
+
+  const comebackCandidates = wearableItems
+    .map((item) => {
+      const wearCount = Number(item?.wearCount || 0);
+      const key = getInsightsQueueKey(item);
+      const name = String(item?.name || "Unnamed");
+      const tab = String(item?.tab || "Unknown");
+      const type = String(item?.type || "Unknown");
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      const price = Number(item?.price || 0);
+      if (wearCount < 2 || daysSince === null || daysSince < 45) return null;
+      const score = Math.round(Math.min(90, wearCount * 8) + Math.min(90, daysSince * 0.45) + Math.min(24, Math.log10(price + 1) * 10));
+      return {
+        key,
+        name,
+        tab,
+        type,
+        wearCount,
+        daysSince,
+        score,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 5);
+
+  const queueActivity = loadInsightsQueueActivity();
+  const benchPressure = wearableItems
+    .map((item) => {
+      const key = getInsightsQueueKey(item);
+      const activity = queueActivity[key];
+      if (!activity || (activity.exposures || 0) < 3) return null;
+      const exposures = Number(activity.exposures || 0);
+      const selections = Number(activity.selections || 0);
+      const selectionRate = exposures > 0 ? selections / exposures : 0;
+      if (selectionRate >= 0.34) return null;
+      return {
+        key,
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        exposures,
+        selections,
+        selectionRate,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.exposures - a.exposures || a.selectionRate - b.selectionRate || a.name.localeCompare(b.name))
+    .slice(0, 8);
+
+  return {
+    volatility: {
+      score: volatilityScore,
+      label: volatilityLabel,
+      weeklyDrifts,
+      latestShift: weeklyDrifts.length ? weeklyDrifts[weeklyDrifts.length - 1] : 0,
+    },
+    persona: {
+      similarity: personaSimilarity,
+      weekday: {
+        total: split.weekday.total,
+        topBrand: makeTopLabel(split.weekday.brandCounts),
+        topType: makeTopLabel(split.weekday.typeCounts),
+        topTag: makeTopLabel(split.weekday.tagCounts),
+      },
+      weekend: {
+        total: split.weekend.total,
+        topBrand: makeTopLabel(split.weekend.brandCounts),
+        topType: makeTopLabel(split.weekend.typeCounts),
+        topTag: makeTopLabel(split.weekend.tagCounts),
+      },
+    },
+    exploration: {
+      pct: explorationPct,
+      trend: explorationPct - priorExplorationPct,
+      coreTypes: Array.from(coreTypes),
+      windowTotal,
+    },
+    comebackCandidates,
+    benchPressure,
+  };
+};
+
 const normalizeHolidayTagKey = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
@@ -10780,6 +11061,7 @@ const openInsightsDialog = (stats, options = {}) => {
     : localDateKeyFromDate(new Date());
   const snoozes = loadInsightsSnoozes();
   const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
+  const behavior = buildBehaviorInsights(stats);
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
@@ -10816,6 +11098,64 @@ const openInsightsDialog = (stats, options = {}) => {
     </div>`;
   };
 
+  const renderBehaviorInsights = () => {
+    const volatility = behavior?.volatility || { score: 0, label: "n/a", weeklyDrifts: [], latestShift: 0 };
+    const persona = behavior?.persona || null;
+    const exploration = behavior?.exploration || { pct: 0, trend: 0, coreTypes: [], windowTotal: 0 };
+    const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
+    const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
+    const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
+      ? volatility.weeklyDrifts.slice(-6).join(" · ")
+      : "n/a";
+    const trendLabel = exploration.trend === 0
+      ? "flat"
+      : exploration.trend > 0
+        ? `+${exploration.trend} pts vs prior 30d`
+        : `${exploration.trend} pts vs prior 30d`;
+    const benchAvgRate = bench.length
+      ? Math.round(bench.reduce((sum, item) => sum + item.selectionRate, 0) * 100 / bench.length)
+      : 0;
+
+    return section(
+      "Behavior & coaching",
+      `<div class="stats-hint">Why rotation patterns changed and what to do next, based on your recent wear behavior.</div>
+      <div class="insights-score-grid">
+        <div class="insights-score-card">
+          <div class="insights-score-title">Rotation volatility</div>
+          <div class="insights-score-value">${volatility.score}/100 (${esc(volatility.label)})</div>
+          <div class="insights-score-note">Week-to-week type drift (last 12 weeks). Higher means sharper rotation swings.</div>
+          <div class="insights-score-note">Recent drift points: ${esc(driftPreview)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Weekday vs weekend persona</div>
+          <div class="insights-score-value">${persona ? `${persona.similarity}% match` : "n/a"}</div>
+          <div class="insights-score-note">Weekday: ${esc(persona ? `${persona.weekday.topBrand} · ${persona.weekday.topType}` : "n/a")}</div>
+          <div class="insights-score-note">Weekend: ${esc(persona ? `${persona.weekend.topBrand} · ${persona.weekend.topType}` : "n/a")}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Style exploration ratio</div>
+          <div class="insights-score-value">${exploration.pct}% exploratory wears</div>
+          <div class="insights-score-note">Core style baseline: ${esc(exploration.coreTypes.length ? exploration.coreTypes.join(" · ") : "n/a")}</div>
+          <div class="insights-score-note">Trend: ${esc(trendLabel)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Bench pressure (lite)</div>
+          <div class="insights-score-value">${bench.length} queued-but-skipped items</div>
+          <div class="insights-score-note">Average selection rate: ${benchAvgRate}%</div>
+          <div class="insights-score-note">If pressure rises, wear one of the top skipped items or snooze it to reduce noise.</div>
+        </div>
+      </div>
+      <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
+      ${comeback.length
+    ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
+      ${bench.length
+    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}`
+    );
+  };
+
   let html = "";
   html += section(
     "Personal style DNA (Wrapped)",
@@ -10829,6 +11169,7 @@ const openInsightsDialog = (stats, options = {}) => {
      </div>
      <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
   );
+  html += renderBehaviorInsights();
 
   if (health) {
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
@@ -11002,6 +11343,7 @@ const openInsightsDialog = (stats, options = {}) => {
       const item = Number.isFinite(idx) ? queue[idx] : null;
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
+      trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
       openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });
@@ -11037,6 +11379,7 @@ const openInsightsDialog = (stats, options = {}) => {
   bindChange(yearSelect, rerenderHeatmap);
   bindChange(brandSelect, rerenderHeatmap);
   rerenderHeatmap();
+  trackInsightsQueueExposure(queue, activeSimDateKey);
 
   const storyRoot = content.querySelector("#insights-story-root");
   const storyPlayButton = content.querySelector("#insights-story-play");
