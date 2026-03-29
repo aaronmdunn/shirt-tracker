@@ -3031,10 +3031,24 @@ input[type="date"].stats-date-input {
 
 .insights-queue-sim-controls {
   align-items: center;
+  justify-content: center;
 }
 
 .insights-queue-sim-controls #insights-queue-sim-today {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 0 auto;
+}
+
+.insights-queue-sim-controls .insights-sim-label {
   flex-basis: 100%;
+  text-align: center;
+}
+
+.insights-queue-sim-controls .insights-queue-sim-date {
+  flex-basis: 100%;
+  width: 160px;
+  min-width: 0;
   margin: 0 auto;
 }
 
