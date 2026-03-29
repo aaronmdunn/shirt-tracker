@@ -13482,6 +13482,7 @@ const openInsightsDialog = (stats, options = {}) => {
   html += renderBehaviorInsights();
 
   if (health) {
+    const scorecardRotationModel = behavior?.rotationModel || { parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } } };
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
     const neverWornCount = Number.isFinite(adoption?.neverWornSinceAddedTotal)
       ? adoption.neverWornSinceAddedTotal
@@ -13523,7 +13524,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-title">Parked value</div>
           ${insightValue(`${formatCurrency(inactive?.inactive365Value || 0)}`, idleTone)}
           <div class="insights-score-note">${inactive?.inactive365Count || 0} items parked over ${inactiveWindow} days</div>
-          <div class="insights-score-note">Intentional: ${rotationModel.parkedValueSplit.intentional.count} · uncertain: ${rotationModel.parkedValueSplit.uncertain.count}</div>
+          <div class="insights-score-note">Intentional: ${scorecardRotationModel.parkedValueSplit.intentional.count} · uncertain: ${scorecardRotationModel.parkedValueSplit.uncertain.count}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Adoption lag</div>
@@ -13555,7 +13556,7 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
         <div>
           <div class="stats-row stats-sub"><span class="stats-label">2. Parked >${inactiveWindow}d</span><span class="stats-value">${inactive?.inactive365Count || 0} items · ${formatCurrency(inactive?.inactive365Value || 0)}</span></div>
-          <div class="stats-hint">These items have been parked for a long collector cycle. Intentional parked value: ${rotationModel.parkedValueSplit.intentional.count} items. Uncertain parked value: ${rotationModel.parkedValueSplit.uncertain.count} items.</div>
+          <div class="stats-hint">These items have been parked for a long collector cycle. Intentional parked value: ${scorecardRotationModel.parkedValueSplit.intentional.count} items. Uncertain parked value: ${scorecardRotationModel.parkedValueSplit.uncertain.count} items.</div>
         </div>
         <div>
           <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items (${neverWornPctOfWearables}% of wearables)</span></div>
