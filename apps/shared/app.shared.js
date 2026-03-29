@@ -10233,6 +10233,7 @@ const defaultNoBuyGamifyState = () => ({
   activeRecovery: null,
   buyLog: [],
   actionLog: [],
+  snapshots: [],
   dailyCheckins: [],
 });
 
@@ -10286,6 +10287,24 @@ const normalizeNoBuyGamifyState = (value) => {
             at: String(entry?.at || ""),
             type: String(entry?.type || ""),
             reason: String(entry?.reason || ""),
+          }))
+      : [],
+    snapshots: Array.isArray(raw.snapshots)
+      ? raw.snapshots
+          .slice(-60)
+          .map((entry) => ({
+            at: String(entry?.at || ""),
+            source: String(entry?.source || ""),
+            xp: Math.max(0, Number(entry?.xp || 0)),
+            level: Math.max(1, Number(entry?.level || 1)),
+            currentStreak: Math.max(0, Number(entry?.currentStreak || 0)),
+            longestStreak: Math.max(0, Number(entry?.longestStreak || 0)),
+            buyCredits: Math.max(0, Number(entry?.buyCredits || 0)),
+            totalBuysLogged: Math.max(0, Number(entry?.totalBuysLogged || 0)),
+            totalRecoveriesCompleted: Math.max(0, Number(entry?.totalRecoveriesCompleted || 0)),
+            lastBuyReason: String(entry?.lastBuyReason || ""),
+            actionLogCount: Math.max(0, Number(entry?.actionLogCount || 0)),
+            buyLogCount: Math.max(0, Number(entry?.buyLogCount || 0)),
           }))
       : [],
     dailyCheckins: Array.isArray(raw.dailyCheckins)
@@ -10345,6 +10364,7 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
 
   merged.actionLog = mergeLogs(local.actionLog, remote.actionLog, (entry) => `${entry.at || ""}|${entry.type || ""}|${entry.reason || ""}`, 300);
   merged.buyLog = mergeLogs(local.buyLog, remote.buyLog, (entry) => `${entry.dateKey || ""}|${entry.reason || ""}`, 120);
+  merged.snapshots = mergeLogs(local.snapshots, remote.snapshots, (entry) => `${entry.at || ""}|${entry.source || ""}|${entry.actionLogCount || 0}|${entry.buyLogCount || 0}`, 60);
 
   const dailyByDate = {};
   [...local.dailyCheckins, ...remote.dailyCheckins].forEach((entry) => {
@@ -10367,6 +10387,27 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
     merged.activeRecovery = { ...secondary.activeRecovery };
   }
   return normalizeNoBuyGamifyState(merged);
+};
+
+const pushNoBuySnapshot = (state, source = "") => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const entry = {
+    at: new Date().toISOString(),
+    source: String(source || "manual"),
+    xp: safe.xp,
+    level: safe.level,
+    currentStreak: safe.currentStreak,
+    longestStreak: safe.longestStreak,
+    buyCredits: safe.buyCredits,
+    totalBuysLogged: safe.totalBuysLogged,
+    totalRecoveriesCompleted: safe.totalRecoveriesCompleted,
+    lastBuyReason: safe.lastBuyReason,
+    actionLogCount: Array.isArray(safe.actionLog) ? safe.actionLog.length : 0,
+    buyLogCount: Array.isArray(safe.buyLog) ? safe.buyLog.length : 0,
+  };
+  safe.snapshots.push(entry);
+  safe.snapshots = safe.snapshots.slice(-60);
+  return safe;
 };
 
 const loadNoBuyGamifyState = () => {
@@ -10513,7 +10554,8 @@ const logNoBuyBuyEvent = (state, reason = "") => {
   safe.lastObservedStreak = 0;
   safe.cooldownUntil = "";
   if (safe.buyCredits > 0) safe.buyCredits -= 1;
-  return createNoBuyRecoveryMission(safe, new Date().toISOString());
+  const withRecovery = createNoBuyRecoveryMission(safe, new Date().toISOString());
+  return pushNoBuySnapshot(withRecovery, "buy");
 };
 
 const recordNoBuyCheckin = (state, tempted, trigger = "") => {
@@ -10532,8 +10574,9 @@ const recordNoBuyCheckin = (state, tempted, trigger = "") => {
   if (tempted) {
     safe.actionLog.push({ at: nowIso, type: "temptation", reason: nextTrigger || "other" });
     safe.actionLog = safe.actionLog.slice(-300);
+    return pushNoBuySnapshot(safe, "tempted");
   }
-  return safe;
+  return pushNoBuySnapshot(safe, "clear-temptation");
 };
 
 const syncNoBuyGamifyStateFromStats = (stats) => {
@@ -10562,6 +10605,40 @@ const syncNoBuyGamifyStateFromStats = (stats) => {
   safe.lastSyncDate = todayKey;
   saveNoBuyGamifyState(safe);
   return safe;
+};
+
+const exportNoBuyLogJson = (state) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    noBuy: {
+      xp: safe.xp,
+      level: safe.level,
+      currentStreak: safe.currentStreak,
+      longestStreak: safe.longestStreak,
+      buyCredits: safe.buyCredits,
+      totalBuysLogged: safe.totalBuysLogged,
+      totalRecoveriesCompleted: safe.totalRecoveriesCompleted,
+      lastBuyDate: safe.lastBuyDate,
+      lastBuyReason: safe.lastBuyReason,
+      actionLog: safe.actionLog,
+      buyLog: safe.buyLog,
+      dailyCheckins: safe.dailyCheckins,
+      snapshots: safe.snapshots,
+    },
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  const stamp = localDateKeyFromDate(new Date());
+  anchor.href = href;
+  anchor.download = `no-buy-log-${stamp}.json`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(href), 0);
 };
 
 const progressNoBuyRecoveryOnWear = () => {
@@ -12770,12 +12847,51 @@ const openNoBuyGameDialog = (stats) => {
     : "inactive";
   const trends = getNoBuyTrendSummary(gamify, 30);
   const topTrend = trends.length ? `${trends[0].label} (${trends[0].count})` : "none";
-  const recentActions = Array.isArray(gamify.actionLog)
-    ? gamify.actionLog
-        .slice()
+  const recentActions = (() => {
+    const fromActionLog = Array.isArray(gamify.actionLog)
+      ? gamify.actionLog
+          .filter((entry) => entry && typeof entry === "object")
+          .map((entry) => ({
+            at: String(entry.at || ""),
+            type: String(entry.type || ""),
+            reason: String(entry.reason || "other"),
+          }))
+      : [];
+    if (fromActionLog.length) {
+      return fromActionLog
         .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-        .slice(0, 10)
-    : [];
+        .slice(0, 10);
+    }
+
+    // Fallback for older synced payloads that predate actionLog.
+    const fallback = [];
+    if (Array.isArray(gamify.buyLog)) {
+      gamify.buyLog.forEach((entry) => {
+        const dateKey = String(entry?.dateKey || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+        fallback.push({
+          at: `${dateKey}T12:00:00`,
+          type: "purchase",
+          reason: String(entry?.reason || "other"),
+        });
+      });
+    }
+    if (Array.isArray(gamify.dailyCheckins)) {
+      gamify.dailyCheckins.forEach((entry) => {
+        if (!entry?.tempted) return;
+        const dateKey = String(entry?.dateKey || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+        fallback.push({
+          at: `${dateKey}T12:00:00`,
+          type: "temptation",
+          reason: String(entry?.trigger || "other"),
+        });
+      });
+    }
+    return fallback
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .slice(0, 10);
+  })();
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryLabel = recoveryActive
@@ -12828,6 +12944,7 @@ const openNoBuyGameDialog = (stats) => {
       <button type="button" class="btn secondary" id="nobuy-log-buy">Log buy now</button>
       <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
       <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
+      <button type="button" class="btn secondary" id="nobuy-export-log">Export log JSON</button>
     </div>
     <div class="no-buy-select-row" style="margin-top:8px">
       <div class="no-buy-select-group">
@@ -12891,6 +13008,7 @@ const openNoBuyGameDialog = (stats) => {
   const logBuyBtn = content.querySelector("#nobuy-log-buy");
   const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
   const clearBtn = content.querySelector("#nobuy-checkin-clear");
+  const exportBtn = content.querySelector("#nobuy-export-log");
   const triggerSelect = content.querySelector("#nobuy-trigger");
   const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
 
@@ -12926,6 +13044,11 @@ const openNoBuyGameDialog = (stats) => {
       saveNoBuyGamifyState(next);
       if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
       refresh();
+    });
+  }
+  if (exportBtn) {
+    exportBtn.addEventListener("click", () => {
+      exportNoBuyLogJson(loadNoBuyGamifyState());
     });
   }
 
