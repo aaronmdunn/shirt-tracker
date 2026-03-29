@@ -7069,10 +7069,12 @@ const renderRows = () => {
       logBtn.className = "btn-log-wear";
       logBtn.textContent = "Log Wear";
       let undoTimer = null;
+      let selectionTimer = null;
       logBtn.addEventListener("click", () => {
         if (logBtn.classList.contains("undo")) {
           // Undo: restore previous state
           clearTimeout(undoTimer);
+          clearTimeout(selectionTimer);
           targetRow.wearCount = logBtn._prevCount;
           targetRow.lastWorn = logBtn._prevLastWorn;
           targetRow.wearLog = logBtn._prevWearLog;
@@ -7087,6 +7089,12 @@ const renderRows = () => {
         // Apply wear
         const chosen = dateInput.value || new Date().toISOString().slice(0, 10);
         const wornDate = new Date(chosen + "T12:00:00").toISOString();
+        const todayKey = localDateKeyFromDate(new Date());
+        const queueKey = getInsightsQueueKey({
+          name: getRowName(targetRow),
+          tab: getActiveTabName(),
+          type: getTypeValueForRow(targetRow),
+        });
         targetRow.wearCount = (targetRow.wearCount || 0) + 1;
         targetRow.lastWorn = wornDate;
         // Append to wearLog (lifetime — no trim)
@@ -7098,6 +7106,12 @@ const renderRows = () => {
         dateStat.querySelector(".wear-stat-value").textContent = new Date(wornDate).toLocaleDateString();
         logBtn.textContent = "Undo";
         logBtn.classList.add("undo");
+        clearTimeout(selectionTimer);
+        if (appMode === "inventory" && queueKey) {
+          selectionTimer = setTimeout(() => {
+            trackInsightsQueueSelection(queueKey, todayKey);
+          }, 5000);
+        }
         undoTimer = setTimeout(() => {
           logBtn.textContent = "Log Wear";
           logBtn.classList.remove("undo");
