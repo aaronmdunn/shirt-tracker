@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.0.20",
+    "date": "2026-03-29",
+    "changes": [
+      "Added per-row Delete controls to No-Buy Game Recent button log so duplicate or mistaken temptation/buy entries can be removed",
+      "Wired deletion to underlying no-buy sources (buy log and temptation check-ins) so Trends and summaries stay consistent after removals",
+      "Improved no-buy cross-device continuity by preserving fallback timestamp behavior for older payloads while syncing/deleting log actions",
+      "Shipped routine release maintenance: version references updated to 2.0.20 across web, shared, and Tauri metadata"
+    ]
+  },
+  {
     "version": "2.0.19",
     "date": "2026-03-29",
     "changes": [
