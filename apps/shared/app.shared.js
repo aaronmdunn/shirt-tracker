@@ -10093,38 +10093,78 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
+const normalizeInsightsQueueActivity = (value) => {
+  const next = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : { ...value };
+  if (!next.__daily || typeof next.__daily !== "object" || Array.isArray(next.__daily)) next.__daily = {};
+  Object.keys(next).forEach((key) => {
+    if (key === "__daily") return;
+    const entry = next[key];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      delete next[key];
+      return;
+    }
+    next[key] = {
+      exposures: Number(entry.exposures || 0),
+      selections: Number(entry.selections || 0),
+      exposureDays: Number(entry.exposureDays || 0),
+      selectionDays: Number(entry.selectionDays || 0),
+      lastExposureDate: String(entry.lastExposureDate || ""),
+      lastSelectedDate: String(entry.lastSelectedDate || ""),
+    };
+  });
+  return next;
+};
+
 const loadInsightsQueueActivity = () => {
   try {
     const parsed = JSON.parse(localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY) || "{}");
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed;
+    return normalizeInsightsQueueActivity(parsed);
   } catch (error) {
-    return {};
+    return normalizeInsightsQueueActivity({});
   }
 };
 
 const saveInsightsQueueActivity = (value) => {
   try {
-    localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(value || {}));
+    localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(normalizeInsightsQueueActivity(value || {})));
   } catch (error) {
     // ignore
   }
+};
+
+const pruneInsightsQueueDailyActivity = (activity, keepDays = 90) => {
+  const next = normalizeInsightsQueueActivity(activity);
+  const threshold = Date.now() - (Math.max(1, keepDays) * 86400000);
+  Object.keys(next.__daily).forEach((dateKey) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      delete next.__daily[dateKey];
+      return;
+    }
+    const ms = new Date(`${dateKey}T12:00:00`).getTime();
+    if (Number.isNaN(ms) || ms < threshold) delete next.__daily[dateKey];
+  });
+  return next;
 };
 
 const trackInsightsQueueExposure = (queueItems, dateKey) => {
   if (!Array.isArray(queueItems) || !queueItems.length) return;
   const todayKey = localDateKeyFromDate(new Date());
   if (dateKey !== todayKey) return;
-  const next = loadInsightsQueueActivity();
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
+    next.__daily[todayKey] = { exposures: 0, selections: 0 };
+  }
   queueItems.forEach((item) => {
     const key = String(item?.key || "");
     if (!key) return;
     if (!next[key] || typeof next[key] !== "object") {
-      next[key] = { exposures: 0, selections: 0, lastExposureDate: "", lastSelectedDate: "" };
+      next[key] = { exposures: 0, selections: 0, exposureDays: 0, selectionDays: 0, lastExposureDate: "", lastSelectedDate: "" };
     }
     if (next[key].lastExposureDate === todayKey) return;
     next[key].exposures = (next[key].exposures || 0) + 1;
+    next[key].exposureDays = (next[key].exposureDays || 0) + 1;
     next[key].lastExposureDate = todayKey;
+    next.__daily[todayKey].exposures = (next.__daily[todayKey].exposures || 0) + 1;
   });
   saveInsightsQueueActivity(next);
 };
@@ -10134,16 +10174,21 @@ const trackInsightsQueueSelection = (queueKey, dateKey) => {
   if (!key) return;
   const todayKey = localDateKeyFromDate(new Date());
   if (dateKey !== todayKey) return;
-  const next = loadInsightsQueueActivity();
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
+    next.__daily[todayKey] = { exposures: 0, selections: 0 };
+  }
   if (!next[key] || typeof next[key] !== "object") {
-    next[key] = { exposures: 0, selections: 0, lastExposureDate: "", lastSelectedDate: "" };
+    next[key] = { exposures: 0, selections: 0, exposureDays: 0, selectionDays: 0, lastExposureDate: "", lastSelectedDate: "" };
   }
   if (next[key].lastSelectedDate === todayKey) {
     saveInsightsQueueActivity(next);
     return;
   }
   next[key].selections = (next[key].selections || 0) + 1;
+  next[key].selectionDays = (next[key].selectionDays || 0) + 1;
   next[key].lastSelectedDate = todayKey;
+  next.__daily[todayKey].selections = (next.__daily[todayKey].selections || 0) + 1;
   saveInsightsQueueActivity(next);
 };
 
@@ -10200,6 +10245,15 @@ const topCounts = (counts, limit) => Object.entries(counts || {})
   .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   .slice(0, limit)
   .map(([label, count]) => ({ label, count }));
+
+const medianOf = (values) => {
+  if (!Array.isArray(values) || !values.length) return null;
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+};
 
 const buildBehaviorInsights = (stats) => {
   const nowMs = Date.now();
@@ -10290,6 +10344,130 @@ const buildBehaviorInsights = (stats) => {
   const explorationPct = safePercent(windowExploration, windowTotal);
   const priorExplorationPct = safePercent(priorExploration, priorTotal);
 
+  const acquisitionWindowMs = nowMs - (180 * dayMs);
+  const acquisitionRows = wearableItems
+    .map((item) => {
+      if (!item?.createdAt) return null;
+      const createdMs = new Date(item.createdAt).getTime();
+      if (Number.isNaN(createdMs) || createdMs < acquisitionWindowMs || createdMs > nowMs) return null;
+      const wearLog = Array.isArray(item.wearLog) ? item.wearLog : [];
+      const wearMsList = wearLog
+        .map((stamp) => new Date(stamp).getTime())
+        .filter((ms) => Number.isFinite(ms) && ms >= createdMs)
+        .sort((a, b) => a - b);
+      const firstWearMs = wearMsList.length ? wearMsList[0] : null;
+      const firstWearDays = firstWearMs === null ? null : Math.max(0, Math.floor((firstWearMs - createdMs) / dayMs));
+      const wearsIn30 = wearMsList.filter((ms) => ms <= (createdMs + (30 * dayMs))).length;
+      return {
+        name: String(item.name || "Unnamed"),
+        tab: String(item.tab || "Unknown"),
+        type: String(item.type || "Unknown"),
+        firstWearDays,
+        adopted30: firstWearDays !== null && firstWearDays <= 30,
+        rewear30: wearsIn30 >= 2,
+      };
+    })
+    .filter(Boolean);
+  const firstWearDaysList = acquisitionRows.map((row) => row.firstWearDays).filter((value) => value !== null);
+  const adoption30Count = acquisitionRows.filter((row) => row.adopted30).length;
+  const rewear30Count = acquisitionRows.filter((row) => row.rewear30).length;
+  const adoptionRate30 = safePercent(adoption30Count, acquisitionRows.length);
+  const rewearRate30 = safePercent(rewear30Count, acquisitionRows.length);
+  const medianFirstWearDays = medianOf(firstWearDaysList);
+  const medianComponent = medianFirstWearDays === null ? 0 : Math.max(0, 100 - Math.min(100, Math.round(medianFirstWearDays * 2.5)));
+  const acquisitionScore = acquisitionRows.length
+    ? Math.round((adoptionRate30 * 0.5) + (medianComponent * 0.3) + (rewearRate30 * 0.2))
+    : 0;
+
+  const fatigueLookbackMs = nowMs - (90 * dayMs);
+  const fatigueRecentMs = nowMs - (45 * dayMs);
+  const themeBuckets = {};
+  let priorThemeTotal = 0;
+  let recentThemeTotal = 0;
+  recentEvents.forEach((event) => {
+    if (event.wornMs < fatigueLookbackMs || event.wornMs > nowMs) return;
+    const isRecent = event.wornMs >= fatigueRecentMs;
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    const tags = Array.isArray(itemLookup[key]?.tags) ? itemLookup[key].tags : [];
+    const fandom = String(itemLookup[key]?.fandom || "").trim();
+    const themes = [];
+    if (fandom) themes.push(`fandom:${fandom}`);
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      themes.push(`tag:${clean}`);
+    });
+    themes.forEach((theme) => {
+      if (!themeBuckets[theme]) themeBuckets[theme] = { prior: 0, recent: 0 };
+      if (isRecent) {
+        themeBuckets[theme].recent += 1;
+        recentThemeTotal += 1;
+      } else {
+        themeBuckets[theme].prior += 1;
+        priorThemeTotal += 1;
+      }
+    });
+  });
+  const fatigueThemes = Object.entries(themeBuckets)
+    .map(([theme, counts]) => {
+      const priorShare = priorThemeTotal ? (counts.prior / priorThemeTotal) : 0;
+      const recentShare = recentThemeTotal ? (counts.recent / recentThemeTotal) : 0;
+      const drop = priorShare - recentShare;
+      const minSamples = counts.prior + counts.recent;
+      if (counts.prior < 4 || minSamples < 6 || drop < 0.05 || priorShare < 0.08) return null;
+      const rawLabel = theme.includes(":") ? theme.split(":")[1] : theme;
+      return {
+        label: rawLabel,
+        family: theme.startsWith("fandom:") ? "Fandom" : "Tag",
+        priorShare: Math.round(priorShare * 100),
+        recentShare: Math.round(recentShare * 100),
+        drop: Math.round(drop * 100),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.drop - a.drop || a.label.localeCompare(b.label))
+    .slice(0, 5);
+
+  const queueActivity = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  const dailyActivity = queueActivity.__daily || {};
+  const frictionDays = Object.entries(dailyActivity)
+    .map(([dateKey, day]) => {
+      const exposures = Number(day?.exposures || 0);
+      const selections = Number(day?.selections || 0);
+      if (exposures <= 0) return null;
+      const acceptance = selections / exposures;
+      return {
+        dateKey,
+        exposures,
+        selections,
+        acceptance,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+    .slice(-28);
+  const frictionAvgAcceptance = frictionDays.length
+    ? Math.round((frictionDays.reduce((sum, day) => sum + day.acceptance, 0) / frictionDays.length) * 100)
+    : 0;
+  const highFrictionDays = frictionDays.filter((day) => day.exposures >= 5 && day.acceptance < 0.2).length;
+  const worstFrictionDay = frictionDays.length
+    ? frictionDays.slice().sort((a, b) => a.acceptance - b.acceptance || b.exposures - a.exposures)[0]
+    : null;
+
+  const weekdayFriction = {};
+  frictionDays.forEach((day) => {
+    const ms = new Date(`${day.dateKey}T12:00:00`).getTime();
+    if (Number.isNaN(ms)) return;
+    const label = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(ms).getDay()];
+    if (!weekdayFriction[label]) weekdayFriction[label] = { accept: 0, exposures: 0 };
+    weekdayFriction[label].accept += day.selections;
+    weekdayFriction[label].exposures += day.exposures;
+  });
+  const weekdayFrictionRows = Object.entries(weekdayFriction)
+    .map(([label, row]) => ({ label, acceptance: safePercent(row.accept, row.exposures), exposures: row.exposures }))
+    .sort((a, b) => a.acceptance - b.acceptance || b.exposures - a.exposures)
+    .slice(0, 3);
+
   const comebackCandidates = wearableItems
     .map((item) => {
       const wearCount = Number(item?.wearCount || 0);
@@ -10316,16 +10494,30 @@ const buildBehaviorInsights = (stats) => {
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, 5);
 
-  const queueActivity = loadInsightsQueueActivity();
   const benchPressure = wearableItems
     .map((item) => {
       const key = getInsightsQueueKey(item);
       const activity = queueActivity[key];
-      if (!activity || (activity.exposures || 0) < 3) return null;
+      if (!activity || (activity.exposures || 0) < 4) return null;
       const exposures = Number(activity.exposures || 0);
       const selections = Number(activity.selections || 0);
       const selectionRate = exposures > 0 ? selections / exposures : 0;
-      if (selectionRate >= 0.34) return null;
+      const skips = Math.max(0, exposures - selections);
+      const lastExposureMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastExposureDate || ""))
+        ? new Date(`${activity.lastExposureDate}T12:00:00`).getTime()
+        : NaN;
+      const lastSelectedMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastSelectedDate || ""))
+        ? new Date(`${activity.lastSelectedDate}T12:00:00`).getTime()
+        : NaN;
+      const daysSinceSeen = Number.isNaN(lastExposureMs) ? null : Math.max(0, Math.floor((nowMs - lastExposureMs) / dayMs));
+      const daysSincePicked = Number.isNaN(lastSelectedMs) ? null : Math.max(0, Math.floor((nowMs - lastSelectedMs) / dayMs));
+      const pressureScore = Math.round(
+        (skips * 7)
+        + Math.max(0, (1 - selectionRate) * 46)
+        + Math.min(24, Number(activity.exposureDays || 0) * 2)
+        + (daysSincePicked !== null && daysSincePicked > 14 ? 10 : 0)
+      );
+      if (selectionRate >= 0.4 && pressureScore < 55) return null;
       return {
         key,
         name: String(item?.name || "Unnamed"),
@@ -10333,11 +10525,16 @@ const buildBehaviorInsights = (stats) => {
         type: String(item?.type || "Unknown"),
         exposures,
         selections,
+        skips,
         selectionRate,
+        pressureScore,
+        exposureDays: Number(activity.exposureDays || 0),
+        daysSinceSeen,
+        daysSincePicked,
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.exposures - a.exposures || a.selectionRate - b.selectionRate || a.name.localeCompare(b.name))
+    .sort((a, b) => b.pressureScore - a.pressureScore || b.exposures - a.exposures || a.name.localeCompare(b.name))
     .slice(0, 8);
 
   return {
@@ -10367,6 +10564,24 @@ const buildBehaviorInsights = (stats) => {
       trend: explorationPct - priorExplorationPct,
       coreTypes: Array.from(coreTypes),
       windowTotal,
+    },
+    acquisition: {
+      score: acquisitionScore,
+      eligibleAdds: acquisitionRows.length,
+      adoptionRate30,
+      rewearRate30,
+      medianFirstWearDays,
+    },
+    fatigue: {
+      count: fatigueThemes.length,
+      themes: fatigueThemes,
+    },
+    friction: {
+      avgAcceptance: frictionAvgAcceptance,
+      highFrictionDays,
+      worstDay: worstFrictionDay,
+      weekdayRows: weekdayFrictionRows,
+      totalDays: frictionDays.length,
     },
     comebackCandidates,
     benchPressure,
@@ -11102,6 +11317,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const volatility = behavior?.volatility || { score: 0, label: "n/a", weeklyDrifts: [], latestShift: 0 };
     const persona = behavior?.persona || null;
     const exploration = behavior?.exploration || { pct: 0, trend: 0, coreTypes: [], windowTotal: 0 };
+    const acquisition = behavior?.acquisition || { score: 0, eligibleAdds: 0, adoptionRate30: 0, rewearRate30: 0, medianFirstWearDays: null };
+    const fatigue = behavior?.fatigue || { count: 0, themes: [] };
+    const friction = behavior?.friction || { avgAcceptance: 0, highFrictionDays: 0, worstDay: null, weekdayRows: [], totalDays: 0 };
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
     const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
     const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
@@ -11117,6 +11335,12 @@ const openInsightsDialog = (stats, options = {}) => {
       : 0;
     const queueTop = queue.length ? queue[0] : null;
     const queueTopScore = queueTop ? Math.round(queueTop.score || 0) : 0;
+    const fatigueLead = Array.isArray(fatigue.themes) && fatigue.themes.length
+      ? `${fatigue.themes[0].label} (-${fatigue.themes[0].drop} pts)`
+      : "n/a";
+    const frictionWorstLabel = friction.worstDay
+      ? `${friction.worstDay.dateKey} (${Math.round(friction.worstDay.acceptance * 100)}%)`
+      : "n/a";
 
     const comebackByKey = {};
     comeback.forEach((item) => {
@@ -11206,10 +11430,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Trend: ${esc(trendLabel)}</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Bench pressure (lite)</div>
+          <div class="insights-score-title">Bench pressure</div>
           <div class="insights-score-value">${bench.length} queued-but-skipped items</div>
           <div class="insights-score-note">Average selection rate: ${benchAvgRate}%</div>
-          <div class="insights-score-note">If pressure rises, wear one of the top skipped items or snooze it to reduce noise.</div>
+          <div class="insights-score-note">High pressure means repeated exposure without selection. Wear one this week or snooze to declutter picks.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Queue readiness now</div>
@@ -11223,14 +11447,40 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">${wildcard ? `${esc(wildcard.tab)} · ${esc(wildcard.type || "Unknown")} · score ${wildcard.wildcardScore}` : "No eligible item yet. Add wear data or queue signals to generate a wildcard."}</div>
           <div class="insights-score-note">Why this pick: ${esc(wildcardReasonText)}.</div>
         </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Acquisition quality</div>
+          <div class="insights-score-value">${acquisition.score}/100</div>
+          <div class="insights-score-note">30d adoption: ${acquisition.adoptionRate30}% · 30d rewear: ${acquisition.rewearRate30}%</div>
+          <div class="insights-score-note">Median first wear: ${acquisition.medianFirstWearDays === null ? "n/a" : `${Math.round(acquisition.medianFirstWearDays)}d`} (${acquisition.eligibleAdds} recent adds)</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Theme fatigue detector</div>
+          <div class="insights-score-value">${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}</div>
+          <div class="insights-score-note">Lead fade: ${esc(fatigueLead)}</div>
+          <div class="insights-score-note">Signals where previously strong fandom/tag themes are cooling off in recent wear windows.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Decision friction</div>
+          <div class="insights-score-value">${friction.avgAcceptance}% queue acceptance</div>
+          <div class="insights-score-note">${friction.highFrictionDays} high-friction day${friction.highFrictionDays === 1 ? "" : "s"} in last ${friction.totalDays} tracked days</div>
+          <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
+        </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
       ${comeback.length
     ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
+      ${Array.isArray(fatigue.themes) && fatigue.themes.length
+    ? `<div class="insights-action-list">${fatigue.themes.map((theme, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(theme.label)} (${esc(theme.family)})</span><span class="stats-value">${theme.priorShare}% -> ${theme.recentShare}% (${theme.drop}pt drop)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong fatigue signals yet. This fills in once a theme was previously dominant and then cooled.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
+      ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
+    ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       ${bench.length
-    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}`
     );
   };
