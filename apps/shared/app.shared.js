@@ -10201,6 +10201,7 @@ const defaultNoBuyGamifyState = () => ({
   longestStreak: 0,
   lastNoBuyDate: "",
   lastBuyDate: "",
+  lastBuyReason: "",
   buyCredits: 0,
   cooldownUntil: "",
   totalBuysLogged: 0,
@@ -10210,6 +10211,7 @@ const defaultNoBuyGamifyState = () => ({
   lastSyncDate: "",
   lastObservedStreak: 0,
   activeRecovery: null,
+  buyLog: [],
   dailyCheckins: [],
 });
 
@@ -10229,6 +10231,7 @@ const normalizeNoBuyGamifyState = (value) => {
     longestStreak: Math.max(0, Number(raw.longestStreak || 0)),
     lastNoBuyDate: String(raw.lastNoBuyDate || ""),
     lastBuyDate: String(raw.lastBuyDate || ""),
+    lastBuyReason: String(raw.lastBuyReason || ""),
     buyCredits: Math.max(0, Number(raw.buyCredits || 0)),
     cooldownUntil: String(raw.cooldownUntil || ""),
     totalBuysLogged: Math.max(0, Number(raw.totalBuysLogged || 0)),
@@ -10247,6 +10250,14 @@ const normalizeNoBuyGamifyState = (value) => {
           completedAt: String(raw.activeRecovery.completedAt || ""),
         }
       : null,
+    buyLog: Array.isArray(raw.buyLog)
+      ? raw.buyLog
+          .slice(-120)
+          .map((entry) => ({
+            dateKey: String(entry?.dateKey || ""),
+            reason: String(entry?.reason || ""),
+          }))
+      : [],
     dailyCheckins: Array.isArray(raw.dailyCheckins)
       ? raw.dailyCheckins
           .slice(-120)
@@ -10338,12 +10349,16 @@ const startNoBuyCooldown = (state, hours = 24) => {
   return safe;
 };
 
-const logNoBuyBuyEvent = (state) => {
+const logNoBuyBuyEvent = (state, reason = "") => {
   const safe = normalizeNoBuyGamifyState(state);
   const todayKey = localDateKeyFromDate(new Date());
+  const cleanReason = String(reason || "other").trim() || "other";
   if (safe.lastBuyDate !== todayKey) {
     safe.totalBuysLogged += 1;
     safe.lastBuyDate = todayKey;
+    safe.lastBuyReason = cleanReason;
+    safe.buyLog.push({ dateKey: todayKey, reason: cleanReason });
+    safe.buyLog = safe.buyLog.slice(-120);
   }
   safe.currentStreak = 0;
   safe.lastObservedStreak = 0;
@@ -12654,17 +12669,31 @@ const openNoBuyGameDialog = (stats) => {
       <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
       <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
     </div>
-    <div class="insights-queue-sim-controls no-buy-trigger-row" style="margin-top:8px">
-      <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
-      <select id="nobuy-trigger" class="insights-queue-sim-date">
-        <option value="sale">Sale</option>
-        <option value="gooddeal">Good deal</option>
-        <option value="rarefind">Rare find</option>
-        <option value="fomo">FOMO</option>
-        <option value="boredom">Boredom</option>
-        <option value="drop">New drop</option>
-        <option value="other">Other</option>
-      </select>
+    <div class="no-buy-select-row" style="margin-top:8px">
+      <div class="no-buy-select-group">
+        <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
+        <select id="nobuy-trigger" class="insights-queue-sim-date">
+          <option value="sale">Sale</option>
+          <option value="gooddeal">Good deal</option>
+          <option value="rarefind">Rare find</option>
+          <option value="fomo">FOMO</option>
+          <option value="boredom">Boredom</option>
+          <option value="drop">New drop</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="no-buy-select-group">
+        <label class="insights-sim-label" for="nobuy-buy-reason">Buying reason</label>
+        <select id="nobuy-buy-reason" class="insights-queue-sim-date">
+          <option value="gooddeal">Good deal</option>
+          <option value="rarefind">Rare find</option>
+          <option value="boredom">Boredom</option>
+          <option value="gotpaid">Got paid/Extra money</option>
+          <option value="marketed">Marketed</option>
+          <option value="promo">Promo/Sale</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
     </div>
 
     <div class="stats-section-title" style="margin-top:8px">Trigger trends (30d)</div>
@@ -12676,6 +12705,7 @@ const openNoBuyGameDialog = (stats) => {
     <div class="insights-action-list">
       <div class="stats-row stats-sub"><span class="stats-label">Top trigger</span><span class="stats-value">${esc(topTrigger)}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason || "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
     </div>
   `;
@@ -12686,6 +12716,7 @@ const openNoBuyGameDialog = (stats) => {
   const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
   const clearBtn = content.querySelector("#nobuy-checkin-clear");
   const triggerSelect = content.querySelector("#nobuy-trigger");
+  const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
 
   if (startCooldownBtn) {
     startCooldownBtn.addEventListener("click", () => {
@@ -12696,7 +12727,8 @@ const openNoBuyGameDialog = (stats) => {
   }
   if (logBuyBtn) {
     logBuyBtn.addEventListener("click", () => {
-      const next = logNoBuyBuyEvent(loadNoBuyGamifyState());
+      const reason = buyReasonSelect ? String(buyReasonSelect.value || "other") : "other";
+      const next = logNoBuyBuyEvent(loadNoBuyGamifyState(), reason);
       saveNoBuyGamifyState(next);
       refresh();
     });
