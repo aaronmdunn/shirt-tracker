@@ -3220,6 +3220,16 @@ const buildCloudPayload = () => {
     const gotItTrimmed = localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed");
     if (gotItTrimmed) result.gotItLogTrimmed = parseInt(gotItTrimmed, 10);
   } catch (e) { /* ignore */ }
+  // Include no-buy game state in cloud payload for cross-device parity.
+  try {
+    const noBuyRaw = localStorage.getItem(NO_BUY_GAMIFY_KEY);
+    if (noBuyRaw) {
+      const parsed = JSON.parse(noBuyRaw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        result.noBuyGamify = parsed;
+      }
+    }
+  } catch (e) { /* ignore */ }
   return result;
 };
 
@@ -3300,6 +3310,16 @@ const applyCloudPayload = (payload) => {
     const localTrimmed = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
     if (payload.gotItLogTrimmed >= localTrimmed) {
       localStorage.setItem(GOT_IT_LOG_KEY + ":trimmed", String(payload.gotItLogTrimmed));
+    }
+  }
+  if (payload.noBuyGamify && typeof payload.noBuyGamify === "object" && !Array.isArray(payload.noBuyGamify)) {
+    try {
+      const localNoBuy = JSON.parse(localStorage.getItem(NO_BUY_GAMIFY_KEY) || "{}");
+      const mergedNoBuy = mergeNoBuyGamifyState(localNoBuy, payload.noBuyGamify);
+      localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(mergedNoBuy));
+    } catch (error) {
+      // fallback: cloud snapshot wins if merge fails
+      try { localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(payload.noBuyGamify)); } catch (e) { /* ignore */ }
     }
   }
   if (payload.publicShareVisibility) {
@@ -10283,6 +10303,72 @@ const normalizeNoBuyGamifyState = (value) => {
   return out;
 };
 
+const mergeNoBuyGamifyState = (localValue, remoteValue) => {
+  const local = normalizeNoBuyGamifyState(localValue || {});
+  const remote = normalizeNoBuyGamifyState(remoteValue || {});
+
+  const toMs = (value) => {
+    const str = String(value || "");
+    if (!str) return NaN;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return new Date(`${str}T12:00:00`).getTime();
+    return new Date(str).getTime();
+  };
+
+  const localSyncMs = Math.max(toMs(local.lastSyncDate), toMs(local.lastXpDate), toMs(local.lastBuyDate));
+  const remoteSyncMs = Math.max(toMs(remote.lastSyncDate), toMs(remote.lastXpDate), toMs(remote.lastBuyDate));
+  const primary = Number.isFinite(remoteSyncMs) && (!Number.isFinite(localSyncMs) || remoteSyncMs >= localSyncMs)
+    ? remote
+    : local;
+  const secondary = primary === remote ? local : remote;
+
+  const merged = normalizeNoBuyGamifyState(primary);
+  merged.xp = Math.max(local.xp, remote.xp);
+  merged.level = computeNoBuyLevel(merged.xp);
+  merged.longestStreak = Math.max(local.longestStreak, remote.longestStreak, merged.currentStreak);
+  merged.noBuyDaysTotal = Math.max(local.noBuyDaysTotal, remote.noBuyDaysTotal);
+  merged.totalBuysLogged = Math.max(local.totalBuysLogged, remote.totalBuysLogged);
+  merged.totalRecoveriesCompleted = Math.max(local.totalRecoveriesCompleted, remote.totalRecoveriesCompleted);
+
+  const mergeLogs = (a, b, keyFn, keep) => {
+    const out = [];
+    const seen = new Set();
+    [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const key = keyFn(entry);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(entry);
+    });
+    out.sort((x, y) => toMs(x.at || x.dateKey) - toMs(y.at || y.dateKey));
+    return out.slice(-keep);
+  };
+
+  merged.actionLog = mergeLogs(local.actionLog, remote.actionLog, (entry) => `${entry.at || ""}|${entry.type || ""}|${entry.reason || ""}`, 300);
+  merged.buyLog = mergeLogs(local.buyLog, remote.buyLog, (entry) => `${entry.dateKey || ""}|${entry.reason || ""}`, 120);
+
+  const dailyByDate = {};
+  [...local.dailyCheckins, ...remote.dailyCheckins].forEach((entry) => {
+    const dateKey = String(entry?.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+    if (!dailyByDate[dateKey]) {
+      dailyByDate[dateKey] = { dateKey, tempted: Boolean(entry.tempted), trigger: String(entry.trigger || "") };
+      return;
+    }
+    const current = dailyByDate[dateKey];
+    if (!current.tempted && entry.tempted) {
+      dailyByDate[dateKey] = { dateKey, tempted: true, trigger: String(entry.trigger || "") };
+    }
+  });
+  merged.dailyCheckins = Object.values(dailyByDate)
+    .sort((a, b) => toMs(a.dateKey) - toMs(b.dateKey))
+    .slice(-120);
+
+  if (secondary.activeRecovery && !secondary.activeRecovery.completedAt && (!merged.activeRecovery || merged.activeRecovery.completedAt)) {
+    merged.activeRecovery = { ...secondary.activeRecovery };
+  }
+  return normalizeNoBuyGamifyState(merged);
+};
+
 const loadNoBuyGamifyState = () => {
   try {
     const parsed = JSON.parse(localStorage.getItem(NO_BUY_GAMIFY_KEY) || "{}");
@@ -12812,6 +12898,7 @@ const openNoBuyGameDialog = (stats) => {
     startCooldownBtn.addEventListener("click", () => {
       const next = startNoBuyCooldown(loadNoBuyGamifyState(), 24);
       saveNoBuyGamifyState(next);
+      if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
       refresh();
     });
   }
@@ -12820,6 +12907,7 @@ const openNoBuyGameDialog = (stats) => {
       const reason = buyReasonSelect ? String(buyReasonSelect.value || "other") : "other";
       const next = logNoBuyBuyEvent(loadNoBuyGamifyState(), reason);
       saveNoBuyGamifyState(next);
+      if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
       refresh();
     });
   }
@@ -12828,6 +12916,7 @@ const openNoBuyGameDialog = (stats) => {
       const trigger = triggerSelect ? String(triggerSelect.value || "other") : "other";
       const next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, trigger);
       saveNoBuyGamifyState(next);
+      if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
       refresh();
     });
   }
@@ -12835,6 +12924,7 @@ const openNoBuyGameDialog = (stats) => {
     clearBtn.addEventListener("click", () => {
       const next = recordNoBuyCheckin(loadNoBuyGamifyState(), false, "");
       saveNoBuyGamifyState(next);
+      if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
       refresh();
     });
   }
