@@ -3,6 +3,10 @@
     "version": "2.0.20",
     "date": "2026-03-29",
     "changes": [
+      "Added a duplicate-risk review step to wishlist 'Got It!' transfers so likely closet overlaps are surfaced before an item moves into inventory",
+      "Upgraded duplicate checking to use image-aware preview similarity first (with metadata as fallback) so same-brand/same-fandom false positives are reduced",
+      "Added a Wishlist Conversion Funnel in wishlist stats with tracked conversion counts, first-wear/repeat-wear rates, timing medians, top converting brands/types, and a details dialog",
+      "Connected buy-gate verdicts to the wishlist funnel so flagged vs clear purchases can be compared over time by first-wear and repeat-wear outcomes",
       "Added per-row Delete controls to No-Buy Game Recent button log so duplicate or mistaken temptation/buy entries can be removed",
       "Wired deletion to underlying no-buy sources (buy log and temptation check-ins) so Trends and summaries stay consistent after removals",
       "Improved no-buy cross-device continuity by preserving fallback timestamp behavior for older payloads while syncing/deleting log actions",
