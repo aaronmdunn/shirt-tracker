@@ -9157,6 +9157,22 @@ const collectAllStats = () => {
   };
 
   const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+  const wearAnalyticsStartMs = new Date("2026-03-01T00:00:00").getTime();
+  const getAnalyticsWearData = (row) => {
+    const rawWearLog = Array.isArray(row?.wearLog) && row.wearLog.length
+      ? row.wearLog
+      : (row?.lastWorn ? [row.lastWorn] : []);
+    const wearLog = rawWearLog
+      .map((stamp) => new Date(stamp).getTime())
+      .filter((ms) => Number.isFinite(ms) && ms >= wearAnalyticsStartMs)
+      .sort((a, b) => a - b)
+      .map((ms) => new Date(ms).toISOString());
+    return {
+      wearLog,
+      wearCount: wearLog.length,
+      lastWorn: wearLog.length ? wearLog[wearLog.length - 1] : null,
+    };
+  };
 
   // --- Reusable stat helpers (work on any row subset) ---
   const tallyFrom = (subset, colName) => {
@@ -9429,12 +9445,13 @@ const collectAllStats = () => {
       if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
         const name = getCellValue(entry, "Name") || "Unnamed";
         const type = getCellValue(entry, "Type") || "";
+        const analyticsWear = getAnalyticsWearData(entry.row);
         whaleItems.push({
           name,
           tab: tab.name,
           type,
-          wearCount: Math.max(0, Number(entry.row.wearCount || 0)),
-          lastWorn: entry.row.lastWorn || "",
+          wearCount: analyticsWear.wearCount,
+          lastWorn: analyticsWear.lastWorn || "",
         });
       }
     });
@@ -9456,26 +9473,32 @@ const collectAllStats = () => {
 
   // --- Recently added (rows with createdAt) ---
   allDatedItems.sort((a, b) => b.date - a.date);
-  const allRecentlyAdded = allDatedItems.map((item) => ({
-    name: item.name,
-    tab: item.tab,
-    type: item.type,
-    brand: item.brand,
-    createdAt: item.date.toISOString(),
-    price: item.price,
-    wearCount: Math.max(0, Number(item.row?.wearCount || 0)),
-    lastWorn: item.row?.lastWorn || "",
-  }));
-  const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
-    name: item.name,
-    tab: item.tab,
-    type: item.type,
-    brand: item.brand,
-    createdAt: item.date.toISOString(),
-    price: item.price,
-    wearCount: Math.max(0, Number(item.row?.wearCount || 0)),
-    lastWorn: item.row?.lastWorn || "",
-  }));
+  const allRecentlyAdded = allDatedItems.map((item) => {
+    const analyticsWear = getAnalyticsWearData(item.row || {});
+    return {
+      name: item.name,
+      tab: item.tab,
+      type: item.type,
+      brand: item.brand,
+      createdAt: item.date.toISOString(),
+      price: item.price,
+      wearCount: analyticsWear.wearCount,
+      lastWorn: analyticsWear.lastWorn || "",
+    };
+  });
+  const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => {
+    const analyticsWear = getAnalyticsWearData(item.row || {});
+    return {
+      name: item.name,
+      tab: item.tab,
+      type: item.type,
+      brand: item.brand,
+      createdAt: item.date.toISOString(),
+      price: item.price,
+      wearCount: analyticsWear.wearCount,
+      lastWorn: analyticsWear.lastWorn || "",
+    };
+  });
 
   // --- Recently deleted ---
   const deletedEntries = loadDeletedRows();
@@ -9511,17 +9534,16 @@ const collectAllStats = () => {
     const cutoffMs = cutoffDate.getTime();
     perTabRows.forEach((tab) => {
       tab.entries.forEach((entry) => {
-        const wc = entry.row.wearCount || 0;
-        const lw = entry.row.lastWorn || null;
+        const analyticsWear = getAnalyticsWearData(entry.row);
+        const wc = analyticsWear.wearCount;
+        const lw = analyticsWear.lastWorn || null;
         const name = getCellValue(entry, "Name") || "Unnamed";
         const typeVal = getCellValue(entry, "Type");
         const isWearable = !isWearExcludedType(typeVal);
         const priceRaw = getCellValue(entry, "Price");
         const price = parseCurrency(priceRaw);
         if (wc >= 1) {
-          // Migrate: seed wearLog from lastWorn if log doesn't exist yet
-          const log = entry.row.wearLog && entry.row.wearLog.length ? entry.row.wearLog : (lw ? [lw] : []);
-          const item = { name, tab: tab.name, wearCount: wc, lastWorn: lw, type: typeVal, price, wearLog: log };
+          const item = { name, tab: tab.name, wearCount: wc, lastWorn: lw, type: typeVal, price, wearLog: analyticsWear.wearLog };
           wornItems.push(item);
         }
         if (isWearable) {
@@ -9659,11 +9681,10 @@ const collectAllStats = () => {
         const type = getCellValue(entry, "Type") || "Unknown";
         if (isWearExcludedType(type)) return;
         const price = parseCurrency(getCellValue(entry, "Price"));
-        const wearCount = entry.row.wearCount || 0;
-        const lastWorn = entry.row.lastWorn || null;
-        const wearLog = entry.row.wearLog && entry.row.wearLog.length
-          ? entry.row.wearLog
-          : (lastWorn ? [lastWorn] : []);
+        const analyticsWear = getAnalyticsWearData(entry.row);
+        const wearCount = analyticsWear.wearCount;
+        const lastWorn = analyticsWear.lastWorn || null;
+        const wearLog = analyticsWear.wearLog;
         wearableUniverse.push({
           rowId: entry.row.id,
           tabId: tab.id,
@@ -10046,10 +10067,9 @@ const collectAllStats = () => {
       let gotItToFirstWearDays = null;
 
       if (inventoryEntry) {
-        wearCount = Math.max(0, Number(inventoryEntry.row.wearCount || 0));
-        const wearLog = Array.isArray(inventoryEntry.row.wearLog) && inventoryEntry.row.wearLog.length
-          ? inventoryEntry.row.wearLog.slice()
-          : (inventoryEntry.row.lastWorn ? [inventoryEntry.row.lastWorn] : []);
+        const analyticsWear = getAnalyticsWearData(inventoryEntry.row);
+        wearCount = analyticsWear.wearCount;
+        const wearLog = analyticsWear.wearLog;
         const obtainedMs = obtainedAt ? new Date(obtainedAt).getTime() : NaN;
         const wearTimes = wearLog
           .map((stamp) => new Date(stamp).getTime())
