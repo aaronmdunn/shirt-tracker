@@ -10651,6 +10651,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     if (set.has("bst")) matches.push("bst");
     if (set.has("ebay")) matches.push("ebay");
     if (set.has("mercari")) matches.push("mercari");
+    if (set.has("xxchange")) matches.push("xxchange");
     return matches;
   };
 
@@ -10658,6 +10659,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
     ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
   };
 
   const confidenceByKey = {};
@@ -11609,7 +11611,9 @@ const openInsightsDialog = (stats, options = {}) => {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
     };
+    const marketplaceRows = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari, marketplaceTags.xxchange];
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
     const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
     const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
@@ -11644,10 +11648,10 @@ const openInsightsDialog = (stats, options = {}) => {
     const sellLead = sellSuggestions.length
       ? `${sellSuggestions[0].name} (${sellSuggestions[0].score})`
       : "n/a";
-    const marketSummary = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+    const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
       .join(" · ");
-    const marketValueTotal = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+    const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
 
     const comebackByKey = {};
@@ -11804,7 +11808,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">BST/eBay/Mercari tags</div>
+          <div class="insights-score-title">BST/eBay/Mercari/XXChange tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
@@ -11851,8 +11855,8 @@ const openInsightsDialog = (stats, options = {}) => {
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
-      <div class="stats-hint">Breaks down BST/eBay/Mercari-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
-      <div class="insights-action-list">${[marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari].map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
+      <div class="stats-hint">Breaks down BST/eBay/Mercari/XXChange-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
+      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
       ${bench.length
