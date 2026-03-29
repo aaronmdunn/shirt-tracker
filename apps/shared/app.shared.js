@@ -10659,6 +10659,57 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
   };
 };
 
+const formatWrappedTop = (entry) => {
+  if (!entry || !entry.label) return "n/a";
+  return `${entry.label} (${entry.count || 0})`;
+};
+
+const buildWrappedStorySlides = (periodLabel, dna) => {
+  const title = `${periodLabel} Wrapped`;
+  if (!dna || dna.totalWears === 0) {
+    return [{
+      title,
+      stat: "No wear activity yet",
+      narration: "Start logging wears and this recap will automatically turn into a narrated story.",
+    }];
+  }
+
+  const topBrand = dna.topBrand?.label || "n/a";
+  const topType = dna.topType?.label || "n/a";
+  const topDay = dna.topDay?.label || "n/a";
+  const spotlightLabel = dna.spotlightWear
+    ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
+    : "No standout wear signal yet";
+
+  return [
+    {
+      title,
+      stat: `${dna.totalWears} wears across ${dna.uniqueItems} items`,
+      narration: `You kept the rotation active with ${dna.totalWears} logged wears across ${dna.uniqueItems} unique pieces.`,
+    },
+    {
+      title: "Signature profile",
+      stat: `${formatWrappedTop(dna.topBrand)} · ${formatWrappedTop(dna.topType)}`,
+      narration: `Your style leaned toward ${topBrand} and ${topType}, with ${topDay} as your strongest day.`,
+    },
+    {
+      title: "Spotlight wear",
+      stat: spotlightLabel,
+      narration: dna.spotlightWear?.reason || "No standout wear signal yet.",
+    },
+    {
+      title: "Momentum",
+      stat: `${dna.longestStreak} day streak · ${dna.addsCount} adds · ${formatCurrency(dna.addsSpend)} spend`,
+      narration: `Your best streak hit ${dna.longestStreak} days. You added ${dna.addsCount} item${dna.addsCount === 1 ? "" : "s"} this period.`,
+    },
+    {
+      title: "Flavor check",
+      stat: `${dna.topFandom?.label || "n/a"} fandom · ${dna.topTag?.label || "n/a"} tag`,
+      narration: "Use this as your next-week cue: repeat what worked, then rotate one underused style into the mix.",
+    },
+  ];
+};
+
 const openInsightsDialog = (stats, options = {}) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
@@ -10748,7 +10799,11 @@ const openInsightsDialog = (stats, options = {}) => {
      <div class="insights-score-grid">
        ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
        ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
-     </div>`
+     </div>
+     <div class="insights-story-launch">
+       <button type="button" class="btn secondary" id="insights-story-play">Play story</button>
+     </div>
+     <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
   );
 
   if (health) {
@@ -10945,6 +11000,129 @@ const openInsightsDialog = (stats, options = {}) => {
   bindChange(yearSelect, rerenderHeatmap);
   bindChange(brandSelect, rerenderHeatmap);
   rerenderHeatmap();
+
+  const storyRoot = content.querySelector("#insights-story-root");
+  const storyPlayButton = content.querySelector("#insights-story-play");
+  if (storyRoot && storyPlayButton) {
+    let storyOpen = false;
+    let storyPeriod = "month";
+    let storyIndex = 0;
+    const periodData = {
+      month: { label: monthLabel, dna: monthDna },
+      year: { label: yearLabel, dna: yearDna },
+    };
+
+    const renderStory = () => {
+      if (!storyOpen) {
+        storyRoot.classList.remove("is-open");
+        storyRoot.innerHTML = "";
+        storyPlayButton.textContent = "Play story";
+        return;
+      }
+
+      const active = periodData[storyPeriod] || periodData.month;
+      const slides = buildWrappedStorySlides(active.label, active.dna);
+      if (storyIndex < 0) storyIndex = 0;
+      if (storyIndex >= slides.length) storyIndex = slides.length - 1;
+
+      storyPlayButton.textContent = "Restart story";
+      storyRoot.classList.add("is-open");
+      storyRoot.innerHTML = `
+        <div class="insights-story-periods" role="tablist" aria-label="Story period">
+          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">${esc(`${monthLabel} Wrapped`)}</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">${esc(`${yearLabel} Wrapped`)}</button>
+        </div>
+        <div class="insights-story-shell" tabindex="0">
+          <div class="insights-story-track">
+            ${slides.map((slide, idx) => `<article class="insights-story-slide ${idx === storyIndex ? "is-active" : ""}" data-insights-story-slide="${idx}">
+              <div class="insights-story-step">Slide ${idx + 1} of ${slides.length}</div>
+              <div class="insights-story-title">${esc(slide.title)}</div>
+              <div class="insights-story-stat">${esc(slide.stat)}</div>
+              <div class="insights-story-narration">${esc(slide.narration)}</div>
+            </article>`).join("")}
+          </div>
+          <div class="insights-story-controls">
+            <button type="button" class="btn secondary" data-insights-story-prev ${storyIndex === 0 ? "disabled" : ""}>Back</button>
+            <div class="insights-story-dots">${slides.map((_, idx) => `<button type="button" class="insights-story-dot ${idx === storyIndex ? "is-active" : ""}" data-insights-story-dot="${idx}" aria-label="Go to slide ${idx + 1}"></button>`).join("")}</div>
+            <button type="button" class="btn secondary" data-insights-story-next ${storyIndex >= slides.length - 1 ? "disabled" : ""}>Next</button>
+          </div>
+          <div class="insights-story-footer">
+            <button type="button" class="insights-queue-snooze" data-insights-story-exit>Exit story</button>
+          </div>
+        </div>
+      `;
+
+      const bindStoryClick = (selector, handler) => {
+        const el = storyRoot.querySelector(selector);
+        if (!el) return;
+        el.addEventListener("click", handler);
+      };
+
+      bindStoryClick("[data-insights-story-prev]", () => {
+        storyIndex -= 1;
+        renderStory();
+      });
+      bindStoryClick("[data-insights-story-next]", () => {
+        storyIndex += 1;
+        renderStory();
+      });
+      bindStoryClick("[data-insights-story-exit]", () => {
+        storyOpen = false;
+        renderStory();
+      });
+
+      const periodButtons = storyRoot.querySelectorAll("[data-insights-story-period]");
+      periodButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const next = button.getAttribute("data-insights-story-period");
+          if (next !== "month" && next !== "year") return;
+          storyPeriod = next;
+          storyIndex = 0;
+          renderStory();
+        });
+      });
+
+      const dotButtons = storyRoot.querySelectorAll("[data-insights-story-dot]");
+      dotButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextIdx = Number(button.getAttribute("data-insights-story-dot"));
+          if (!Number.isFinite(nextIdx)) return;
+          storyIndex = nextIdx;
+          renderStory();
+        });
+      });
+
+      const shell = storyRoot.querySelector(".insights-story-shell");
+      if (shell) {
+        shell.focus();
+        shell.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft" && storyIndex > 0) {
+            event.preventDefault();
+            storyIndex -= 1;
+            renderStory();
+            return;
+          }
+          if (event.key === "ArrowRight" && storyIndex < slides.length - 1) {
+            event.preventDefault();
+            storyIndex += 1;
+            renderStory();
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            storyOpen = false;
+            renderStory();
+          }
+        });
+      }
+    };
+
+    storyPlayButton.addEventListener("click", () => {
+      storyOpen = true;
+      storyIndex = 0;
+      renderStory();
+    });
+  }
 
   openDialog(dialog);
   resetDialogScroll(dialog);
