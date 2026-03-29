@@ -10340,6 +10340,16 @@ const normalizeNoBuyGamifyState = (value) => {
   if (!out.updatedAt) {
     out.updatedAt = String(out.lastSyncDate || out.lastXpDate || out.lastBuyDate || "");
   }
+  const purchaseEventsFromActionLog = Array.isArray(out.actionLog)
+    ? out.actionLog.filter((entry) => String(entry?.type || "") === "purchase").length
+    : 0;
+  const purchaseEventsFromBuyLog = Array.isArray(out.buyLog) ? out.buyLog.length : 0;
+  out.totalBuysLogged = Math.max(
+    0,
+    Number(out.totalBuysLogged || 0),
+    purchaseEventsFromActionLog,
+    purchaseEventsFromBuyLog
+  );
   if (out.currentStreak > out.longestStreak) out.longestStreak = out.currentStreak;
   return out;
 };
@@ -10481,6 +10491,7 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
   const safe = normalizeNoBuyGamifyState(state);
   const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
   const counts = {};
+  const purchaseSeen = new Set();
 
   safe.dailyCheckins.forEach((entry) => {
     if (!entry?.tempted) return;
@@ -10500,6 +10511,20 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     const ms = Number.isFinite(atMs) ? atMs : dateMs;
     if (!Number.isFinite(ms) || ms < threshold) return;
     const reason = String(entry?.reason || "other").trim() || "other";
+    const dedupeKey = `${ms}|${reason}`;
+    purchaseSeen.add(dedupeKey);
+    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+
+  safe.actionLog.forEach((entry) => {
+    if (String(entry?.type || "") !== "purchase") return;
+    const ms = new Date(String(entry?.at || "")).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const reason = String(entry?.reason || "other").trim() || "other";
+    const dedupeKey = `${ms}|${reason}`;
+    if (purchaseSeen.has(dedupeKey)) return;
+    purchaseSeen.add(dedupeKey);
     const label = `Purchase: ${noBuyReasonLabel(reason)}`;
     counts[label] = (counts[label] || 0) + 1;
   });
@@ -12975,6 +13000,13 @@ const openNoBuyGameDialog = (stats) => {
   const recoveryLabel = recoveryActive
     ? `${recovery.progress}/${recovery.target} by ${new Date(recovery.deadline).toLocaleDateString()}`
     : "none";
+  const buysLoggedDisplay = Math.max(
+    Number(gamify.totalBuysLogged || 0),
+    Array.isArray(gamify.buyLog) ? gamify.buyLog.length : 0,
+    Array.isArray(gamify.actionLog)
+      ? gamify.actionLog.filter((entry) => String(entry?.type || "") === "purchase").length
+      : 0
+  );
   const esc = (str) => String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -13075,7 +13107,7 @@ const openNoBuyGameDialog = (stats) => {
     <div class="stats-section-title" style="margin-top:8px">Status summary</div>
     <div class="insights-action-list">
       <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
-      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${buysLoggedDisplay}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
     </div>
