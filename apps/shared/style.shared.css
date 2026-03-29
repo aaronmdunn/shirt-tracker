@@ -3306,6 +3306,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog,
 #advanced-stats-dialog,
 #first-wear-lag-dialog,
+#no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
   width: 92vw;
@@ -3316,6 +3317,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
+#no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
   padding: 20px 24px 12px;
   overflow-y: auto;
@@ -3327,6 +3329,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
+#no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
   justify-content: center;

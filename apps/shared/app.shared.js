@@ -640,6 +640,7 @@ const statsCloseButton = document.getElementById("stats-close");
 const statsAdvancedButton = document.getElementById("stats-advanced");
 const statsExportButton = document.getElementById("stats-export");
 const statsInsightsButton = document.getElementById("stats-insights");
+const statsNoBuyButton = document.getElementById("stats-no-buy");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
@@ -11863,7 +11864,6 @@ const openInsightsDialog = (stats, options = {}) => {
   const snoozes = loadInsightsSnoozes();
   const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
   const behavior = buildBehaviorInsights(stats, queue);
-  const noBuyGamify = syncNoBuyGamifyStateFromStats(stats);
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
@@ -11927,7 +11927,6 @@ const openInsightsDialog = (stats, options = {}) => {
     const adaptive = behavior?.adaptive || { boosts: [], suppressions: [], sampleSize: 0 };
     const reactivation = behavior?.reactivation || { playbook: [] };
     const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
-    const gamify = noBuyGamify || defaultNoBuyGamifyState();
     const marketplaceTags = behavior?.marketplaceTags || {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
@@ -11972,17 +11971,6 @@ const openInsightsDialog = (stats, options = {}) => {
       .join(" · ");
     const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
-    const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
-    const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
-    const cooldownActive = isNoBuyCooldownActive(gamify);
-    const cooldownLabel = cooldownActive
-      ? `${Math.max(1, Math.ceil((new Date(gamify.cooldownUntil).getTime() - Date.now()) / 3600000))}h left`
-      : "inactive";
-    const triggers = getNoBuyTriggerSummary(gamify, 30);
-    const topTriggerLabel = triggers.length ? `${triggers[0].label} (${triggers[0].count})` : "none";
-    const recoveryProgress = gamify.activeRecovery && !gamify.activeRecovery.completedAt
-      ? `${gamify.activeRecovery.progress}/${gamify.activeRecovery.target}`
-      : "none";
 
     const volatilityTone = volatility.score <= 24 ? "good" : volatility.score >= 44 ? "bad" : "";
     const personaTone = persona && persona.similarity >= 70 ? "good" : persona && persona.similarity < 45 ? "bad" : "";
@@ -11997,7 +11985,6 @@ const openInsightsDialog = (stats, options = {}) => {
     const sellTone = sellSuggestions.length <= 1 ? "good" : sellSuggestions.length >= 3 ? "bad" : "";
     const coverageTone = rotationModel.coverageScore >= 65 ? "good" : rotationModel.coverageScore < 35 ? "bad" : "";
     const adjustedBacklogTone = rotationModel.adjustedBacklogPct <= 18 ? "good" : rotationModel.adjustedBacklogPct >= 34 ? "bad" : "";
-    const noBuyTone = gamify.currentStreak >= 14 ? "good" : gamify.currentStreak <= 1 && gamify.totalBuysLogged > 0 ? "bad" : "";
 
     const comebackByKey = {};
     comeback.forEach((item) => {
@@ -12158,18 +12145,6 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
         </div>
-        <div class="insights-score-card">
-          <div class="insights-score-title">No-buy XP progress</div>
-          ${insightValue(`${gamify.currentStreak}d streak · Lv${gamify.level} · ${gamify.xp} XP`, noBuyTone)}
-          <div class="insights-score-note">Credits: ${gamify.buyCredits} · Longest streak: ${gamify.longestStreak}d</div>
-          <div class="insights-score-note">${nextMilestone ? `${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} to ${nextMilestone}d milestone` : "All milestones cleared"}</div>
-        </div>
-        <div class="insights-score-card">
-          <div class="insights-score-title">Buy cooldown status</div>
-          <div class="insights-score-value">${cooldownLabel}</div>
-          <div class="insights-score-note">Top temptation trigger (30d): ${esc(topTriggerLabel)}</div>
-          <div class="insights-score-note">Recovery mission progress: ${esc(recoveryProgress)}</div>
-        </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
       <div class="stats-hint">These metrics are calibrated for large low-frequency closets (1-2 wears per item/year) instead of daily-use assumptions.</div>
@@ -12228,30 +12203,7 @@ const openInsightsDialog = (stats, options = {}) => {
       ${bench.length
     ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">No-buy challenge loop</div>
-      <div class="stats-hint">Use cooldown + check-ins to reduce impulse buys, then complete the recovery mission if a buy happens.</div>
-      <div class="insights-action-list">
-        <div class="stats-row stats-sub"><span class="stats-label">Current streak</span><span class="stats-value">${gamify.currentStreak} days</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">XP and level</span><span class="stats-value">${gamify.xp} XP · Lv${gamify.level}</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">Buy credits</span><span class="stats-value">${gamify.buyCredits}</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">Active cooldown</span><span class="stats-value">${cooldownLabel}</span></div>
-      </div>
-      <div class="insights-queue-sim-controls" style="margin-top:6px">
-        <button type="button" class="btn secondary" id="insights-nobuy-start-cooldown">Start 24h cooldown</button>
-        <button type="button" class="btn secondary" id="insights-nobuy-log-buy">Log buy now</button>
-      </div>
-      <div class="insights-queue-sim-controls" style="margin-top:4px">
-        <label class="insights-sim-label" for="insights-nobuy-trigger">Temptation trigger</label>
-        <select id="insights-nobuy-trigger" class="insights-queue-sim-date">
-          <option value="sale">Sale</option>
-          <option value="fomo">FOMO</option>
-          <option value="boredom">Boredom</option>
-          <option value="drop">New drop</option>
-          <option value="other">Other</option>
-        </select>
-        <button type="button" class="btn secondary" id="insights-nobuy-checkin-tempted">Tempted today</button>
-        <button type="button" class="btn secondary" id="insights-nobuy-checkin-clear">No temptation today</button>
-      </div>`
+      `
     );
   };
 
@@ -12473,43 +12425,6 @@ const openInsightsDialog = (stats, options = {}) => {
     });
   }
 
-  const noBuyCooldownButton = content.querySelector("#insights-nobuy-start-cooldown");
-  const noBuyLogBuyButton = content.querySelector("#insights-nobuy-log-buy");
-  const noBuyTemptedButton = content.querySelector("#insights-nobuy-checkin-tempted");
-  const noBuyClearButton = content.querySelector("#insights-nobuy-checkin-clear");
-  const noBuyTriggerSelect = content.querySelector("#insights-nobuy-trigger");
-  const refreshInsights = () => openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
-
-  if (noBuyCooldownButton) {
-    noBuyCooldownButton.addEventListener("click", () => {
-      const next = startNoBuyCooldown(loadNoBuyGamifyState(), 24);
-      saveNoBuyGamifyState(next);
-      refreshInsights();
-    });
-  }
-  if (noBuyLogBuyButton) {
-    noBuyLogBuyButton.addEventListener("click", () => {
-      const next = logNoBuyBuyEvent(loadNoBuyGamifyState());
-      saveNoBuyGamifyState(next);
-      refreshInsights();
-    });
-  }
-  if (noBuyTemptedButton) {
-    noBuyTemptedButton.addEventListener("click", () => {
-      const trigger = noBuyTriggerSelect ? String(noBuyTriggerSelect.value || "other") : "other";
-      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, trigger);
-      saveNoBuyGamifyState(next);
-      refreshInsights();
-    });
-  }
-  if (noBuyClearButton) {
-    noBuyClearButton.addEventListener("click", () => {
-      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), false, "");
-      saveNoBuyGamifyState(next);
-      refreshInsights();
-    });
-  }
-
   const yearSelect = content.querySelector("#insights-heatmap-year");
   const brandSelect = content.querySelector("#insights-heatmap-brand");
   const heatmapBody = content.querySelector("#insights-heatmap-body");
@@ -12647,6 +12562,160 @@ const openInsightsDialog = (stats, options = {}) => {
       storyOpen = true;
       storyIndex = 0;
       renderStory();
+    });
+  }
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openNoBuyGameDialog = (stats) => {
+  let dialog = document.getElementById("no-buy-game-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "no-buy-game-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>No-Buy Challenge</h3>
+        <div id="no-buy-game-content" class="insights-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="no-buy-game-close">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeBtn = dialog.querySelector("#no-buy-game-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#no-buy-game-content");
+  if (!content) return;
+
+  const sourceStats = stats || collectAllStats();
+  const gamify = syncNoBuyGamifyStateFromStats(sourceStats);
+  const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
+  const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
+  const cooldownActive = isNoBuyCooldownActive(gamify);
+  const cooldownLabel = cooldownActive
+    ? `${Math.max(1, Math.ceil((new Date(gamify.cooldownUntil).getTime() - Date.now()) / 3600000))}h left`
+    : "inactive";
+  const triggers = getNoBuyTriggerSummary(gamify, 30);
+  const topTrigger = triggers.length ? `${triggers[0].label} (${triggers[0].count})` : "none";
+  const recovery = gamify.activeRecovery;
+  const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryLabel = recoveryActive
+    ? `${recovery.progress}/${recovery.target} by ${new Date(recovery.deadline).toLocaleDateString()}`
+    : "none";
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+
+  content.innerHTML = `
+    <div class="stats-hint">Daily anti-buy loop: build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
+    <div class="insights-score-grid">
+      <div class="insights-score-card">
+        <div class="insights-score-title">Current streak</div>
+        <div class="insights-score-value">${gamify.currentStreak} days</div>
+        <div class="insights-score-note">Longest streak: ${gamify.longestStreak} days</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">XP & level</div>
+        <div class="insights-score-value">Lv${gamify.level} · ${gamify.xp} XP</div>
+        <div class="insights-score-note">Total no-buy days banked: ${gamify.noBuyDaysTotal}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Buy credits</div>
+        <div class="insights-score-value">${gamify.buyCredits}</div>
+        <div class="insights-score-note">Earn 1 credit per 10 no-buy days</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Next milestone</div>
+        <div class="insights-score-value">${nextMilestone ? `${nextMilestone}d` : "Complete"}</div>
+        <div class="insights-score-note">${nextMilestone ? `${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} to go` : "All milestones reached"}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Cooldown</div>
+        <div class="insights-score-value">${cooldownLabel}</div>
+        <div class="insights-score-note">Use a 24h pause before committing to a buy</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Recovery mission</div>
+        <div class="insights-score-value">${esc(recoveryLabel)}</div>
+        <div class="insights-score-note">Complete to gain +50 XP</div>
+      </div>
+    </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Actions</div>
+    <div class="insights-queue-sim-controls" style="margin-top:4px">
+      <button type="button" class="btn secondary" id="nobuy-start-cooldown">Start 24h cooldown</button>
+      <button type="button" class="btn secondary" id="nobuy-log-buy">Log buy now</button>
+    </div>
+    <div class="insights-queue-sim-controls" style="margin-top:4px">
+      <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
+      <select id="nobuy-trigger" class="insights-queue-sim-date">
+        <option value="sale">Sale</option>
+        <option value="fomo">FOMO</option>
+        <option value="boredom">Boredom</option>
+        <option value="drop">New drop</option>
+        <option value="other">Other</option>
+      </select>
+      <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
+      <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
+    </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Trigger trends (30d)</div>
+    ${triggers.length
+      ? `<div class="insights-action-list">${triggers.slice(0, 5).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count}</span></div>`).join("")}</div>`
+      : `<div class="stats-hint">No temptation check-ins yet. Log a trigger on tempted days so patterns become visible.</div>`}
+
+    <div class="stats-section-title" style="margin-top:8px">Status summary</div>
+    <div class="insights-action-list">
+      <div class="stats-row stats-sub"><span class="stats-label">Top trigger</span><span class="stats-value">${esc(topTrigger)}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
+    </div>
+  `;
+
+  const refresh = () => openNoBuyGameDialog(collectAllStats());
+  const startCooldownBtn = content.querySelector("#nobuy-start-cooldown");
+  const logBuyBtn = content.querySelector("#nobuy-log-buy");
+  const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
+  const clearBtn = content.querySelector("#nobuy-checkin-clear");
+  const triggerSelect = content.querySelector("#nobuy-trigger");
+
+  if (startCooldownBtn) {
+    startCooldownBtn.addEventListener("click", () => {
+      const next = startNoBuyCooldown(loadNoBuyGamifyState(), 24);
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (logBuyBtn) {
+    logBuyBtn.addEventListener("click", () => {
+      const next = logNoBuyBuyEvent(loadNoBuyGamifyState());
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (temptedBtn) {
+    temptedBtn.addEventListener("click", () => {
+      const trigger = triggerSelect ? String(triggerSelect.value || "other") : "other";
+      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, trigger);
+      saveNoBuyGamifyState(next);
+      refresh();
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      const next = recordNoBuyCheckin(loadNoBuyGamifyState(), false, "");
+      saveNoBuyGamifyState(next);
+      refresh();
     });
   }
 
@@ -13041,6 +13110,11 @@ const openStatsDialog = () => {
   if (statsInsightsButton) {
     statsInsightsButton.onclick = () => {
       openInsightsDialog(s);
+    };
+  }
+  if (statsNoBuyButton) {
+    statsNoBuyButton.onclick = () => {
+      openNoBuyGameDialog(s);
     };
   }
   if (statsExportButton) {
