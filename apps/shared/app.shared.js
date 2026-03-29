@@ -10470,6 +10470,9 @@ const buildBehaviorInsights = (stats, queue = []) => {
 
   const comebackCandidates = wearableItems
     .map((item) => {
+      const itemTags = Array.isArray(item?.tags) ? item.tags : [];
+      const isWhale = itemTags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+      if (isWhale) return null;
       const wearCount = Number(item?.wearCount || 0);
       const key = getInsightsQueueKey(item);
       const name = String(item?.name || "Unnamed");
@@ -10541,6 +10544,9 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const collectionDailyCadence = wearsLast60 > 0 ? (wearsLast60 / 60) : 0.12;
   const valueRecoveryCandidates = wearableItems
     .map((item) => {
+      const tags = Array.isArray(item?.tags) ? item.tags : [];
+      const isWhale = tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+      if (isWhale) return null;
       const price = Number(item?.price || 0);
       if (!Number.isFinite(price) || price <= 0) return null;
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
@@ -10631,6 +10637,12 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const adaptiveBoosts = typePerfRows.filter((row) => row.rate >= 0.35).slice(0, 3);
   const adaptiveSuppressions = typePerfRows.slice().sort((a, b) => a.rate - b.rate || b.exposures - a.exposures).filter((row) => row.rate <= 0.16).slice(0, 3);
 
+  const hasWhaleTag = (item) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    return tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+  };
+  const whaleKeySet = new Set(wearableItems.filter((item) => hasWhaleTag(item)).map((item) => getInsightsQueueKey(item)));
+
   const getMarketplaceMatches = (item) => {
     const tags = Array.isArray(item?.tags) ? item.tags : [];
     const normalized = tags.map((tag) => String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
@@ -10692,6 +10704,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
 
   const sellSuggestions = wearableItems
     .map((item) => {
+      if (hasWhaleTag(item)) return null;
       const key = getInsightsQueueKey(item);
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
       const price = Number(item?.price || 0);
@@ -10756,12 +10769,15 @@ const buildBehaviorInsights = (stats, queue = []) => {
   });
   const reactivationSeeds = [];
   comebackCandidates.forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Comeback ${item.daysSince}d idle` });
   });
   benchPressure.slice(0, 5).forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Bench pressure ${item.pressureScore}` });
   });
   valueRecoveryCandidates.slice(0, 5).forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Recovery ${Math.round(item.currentCpw)}/wear` });
   });
   const playbook = [];
@@ -11795,40 +11811,50 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
+      <div class="stats-hint">Historically strong items now cooling off; useful when you want safe re-entry pieces (Whale-tagged items are excluded).</div>
       ${comeback.length
     ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
+      <div class="stats-hint">Detects fandom/tag themes that were strong earlier but dropped in recent wear share.</div>
       ${Array.isArray(fatigue.themes) && fatigue.themes.length
     ? `<div class="insights-action-list">${fatigue.themes.map((theme, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(theme.label)} (${esc(theme.family)})</span><span class="stats-value">${theme.priorShare}% -> ${theme.recentShare}% (${theme.drop}pt drop)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong fatigue signals yet. This fills in once a theme was previously dominant and then cooled.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
+      <div class="stats-hint">Shows where queue suggestions and actual choices diverge, by acceptance rate and weekday hotspots.</div>
       ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
     ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Value recovery targets</div>
+      <div class="stats-hint">High cost-per-wear items that need additional wears to reach a healthier value baseline.</div>
       ${Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
     ? `<div class="insights-action-list">${valueRecovery.candidates.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${Math.round(item.currentCpw)}/wear -> ${Math.round(item.targetCpw)}/wear · +${item.additionalWears} wears (~${item.etaDays}d)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No value recovery backlog right now. Items here appear when cost-per-wear is still far above target.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
+      <div class="stats-hint">Items with weak repeat confidence based on wear depth, repeat gaps, and recency.</div>
       ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
     ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Confidence curve is healthy. Low-signal list appears when a worn item drifts into weak repeat confidence.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
+      <div class="stats-hint">Type-level boost/cool suggestions derived from actual queue exposure vs selection outcomes.</div>
       ${(Array.isArray(adaptive.boosts) && adaptive.boosts.length) || (Array.isArray(adaptive.suppressions) && adaptive.suppressions.length)
     ? `<div class="insights-action-list">${(adaptive.boosts || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Boost ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}${(adaptive.suppressions || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Cool ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Need more queue telemetry for adaptive tuning. Keep using Wear-next and Worn today to train this section.</div>`}
       <div class="stats-section-title" style="margin-top:8px">7-day reactivation playbook</div>
+      <div class="stats-hint">A one-week sequence built from pressure/recovery signals to restart dormant rotation (Whale-tagged items are excluded).</div>
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Suggested sell shortlist</div>
+      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag (Whale-tagged items are excluded).</div>
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
+      <div class="stats-hint">Breaks down BST/eBay/Mercari-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
       <div class="insights-action-list">${[marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari].map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
+      <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
       ${bench.length
     ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}`
