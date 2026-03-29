@@ -10491,7 +10491,6 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
   const safe = normalizeNoBuyGamifyState(state);
   const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
   const counts = {};
-  const purchaseSeen = new Set();
 
   safe.dailyCheckins.forEach((entry) => {
     if (!entry?.tempted) return;
@@ -10504,30 +10503,31 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     counts[label] = (counts[label] || 0) + 1;
   });
 
-  safe.buyLog.forEach((entry) => {
-    const atMs = new Date(String(entry?.at || "")).getTime();
-    const key = String(entry?.dateKey || "");
-    const dateMs = /^\d{4}-\d{2}-\d{2}$/.test(key) ? new Date(`${key}T12:00:00`).getTime() : NaN;
-    const ms = Number.isFinite(atMs) ? atMs : dateMs;
-    if (!Number.isFinite(ms) || ms < threshold) return;
-    const reason = String(entry?.reason || "other").trim() || "other";
-    const dedupeKey = `${ms}|${reason}`;
-    purchaseSeen.add(dedupeKey);
-    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
-    counts[label] = (counts[label] || 0) + 1;
-  });
+  const purchaseActions = Array.isArray(safe.actionLog)
+    ? safe.actionLog.filter((entry) => String(entry?.type || "") === "purchase")
+    : [];
 
-  safe.actionLog.forEach((entry) => {
-    if (String(entry?.type || "") !== "purchase") return;
-    const ms = new Date(String(entry?.at || "")).getTime();
-    if (!Number.isFinite(ms) || ms < threshold) return;
-    const reason = String(entry?.reason || "other").trim() || "other";
-    const dedupeKey = `${ms}|${reason}`;
-    if (purchaseSeen.has(dedupeKey)) return;
-    purchaseSeen.add(dedupeKey);
-    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
-    counts[label] = (counts[label] || 0) + 1;
-  });
+  if (purchaseActions.length) {
+    purchaseActions.forEach((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const reason = String(entry?.reason || "other").trim() || "other";
+      const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  } else {
+    // Fallback for older state snapshots that predate actionLog purchases.
+    safe.buyLog.forEach((entry) => {
+      const atMs = new Date(String(entry?.at || "")).getTime();
+      const key = String(entry?.dateKey || "");
+      const dateMs = /^\d{4}-\d{2}-\d{2}$/.test(key) ? new Date(`${key}T12:00:00`).getTime() : NaN;
+      const ms = Number.isFinite(atMs) ? atMs : dateMs;
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const reason = String(entry?.reason || "other").trim() || "other";
+      const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  }
 
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
