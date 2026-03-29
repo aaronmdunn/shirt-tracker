@@ -2868,6 +2868,16 @@ input[type="date"].stats-date-input {
   margin-top: 2px;
 }
 
+.insights-score-value.tone-good,
+.stats-value.tone-good {
+  color: #1f8a4c;
+}
+
+.insights-score-value.tone-bad,
+.stats-value.tone-bad {
+  color: #b13a3a;
+}
+
 .insights-score-note {
   margin-top: 4px;
   font-size: 0.74rem;
@@ -3066,6 +3076,10 @@ input[type="date"].stats-date-input {
   width: 11.5em;
   min-width: 0;
   margin: 0 auto;
+}
+
+.insights-queue-preview-date {
+  text-align: center;
 }
 
 .insights-sim-label {
