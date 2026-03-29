@@ -13253,7 +13253,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">BST/eBay/Mercari/XXChange tags</div>
+          <div class="insights-score-title">Marketplace tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
