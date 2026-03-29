@@ -12747,6 +12747,7 @@ const openNoBuyGameDialog = (stats) => {
       <div class="no-buy-select-group">
         <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
         <select id="nobuy-trigger" class="insights-queue-sim-date">
+          <option value="" selected disabled>Select reason</option>
           <option value="sale">Sale</option>
           <option value="gooddeal">Good deal</option>
           <option value="rarefind">Rare find</option>
@@ -12759,6 +12760,7 @@ const openNoBuyGameDialog = (stats) => {
       <div class="no-buy-select-group">
         <label class="insights-sim-label" for="nobuy-buy-reason">Buying reason</label>
         <select id="nobuy-buy-reason" class="insights-queue-sim-date">
+          <option value="" selected disabled>Select reason</option>
           <option value="gooddeal">Good deal</option>
           <option value="rarefind">Rare find</option>
           <option value="boredom">Boredom</option>
