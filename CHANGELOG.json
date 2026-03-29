@@ -15,7 +15,9 @@
       "Refined Insights queue simulator layout: centered and compact date selector, content-width 'Use today' button, centered ranking preview date, and cleaner control hierarchy",
       "Added semantic value coloring for key Insights and Closet Audit metrics (green for healthy signals, red for risk signals)",
       "Improved stats dialog readability with subtle color hierarchy for section titles, labels, values, hints, and charts",
-      "Added thin bordered action-footer containers across stats-related dialogs to separate control buttons from data content"
+      "Added thin bordered action-footer containers across stats-related dialogs to separate control buttons from data content",
+      "Widened stats-related dialogs by roughly 15% to improve readability for dense analytics layouts",
+      "Centered the Wear Tracking 'Worn on date' block, including date picker, logged shirts/results, and wear-history/unworn links"
     ]
   },
   {
