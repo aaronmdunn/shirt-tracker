@@ -2861,7 +2861,9 @@ input[type="date"].stats-date-input {
 }
 
 .insights-story-launch {
-  margin-top: 2px;
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 8px;
 }
 
 .insights-story-root {

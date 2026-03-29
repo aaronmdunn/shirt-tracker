@@ -10504,6 +10504,13 @@ const topCountEntry = (counts) => {
   return { label: entries[0][0], count: entries[0][1] };
 };
 
+const topCountEntries = (counts, limit) => {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return [];
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return entries.slice(0, Math.max(0, Number(limit) || 0)).map(([label, count]) => ({ label, count }));
+};
+
 const longestConsecutiveDateRun = (dateKeys) => {
   if (!Array.isArray(dateKeys) || !dateKeys.length) return 0;
   const sorted = Array.from(new Set(dateKeys)).sort();
@@ -10650,6 +10657,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
     topType: topCountEntry(typeCounts),
     topFandom: topCountEntry(fandomCounts),
     topTag: topCountEntry(tagCounts),
+    topTags: topCountEntries(tagCounts, 3),
     topDay: topCountEntry(dayCounts),
     topItem,
     spotlightWear,
@@ -10677,35 +10685,48 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
   const topBrand = dna.topBrand?.label || "n/a";
   const topType = dna.topType?.label || "n/a";
   const topDay = dna.topDay?.label || "n/a";
+  const topDayCount = Number(dna.topDay?.count || 0);
   const spotlightLabel = dna.spotlightWear
     ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
     : "No standout wear signal yet";
+  const topTags = Array.isArray(dna.topTags)
+    ? dna.topTags.map((tag) => `${tag.label} (${tag.count})`).join(" · ")
+    : "";
 
   return [
     {
       title,
       stat: `${dna.totalWears} wears across ${dna.uniqueItems} items`,
-      narration: `You kept the rotation active with ${dna.totalWears} logged wears across ${dna.uniqueItems} unique pieces.`,
+      narration: `You logged ${dna.totalWears} wears across ${dna.uniqueItems} unique items. Insight: this is your rotation breadth baseline. Recommendation: if you want more variety next period, target one extra item each week from your underworn group.`,
     },
     {
       title: "Signature profile",
       stat: `${formatWrappedTop(dna.topBrand)} · ${formatWrappedTop(dna.topType)}`,
-      narration: `Your style leaned toward ${topBrand} and ${topType}, with ${topDay} as your strongest day.`,
+      narration: `Your signature lane this period was ${topBrand} + ${topType}. Peak day was ${topDay} with ${topDayCount} logged wear${topDayCount === 1 ? "" : "s"}. Recommendation: schedule your riskier style experiments on lower-volume days so the core rotation stays stable.`,
     },
     {
       title: "Spotlight wear",
       stat: spotlightLabel,
-      narration: dna.spotlightWear?.reason || "No standout wear signal yet.",
+      narration: dna.spotlightWear
+        ? `Why this popped: ${dna.spotlightWear.reason}. Insight: spotlight combines dormancy gap, item value, and condition/event boosts to identify high-impact wears. Recommendation: repeat one spotlight-style wear this week to convert momentum into habit.`
+        : "No standout wear signal yet. Recommendation: wear one high-value or long-idle item soon to create a stronger spotlight signal.",
     },
     {
       title: "Momentum",
       stat: `${dna.longestStreak} day streak · ${dna.addsCount} adds · ${formatCurrency(dna.addsSpend)} spend`,
-      narration: `Your best streak hit ${dna.longestStreak} days. You added ${dna.addsCount} item${dna.addsCount === 1 ? "" : "s"} this period.`,
+      narration: `Momentum tracks consistency (streak), intake (adds), and investment (spend). You peaked at a ${dna.longestStreak}-day streak with ${dna.addsCount} add${dna.addsCount === 1 ? "" : "s"}. Recommendation: if adds are rising faster than wears, run a short no-buy + wear-first week to prevent backlog drift.`,
+    },
+    {
+      title: "Top tags",
+      stat: topTags || "n/a",
+      narration: topTags
+        ? "These tags describe your strongest wearable themes this period. Insight: repeated tags reveal reliable outfit identities. Recommendation: pair one top tag with a non-top tag next week to expand range without losing fit confidence."
+        : "No dominant tag signal yet. Recommendation: add intentional tags to future wears so your story mode can detect stronger style patterns.",
     },
     {
       title: "Flavor check",
       stat: `${dna.topFandom?.label || "n/a"} fandom · ${dna.topTag?.label || "n/a"} tag`,
-      narration: "Use this as your next-week cue: repeat what worked, then rotate one underused style into the mix.",
+      narration: `Flavor check is your style identity snapshot, not a score. It combines fandom signal (${dna.topFandom?.label || "n/a"}) with your strongest tag signal (${dna.topTag?.label || "n/a"}) to show what your closet "voice" sounded like this period. Recommendation: keep one flavor anchor, then rotate one contrasting item to avoid repetition fatigue.`,
     },
   ];
 };
@@ -10779,6 +10800,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const spotlightLabel = dna.spotlightWear
       ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
       : "n/a";
+    const peakDayLabel = dna.topDay
+      ? `${dna.topDay.label} (${dna.topDay.count} wear${dna.topDay.count === 1 ? "" : "s"})`
+      : "n/a";
     return `<div class="insights-score-card">
       <div class="insights-score-title">${esc(title)}</div>
       <div class="insights-score-value">${dna.totalWears} wears · ${dna.uniqueItems} items</div>
@@ -10786,7 +10810,7 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="insights-score-note">Top type: ${esc(dna.topType ? `${dna.topType.label} (${dna.topType.count})` : "n/a")}</div>
       <div class="insights-score-note">Spotlight wear: ${esc(spotlightLabel)}</div>
       <div class="insights-score-note">${esc(dna.spotlightWear ? dna.spotlightWear.reason : "No standout wear signal yet")}</div>
-      <div class="insights-score-note">Peak day: ${esc(dna.topDay ? `${dna.topDay.label} (${dna.topDay.count})` : "n/a")} · Best streak: ${dna.longestStreak} days</div>
+      <div class="insights-score-note">Peak day (most logged wears): ${esc(peakDayLabel)} · Best streak: ${dna.longestStreak} days</div>
       <div class="insights-score-note">Adds: ${dna.addsCount} · Spend: ${formatCurrency(dna.addsSpend)}</div>
       <div class="insights-score-note">Top fandom: ${esc(dna.topFandom ? dna.topFandom.label : "n/a")} · Top tag: ${esc(dna.topTag ? dna.topTag.label : "n/a")}</div>
     </div>`;
