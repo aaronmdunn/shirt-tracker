@@ -3444,6 +3444,19 @@ const applyCloudPayload = (payload) => {
 const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
+let insightsRefreshTimer = null;
+const requestInsightsRefreshIfOpen = () => {
+  window.clearTimeout(insightsRefreshTimer);
+  insightsRefreshTimer = window.setTimeout(() => {
+    const dialog = document.getElementById("insights-dialog");
+    if (!dialog || !dialog.open) return;
+    const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
+    const body = dialog.querySelector(".dialog-body");
+    const previousScrollTop = body ? body.scrollTop : 0;
+    openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+  }, 120);
+};
+
 const scheduleSync = () => {
   if (!supabase || !currentUser) return;
   if (syncRetryTimer) {
@@ -3452,6 +3465,7 @@ const scheduleSync = () => {
   }
   window.clearTimeout(syncTimer);
   syncTimer = window.setTimeout(syncToSupabase, SYNC_DEBOUNCE_MS);
+  requestInsightsRefreshIfOpen();
 };
 
 const scheduleSyncRetry = () => {
@@ -10281,6 +10295,7 @@ const normalizeNoBuyGamifyState = (value) => {
           .slice(-120)
           .map((entry) => ({
             dateKey: String(entry?.dateKey || ""),
+            at: String(entry?.at || ""),
             reason: String(entry?.reason || ""),
           }))
       : [],
@@ -10325,6 +10340,61 @@ const normalizeNoBuyGamifyState = (value) => {
   if (!out.updatedAt) {
     out.updatedAt = String(out.lastSyncDate || out.lastXpDate || out.lastBuyDate || "");
   }
+  const purchaseEventsFromActionLog = Array.isArray(out.actionLog)
+    ? out.actionLog.filter((entry) => String(entry?.type || "") === "purchase").length
+    : 0;
+  const purchaseEventsFromBuyLog = Array.isArray(out.buyLog) ? out.buyLog.length : 0;
+  out.totalBuysLogged = Math.max(
+    0,
+    Number(out.totalBuysLogged || 0),
+    purchaseEventsFromActionLog,
+    purchaseEventsFromBuyLog
+  );
+
+  const purchaseCandidates = [];
+  const actionPurchaseCandidates = [];
+  if (Array.isArray(out.actionLog)) {
+    out.actionLog.forEach((entry, idx) => {
+      if (String(entry?.type || "") !== "purchase") return;
+      const at = String(entry?.at || "");
+      const ms = new Date(at).getTime();
+      if (!Number.isFinite(ms)) return;
+      actionPurchaseCandidates.push({
+        ms,
+        order: idx,
+        dateKey: localDateKeyFromDate(new Date(ms)),
+        reason: String(entry?.reason || ""),
+      });
+    });
+  }
+
+  // Prefer actionLog for authoritative latest purchase reason; fallback to buyLog for legacy snapshots.
+  if (actionPurchaseCandidates.length) {
+    purchaseCandidates.push(...actionPurchaseCandidates);
+  } else if (Array.isArray(out.buyLog)) {
+    out.buyLog.forEach((entry, idx) => {
+      const atRaw = String(entry?.at || "");
+      const dateKey = String(entry?.dateKey || "");
+      let ms = new Date(atRaw).getTime();
+      if (!Number.isFinite(ms) && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        ms = new Date(`${dateKey}T12:00:00`).getTime();
+      }
+      if (!Number.isFinite(ms)) return;
+      purchaseCandidates.push({
+        ms,
+        order: idx,
+        dateKey: /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : localDateKeyFromDate(new Date(ms)),
+        reason: String(entry?.reason || ""),
+      });
+    });
+  }
+  if (purchaseCandidates.length) {
+    purchaseCandidates.sort((a, b) => a.ms - b.ms || a.order - b.order);
+    const latest = purchaseCandidates[purchaseCandidates.length - 1];
+    out.lastBuyDate = String(latest.dateKey || out.lastBuyDate || "");
+    out.lastBuyReason = String(latest.reason || out.lastBuyReason || "");
+  }
+
   if (out.currentStreak > out.longestStreak) out.longestStreak = out.currentStreak;
   return out;
 };
@@ -10478,15 +10548,31 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     counts[label] = (counts[label] || 0) + 1;
   });
 
-  safe.buyLog.forEach((entry) => {
-    const key = String(entry?.dateKey || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
-    const ms = new Date(`${key}T12:00:00`).getTime();
-    if (!Number.isFinite(ms) || ms < threshold) return;
-    const reason = String(entry?.reason || "other").trim() || "other";
-    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
-    counts[label] = (counts[label] || 0) + 1;
-  });
+  const purchaseActions = Array.isArray(safe.actionLog)
+    ? safe.actionLog.filter((entry) => String(entry?.type || "") === "purchase")
+    : [];
+
+  if (purchaseActions.length) {
+    purchaseActions.forEach((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const reason = String(entry?.reason || "other").trim() || "other";
+      const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  } else {
+    // Fallback for older state snapshots that predate actionLog purchases.
+    safe.buyLog.forEach((entry) => {
+      const atMs = new Date(String(entry?.at || "")).getTime();
+      const key = String(entry?.dateKey || "");
+      const dateMs = /^\d{4}-\d{2}-\d{2}$/.test(key) ? new Date(`${key}T12:00:00`).getTime() : NaN;
+      const ms = Number.isFinite(atMs) ? atMs : dateMs;
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const reason = String(entry?.reason || "other").trim() || "other";
+      const label = `Purchase: ${noBuyReasonLabel(reason)}`;
+      counts[label] = (counts[label] || 0) + 1;
+    });
+  }
 
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -10531,13 +10617,11 @@ const logNoBuyBuyEvent = (state, reason = "") => {
   const todayKey = localDateKeyFromDate(new Date());
   const cleanReason = String(reason || "other").trim() || "other";
   const nowIso = new Date().toISOString();
-  if (safe.lastBuyDate !== todayKey) {
-    safe.totalBuysLogged += 1;
-    safe.lastBuyDate = todayKey;
-    safe.lastBuyReason = cleanReason;
-    safe.buyLog.push({ dateKey: todayKey, reason: cleanReason });
-    safe.buyLog = safe.buyLog.slice(-120);
-  }
+  safe.totalBuysLogged += 1;
+  safe.lastBuyDate = todayKey;
+  safe.lastBuyReason = cleanReason;
+  safe.buyLog.push({ dateKey: todayKey, at: nowIso, reason: cleanReason });
+  safe.buyLog = safe.buyLog.slice(-120);
   safe.actionLog.push({ at: nowIso, type: "purchase", reason: cleanReason });
   safe.actionLog = safe.actionLog.slice(-300);
   safe.currentStreak = 0;
@@ -10656,8 +10740,10 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
 
   if (type === "purchase") {
     let removed = false;
+    const exactAt = String(at || "");
     safe.buyLog = safe.buyLog.filter((entry) => {
       if (removed) return true;
+      if (exactAt && String(entry?.at || "") !== exactAt) return true;
       if (String(entry?.dateKey || "") !== targetDateKey) return true;
       if (String(entry?.reason || "") !== reason) return true;
       removed = true;
@@ -10667,7 +10753,11 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
 
     const latestBuy = safe.buyLog
       .slice()
-      .sort((a, b) => String(a.dateKey || "").localeCompare(String(b.dateKey || "")))
+      .sort((a, b) => {
+        const aMs = new Date(String(a.at || `${a.dateKey || ""}T12:00:00`)).getTime();
+        const bMs = new Date(String(b.at || `${b.dateKey || ""}T12:00:00`)).getTime();
+        return aMs - bMs;
+      })
       .slice(-1)[0] || null;
     safe.lastBuyDate = latestBuy ? String(latestBuy.dateKey || "") : "";
     safe.lastBuyReason = latestBuy ? String(latestBuy.reason || "") : "";
@@ -12140,13 +12230,16 @@ const openInsightsDialog = (stats, options = {}) => {
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Insights are currently available in Inventory mode.</div>`;
     openDialog(dialog);
-    resetDialogScroll(dialog);
+    if (!options.preserveScroll) {
+      resetDialogScroll(dialog);
+    }
     return;
   }
 
   const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
     : localDateKeyFromDate(new Date());
+  dialog.setAttribute("data-sim-date-key", activeSimDateKey);
   const snoozes = loadInsightsSnoozes();
   const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
   const behavior = buildBehaviorInsights(stats, queue);
@@ -12852,7 +12945,12 @@ const openInsightsDialog = (stats, options = {}) => {
   }
 
   openDialog(dialog);
-  resetDialogScroll(dialog);
+  if (options.preserveScroll) {
+    const body = dialog.querySelector(".dialog-body");
+    if (body) body.scrollTop = Math.max(0, Number(options.scrollTop || 0));
+  } else {
+    resetDialogScroll(dialog);
+  }
 };
 
 const openNoBuyGameDialog = (stats) => {
@@ -12947,6 +13045,13 @@ const openNoBuyGameDialog = (stats) => {
   const recoveryLabel = recoveryActive
     ? `${recovery.progress}/${recovery.target} by ${new Date(recovery.deadline).toLocaleDateString()}`
     : "none";
+  const buysLoggedDisplay = Math.max(
+    Number(gamify.totalBuysLogged || 0),
+    Array.isArray(gamify.buyLog) ? gamify.buyLog.length : 0,
+    Array.isArray(gamify.actionLog)
+      ? gamify.actionLog.filter((entry) => String(entry?.type || "") === "purchase").length
+      : 0
+  );
   const esc = (str) => String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -13047,7 +13152,7 @@ const openNoBuyGameDialog = (stats) => {
     <div class="stats-section-title" style="margin-top:8px">Status summary</div>
     <div class="insights-action-list">
       <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
-      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${buysLoggedDisplay}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
     </div>
