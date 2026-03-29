@@ -11728,9 +11728,13 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving"];
   const holidayMonths = new Set([1, 2, 4, 6, 9, 10, 11]);
   const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
+  const isFlannelLikeText = (text) => {
+    const normalized = String(text || "").toLowerCase();
+    return normalized.includes("flannel") || normalized.includes("borlandflex");
+  };
   const isSeasonalExempt = (item) => {
     const typeText = `${String(item?.type || "")} ${String(item?.name || "")}`.toLowerCase();
-    const flannelOffSeason = monthNow >= 5 && monthNow <= 7 && typeText.includes("flannel");
+    const flannelOffSeason = monthNow >= 5 && monthNow <= 7 && isFlannelLikeText(typeText);
     return isOutOfWindowHoliday(item) || flannelOffSeason;
   };
 
@@ -12670,13 +12674,13 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
 
       if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
 
-      if (isColdMonth && typeLower.includes("flannel")) {
+      if (isColdMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel in cold-month season", 45);
       }
-      if (isSummerMonth && typeLower.includes("flannel")) {
+      if (isSummerMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel summer penalty", -170);
       }
-      if (isPeakHeatMonth && typeLower.includes("flannel")) {
+      if (isPeakHeatMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel peak-heat penalty", -120);
       }
 
@@ -12763,8 +12767,8 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       else reasonParts.push("No wear date logged");
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
-      if (isColdMonth && typeLower.includes("flannel")) reasonParts.push("Flannel season boost");
-      if (isSummerMonth && typeLower.includes("flannel")) reasonParts.push("Flannel summer penalty");
+      if (isColdMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel season boost");
+      if (isSummerMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel summer penalty");
       if (isSummerMonth && hasSummerPriorityMatch) reasonParts.push("Summer fabric boost");
       if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
       if (matchedActiveHoliday) reasonParts.push(`${matchedActiveHoliday.profile.label} boost`);
@@ -12779,7 +12783,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
 
       let lane = "Rotation pick";
       if (wearCount === 0) lane = "First wear";
-      else if (matchedActiveHoliday || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && typeLower.includes("flannel")) || (tagSet.has("floral") && dayOfWeek === 5)) lane = "Seasonal window";
+      else if (matchedActiveHoliday || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (tagSet.has("floral") && dayOfWeek === 5)) lane = "Seasonal window";
       else if (price !== null && price >= 120 && daysSince !== null && daysSince >= 180) lane = "Value wear";
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
       else if (wearCount >= 2 && daysSince !== null && daysSince >= 120) lane = "Safe return";
