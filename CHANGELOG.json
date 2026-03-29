@@ -9,6 +9,7 @@
       "Added buying-reason capture for manual buy logs and expanded reason options (Good deal, Rare find, Boredom, Got paid/Extra money, Marketed, Promo/Sale, Other)",
       "Added Trends and Recent button log sections in No-Buy Game, including the last 10 actions with timestamp + reason and color-coded entries (temptation green, buy red)",
       "Mapped internal reason keys to human-readable labels across trends, recent logs, and last-buy summary",
+      "Updated no-buy reason dropdowns to start blank with explicit 'Select reason' placeholders instead of preselected defaults",
       "Refined No-Buy Game controls layout and spacing: one-row action buttons, centered reason selectors, and smaller button sizing for cleaner density",
       "Removed the Stats button from mobile-only header actions while keeping desktop web and Tauri desktop stats functionality intact"
     ]
