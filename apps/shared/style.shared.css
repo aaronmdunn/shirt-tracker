@@ -3033,6 +3033,11 @@ input[type="date"].stats-date-input {
   align-items: center;
 }
 
+.insights-queue-sim-controls #insights-queue-sim-today {
+  flex-basis: 100%;
+  margin: 0 auto;
+}
+
 .insights-sim-label {
   font-size: 0.72rem;
   color: var(--muted);
