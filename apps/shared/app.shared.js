@@ -12648,21 +12648,23 @@ const openNoBuyGameDialog = (stats) => {
     </div>
 
     <div class="stats-section-title" style="margin-top:8px">Actions</div>
-    <div class="insights-queue-sim-controls" style="margin-top:4px">
+    <div class="insights-controls no-buy-actions-row" style="margin-top:4px">
       <button type="button" class="btn secondary" id="nobuy-start-cooldown">Start 24h cooldown</button>
       <button type="button" class="btn secondary" id="nobuy-log-buy">Log buy now</button>
+      <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
+      <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
     </div>
-    <div class="insights-queue-sim-controls" style="margin-top:4px">
+    <div class="insights-queue-sim-controls no-buy-trigger-row" style="margin-top:8px">
       <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
       <select id="nobuy-trigger" class="insights-queue-sim-date">
         <option value="sale">Sale</option>
+        <option value="gooddeal">Good deal</option>
+        <option value="rarefind">Rare find</option>
         <option value="fomo">FOMO</option>
         <option value="boredom">Boredom</option>
         <option value="drop">New drop</option>
         <option value="other">Other</option>
       </select>
-      <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
-      <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
     </div>
 
     <div class="stats-section-title" style="margin-top:8px">Trigger trends (30d)</div>
