@@ -2589,6 +2589,11 @@ dialog {
 
 #stats-dialog .dialog-actions {
   justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 8px 20px 16px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
 .stats-section {
@@ -3293,8 +3298,14 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
-#insights-dialog .dialog-actions {
+#insights-dialog .dialog-actions,
+#stats-export-dialog .dialog-actions {
   justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 8px 20px 16px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
 .advanced-stats-content {
