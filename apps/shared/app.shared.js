@@ -10302,6 +10302,25 @@ const saveNoBuyGamifyState = (state) => {
 
 const getNoBuyMilestones = () => [7, 14, 30, 60, 90];
 
+const noBuyReasonLabel = (value) => {
+  const key = String(value || "").trim().toLowerCase();
+  const map = {
+    sale: "Sale",
+    gooddeal: "Good deal",
+    rarefind: "Rare find",
+    fomo: "FOMO",
+    boredom: "Boredom",
+    drop: "New drop",
+    gotpaid: "Got paid/Extra money",
+    marketed: "Marketed",
+    promo: "Promo/Sale",
+    other: "Other",
+  };
+  if (map[key]) return map[key];
+  if (!key) return "Other";
+  return key.replace(/[-_]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+};
+
 const getNoBuyNextMilestone = (streak) => {
   const safeStreak = Math.max(0, Number(streak || 0));
   const next = getNoBuyMilestones().find((day) => day > safeStreak);
@@ -10338,7 +10357,7 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     const ms = new Date(`${key}T12:00:00`).getTime();
     if (!Number.isFinite(ms) || ms < threshold) return;
     const trigger = String(entry.trigger || "other").trim() || "other";
-    const label = `Temptation: ${trigger}`;
+    const label = `Temptation: ${noBuyReasonLabel(trigger)}`;
     counts[label] = (counts[label] || 0) + 1;
   });
 
@@ -10348,7 +10367,7 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     const ms = new Date(`${key}T12:00:00`).getTime();
     if (!Number.isFinite(ms) || ms < threshold) return;
     const reason = String(entry?.reason || "other").trim() || "other";
-    const label = `Purchase: ${reason}`;
+    const label = `Purchase: ${noBuyReasonLabel(reason)}`;
     counts[label] = (counts[label] || 0) + 1;
   });
 
@@ -12761,7 +12780,7 @@ const openNoBuyGameDialog = (stats) => {
             : "Unknown date";
           const typeLabel = entry.type === "purchase" ? "Buy logged" : "Tempted";
           const toneClass = entry.type === "purchase" ? "tone-bad" : "tone-good";
-          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(entry.reason || "other")}</span></div>`;
+          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
 
@@ -12774,7 +12793,7 @@ const openNoBuyGameDialog = (stats) => {
     <div class="insights-action-list">
       <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
-      <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason || "n/a")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
     </div>
   `;
