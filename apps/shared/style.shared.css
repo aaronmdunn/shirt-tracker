@@ -2593,13 +2593,15 @@ dialog {
 
 .stats-section {
   margin-bottom: 16px;
-  padding-bottom: 12px;
+  padding: 10px 12px 12px;
   border-bottom: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, #ffffff) 0%, #ffffff 100%);
 }
 
 .stats-section:last-child {
   margin-bottom: 0;
-  padding-bottom: 0;
+  padding-bottom: 10px;
   border-bottom: none;
 }
 
@@ -2607,26 +2609,32 @@ dialog {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 4px 0;
+  padding: 5px 0;
   font-size: 0.88rem;
   gap: 12px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.stats-row:last-child {
+  border-bottom: none;
 }
 
 .stats-label {
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 52%, #5a6874);
   white-space: nowrap;
 }
 
 .stats-value {
   font-weight: 700;
   text-align: right;
-  color: var(--ink);
+  color: color-mix(in srgb, var(--accent) 24%, var(--ink));
   word-break: break-word;
 }
 
 .stats-sub .stats-label {
   padding-left: 14px;
   font-size: 0.82rem;
+  color: color-mix(in srgb, var(--ink) 48%, #5f7080);
   white-space: normal;
   word-break: break-word;
 }
@@ -2634,18 +2642,23 @@ dialog {
 .stats-sub .stats-value {
   font-weight: 400;
   font-size: 0.82rem;
+  color: color-mix(in srgb, var(--ink) 72%, #4e6170);
 }
 
 .stats-section-title {
   font-weight: 700;
   font-size: 0.85rem;
-  color: var(--ink);
+  color: color-mix(in srgb, var(--accent) 45%, #2d4053);
   margin-bottom: 6px;
+  padding: 2px 8px;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 52%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, #f8fafc);
+  border-radius: 6px;
 }
 
 .stats-hint {
   font-size: 0.78rem;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 44%, #667788);
   line-height: 1.4;
   margin-bottom: 8px;
 }
@@ -2659,12 +2672,14 @@ dialog {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 4px 0;
+  padding: 5px 8px;
   font-size: 0.85rem;
   gap: 12px;
   cursor: pointer;
   list-style: none;
   user-select: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 6%, #f7f9fb);
 }
 
 .stats-tab-summary::-webkit-details-marker {
@@ -2690,7 +2705,7 @@ dialog {
 }
 
 .stats-tab-body {
-  padding: 4px 0 8px 14px;
+  padding: 6px 0 8px 14px;
 }
 
 .stats-tab-body .stats-section {
@@ -2722,7 +2737,7 @@ dialog {
   flex: 0 0 auto;
   min-width: 50px;
   max-width: 140px;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 48%, #5f7080);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2731,7 +2746,7 @@ dialog {
 .stats-bar-track {
   flex: 1;
   height: 14px;
-  background: var(--line);
+  background: color-mix(in srgb, var(--accent) 10%, var(--line));
   border-radius: 7px;
   overflow: hidden;
   min-width: 40px;
@@ -2739,7 +2754,7 @@ dialog {
 
 .stats-bar-fill {
   height: 100%;
-  background: var(--accent-2);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 46%, #89a9bf), var(--accent-2));
   border-radius: 7px;
   min-width: 3px;
   transition: width 0.3s ease;
@@ -2765,14 +2780,14 @@ dialog {
 .stats-progress-track {
   flex: 1;
   height: 10px;
-  background: var(--line);
+  background: color-mix(in srgb, var(--accent) 10%, var(--line));
   border-radius: 5px;
   overflow: hidden;
 }
 
 .stats-progress-fill {
   height: 100%;
-  background: var(--accent-2);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 46%, #89a9bf), var(--accent-2));
   border-radius: 5px;
   transition: width 0.3s ease;
 }
@@ -2780,7 +2795,7 @@ dialog {
 .stats-progress-label {
   flex: 0 0 auto;
   font-size: 0.78rem;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 48%, #5f7080);
   white-space: nowrap;
 }
 
@@ -2834,14 +2849,14 @@ input[type="date"].stats-date-input {
 
 .insights-score-card {
   border: 1px solid var(--line);
-  background: #f7f7f7;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, #f9fbfc) 0%, #f7f7f7 100%);
   border-radius: 12px;
   padding: 8px 10px;
 }
 
 .insights-score-title {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--accent) 46%, #5f7080);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2856,7 +2871,7 @@ input[type="date"].stats-date-input {
 .insights-score-note {
   margin-top: 4px;
   font-size: 0.74rem;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--ink) 46%, #647687);
   line-height: 1.35;
 }
 
