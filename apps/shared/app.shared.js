@@ -10352,17 +10352,27 @@ const normalizeNoBuyGamifyState = (value) => {
   );
 
   const purchaseCandidates = [];
+  const actionPurchaseCandidates = [];
   if (Array.isArray(out.actionLog)) {
-    out.actionLog.forEach((entry) => {
+    out.actionLog.forEach((entry, idx) => {
       if (String(entry?.type || "") !== "purchase") return;
       const at = String(entry?.at || "");
       const ms = new Date(at).getTime();
       if (!Number.isFinite(ms)) return;
-      purchaseCandidates.push({ ms, dateKey: localDateKeyFromDate(new Date(ms)), reason: String(entry?.reason || "") });
+      actionPurchaseCandidates.push({
+        ms,
+        order: idx,
+        dateKey: localDateKeyFromDate(new Date(ms)),
+        reason: String(entry?.reason || ""),
+      });
     });
   }
-  if (Array.isArray(out.buyLog)) {
-    out.buyLog.forEach((entry) => {
+
+  // Prefer actionLog for authoritative latest purchase reason; fallback to buyLog for legacy snapshots.
+  if (actionPurchaseCandidates.length) {
+    purchaseCandidates.push(...actionPurchaseCandidates);
+  } else if (Array.isArray(out.buyLog)) {
+    out.buyLog.forEach((entry, idx) => {
       const atRaw = String(entry?.at || "");
       const dateKey = String(entry?.dateKey || "");
       let ms = new Date(atRaw).getTime();
@@ -10370,11 +10380,16 @@ const normalizeNoBuyGamifyState = (value) => {
         ms = new Date(`${dateKey}T12:00:00`).getTime();
       }
       if (!Number.isFinite(ms)) return;
-      purchaseCandidates.push({ ms, dateKey: /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : localDateKeyFromDate(new Date(ms)), reason: String(entry?.reason || "") });
+      purchaseCandidates.push({
+        ms,
+        order: idx,
+        dateKey: /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : localDateKeyFromDate(new Date(ms)),
+        reason: String(entry?.reason || ""),
+      });
     });
   }
   if (purchaseCandidates.length) {
-    purchaseCandidates.sort((a, b) => a.ms - b.ms);
+    purchaseCandidates.sort((a, b) => a.ms - b.ms || a.order - b.order);
     const latest = purchaseCandidates[purchaseCandidates.length - 1];
     out.lastBuyDate = String(latest.dateKey || out.lastBuyDate || "");
     out.lastBuyReason = String(latest.reason || out.lastBuyReason || "");
