@@ -10258,6 +10258,7 @@ const medianOf = (values) => {
 const buildBehaviorInsights = (stats, queue = []) => {
   const nowMs = Date.now();
   const dayMs = 86400000;
+  const monthNow = new Date(nowMs).getMonth();
   const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
   const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const itemLookup = {};
@@ -10269,6 +10270,68 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const recentEvents = wearEvents
     .map((event) => ({ ...event, wornMs: toDateMsFromWearEvent(event) }))
     .filter((event) => Number.isFinite(event.wornMs));
+
+  const normalizeTagKey = (tag) => String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const hasTag = (item, tagKey) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    return tags.some((tag) => normalizeTagKey(tag) === tagKey);
+  };
+  const hasAnyTag = (item, keys) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    const set = new Set(tags.map(normalizeTagKey));
+    return keys.some((key) => set.has(key));
+  };
+  const isWhaleTagged = (item) => hasTag(item, "whale");
+  const isProtectedTagged = (item) => hasAnyTag(item, ["whale", "sentimental", "archive"]);
+
+  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving"];
+  const holidayMonths = new Set([1, 2, 4, 6, 9, 10, 11]);
+  const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
+  const isSeasonalExempt = (item) => {
+    const typeText = `${String(item?.type || "")} ${String(item?.name || "")}`.toLowerCase();
+    const flannelOffSeason = monthNow >= 5 && monthNow <= 7 && typeText.includes("flannel");
+    return isOutOfWindowHoliday(item) || flannelOffSeason;
+  };
+
+  const annualWindowMs = nowMs - (365 * dayMs);
+  const twoYearWindowMs = nowMs - (730 * dayMs);
+  const covered365Count = wearableItems.filter((item) => {
+    const ms = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    return Number.isFinite(ms) && ms >= annualWindowMs;
+  }).length;
+  const covered730Count = wearableItems.filter((item) => {
+    const ms = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    return Number.isFinite(ms) && ms >= twoYearWindowMs && ms < annualWindowMs;
+  }).length;
+  const dormantCount = Math.max(0, wearableItems.length - covered365Count - covered730Count);
+  const annualCoveragePct = safePercent(covered365Count, wearableItems.length);
+
+  const backlogEligible = wearableItems.filter((item) => {
+    if (isProtectedTagged(item)) return false;
+    if (isSeasonalExempt(item)) return false;
+    if (!item?.createdAt) return false;
+    const createdMs = new Date(item.createdAt).getTime();
+    return Number.isFinite(createdMs) && createdMs <= (nowMs - (120 * dayMs));
+  });
+  const neverWornEligible = backlogEligible.filter((item) => Number(item?.wearCount || 0) <= 0);
+  const adjustedBacklogPct = safePercent(neverWornEligible.length, backlogEligible.length);
+  const graceCount = wearableItems.filter((item) => {
+    if (!item?.createdAt) return false;
+    const createdMs = new Date(item.createdAt).getTime();
+    return Number.isFinite(createdMs) && createdMs > (nowMs - (120 * dayMs));
+  }).length;
+  const seasonalExemptCount = wearableItems.filter((item) => isSeasonalExempt(item)).length;
+  const expectedTouchesPerMonth = Math.max(8, Math.min(20, Math.round(wearableItems.length * 0.07)));
+
+  const coverageScore = Math.max(0, Math.min(100, Math.round(((annualCoveragePct - 35) / 40) * 100)));
+  const tierATargetMid = 58;
+  const tierBTargetMid = 30;
+  const tierCTargetMid = 12;
+  const tierAPct = safePercent(covered365Count, wearableItems.length);
+  const tierBPct = safePercent(covered730Count, wearableItems.length);
+  const tierCPct = safePercent(dormantCount, wearableItems.length);
+  const tierPenalty = Math.abs(tierAPct - tierATargetMid) + Math.abs(tierBPct - tierBTargetMid) + Math.abs(tierCPct - tierCTargetMid);
+  const tierBalanceScore = Math.max(0, Math.min(100, 100 - Math.round(tierPenalty * 0.9)));
 
   const weekly = {};
   recentEvents.forEach((event) => {
@@ -10470,9 +10533,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
 
   const comebackCandidates = wearableItems
     .map((item) => {
-      const itemTags = Array.isArray(item?.tags) ? item.tags : [];
-      const isWhale = itemTags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
-      if (isWhale) return null;
+      if (isWhaleTagged(item) || isSeasonalExempt(item)) return null;
       const wearCount = Number(item?.wearCount || 0);
       const key = getInsightsQueueKey(item);
       const name = String(item?.name || "Unnamed");
@@ -10544,9 +10605,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const collectionDailyCadence = wearsLast60 > 0 ? (wearsLast60 / 60) : 0.12;
   const valueRecoveryCandidates = wearableItems
     .map((item) => {
-      const tags = Array.isArray(item?.tags) ? item.tags : [];
-      const isWhale = tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
-      if (isWhale) return null;
+      if (isWhaleTagged(item) || isSeasonalExempt(item)) return null;
       const price = Number(item?.price || 0);
       if (!Number.isFinite(price) || price <= 0) return null;
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
@@ -10637,15 +10696,12 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const adaptiveBoosts = typePerfRows.filter((row) => row.rate >= 0.35).slice(0, 3);
   const adaptiveSuppressions = typePerfRows.slice().sort((a, b) => a.rate - b.rate || b.exposures - a.exposures).filter((row) => row.rate <= 0.16).slice(0, 3);
 
-  const hasWhaleTag = (item) => {
-    const tags = Array.isArray(item?.tags) ? item.tags : [];
-    return tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
-  };
-  const whaleKeySet = new Set(wearableItems.filter((item) => hasWhaleTag(item)).map((item) => getInsightsQueueKey(item)));
+  const whaleKeySet = new Set(wearableItems.filter((item) => isWhaleTagged(item)).map((item) => getInsightsQueueKey(item)));
+  const seasonalExemptKeySet = new Set(wearableItems.filter((item) => isSeasonalExempt(item)).map((item) => getInsightsQueueKey(item)));
 
   const getMarketplaceMatches = (item) => {
     const tags = Array.isArray(item?.tags) ? item.tags : [];
-    const normalized = tags.map((tag) => String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const normalized = tags.map(normalizeTagKey);
     const set = new Set(normalized);
     const matches = [];
     if (set.has("bst")) matches.push("bst");
@@ -10706,7 +10762,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
 
   const sellSuggestions = wearableItems
     .map((item) => {
-      if (hasWhaleTag(item)) return null;
+      if (isWhaleTagged(item) || isSeasonalExempt(item)) return null;
       const key = getInsightsQueueKey(item);
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
       const price = Number(item?.price || 0);
@@ -10771,15 +10827,15 @@ const buildBehaviorInsights = (stats, queue = []) => {
   });
   const reactivationSeeds = [];
   comebackCandidates.forEach((item) => {
-    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (whaleKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Comeback ${item.daysSince}d idle` });
   });
   benchPressure.slice(0, 5).forEach((item) => {
-    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (whaleKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Bench pressure ${item.pressureScore}` });
   });
   valueRecoveryCandidates.slice(0, 5).forEach((item) => {
-    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (whaleKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
     if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Recovery ${Math.round(item.currentCpw)}/wear` });
   });
   const playbook = [];
@@ -10826,6 +10882,22 @@ const buildBehaviorInsights = (stats, queue = []) => {
       trend: explorationPct - priorExplorationPct,
       coreTypes: Array.from(coreTypes),
       windowTotal,
+    },
+    rotationModel: {
+      closetSize: wearableItems.length,
+      annualCoveragePct,
+      covered365Count,
+      tierA: { count: covered365Count, pct: tierAPct },
+      tierB: { count: covered730Count, pct: tierBPct },
+      tierC: { count: dormantCount, pct: tierCPct },
+      coverageScore,
+      tierBalanceScore,
+      expectedTouchesPerMonth,
+      eligibleBacklogCount: backlogEligible.length,
+      neverWornEligibleCount: neverWornEligible.length,
+      adjustedBacklogPct,
+      graceCount,
+      seasonalExemptCount,
     },
     acquisition: {
       score: acquisitionScore,
@@ -11601,7 +11673,22 @@ const openInsightsDialog = (stats, options = {}) => {
     const volatility = behavior?.volatility || { score: 0, label: "n/a", weeklyDrifts: [], latestShift: 0 };
     const persona = behavior?.persona || null;
     const exploration = behavior?.exploration || { pct: 0, trend: 0, coreTypes: [], windowTotal: 0 };
-    const acquisition = behavior?.acquisition || { score: 0, eligibleAdds: 0, adoptionRate30: 0, rewearRate30: 0, medianFirstWearDays: null };
+    const rotationModel = behavior?.rotationModel || {
+      closetSize: 0,
+      annualCoveragePct: 0,
+      covered365Count: 0,
+      tierA: { count: 0, pct: 0 },
+      tierB: { count: 0, pct: 0 },
+      tierC: { count: 0, pct: 0 },
+      coverageScore: 0,
+      tierBalanceScore: 0,
+      expectedTouchesPerMonth: 0,
+      eligibleBacklogCount: 0,
+      neverWornEligibleCount: 0,
+      adjustedBacklogPct: 0,
+      graceCount: 0,
+      seasonalExemptCount: 0,
+    };
     const fatigue = behavior?.fatigue || { count: 0, themes: [] };
     const friction = behavior?.friction || { avgAcceptance: 0, highFrictionDays: 0, worstDay: null, weekdayRows: [], totalDays: 0 };
     const valueRecovery = behavior?.valueRecovery || { candidates: [], totalRecoveryWears: 0, cadencePerDay: 0.12 };
@@ -11629,8 +11716,6 @@ const openInsightsDialog = (stats, options = {}) => {
     const benchAvgRate = bench.length
       ? Math.round(bench.reduce((sum, item) => sum + item.selectionRate, 0) * 100 / bench.length)
       : 0;
-    const queueTop = queue.length ? queue[0] : null;
-    const queueTopScore = queueTop ? Math.round(queueTop.score || 0) : 0;
     const fatigueLead = Array.isArray(fatigue.themes) && fatigue.themes.length
       ? `${fatigue.themes[0].label} (-${fatigue.themes[0].drop} pts)`
       : "n/a";
@@ -11656,18 +11741,19 @@ const openInsightsDialog = (stats, options = {}) => {
     const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
 
-    const volatilityTone = volatility.score <= 18 ? "good" : volatility.score >= 36 ? "bad" : "";
+    const volatilityTone = volatility.score <= 24 ? "good" : volatility.score >= 44 ? "bad" : "";
     const personaTone = persona && persona.similarity >= 70 ? "good" : persona && persona.similarity < 45 ? "bad" : "";
-    const explorationTone = exploration.pct >= 22 && exploration.pct <= 48 ? "good" : exploration.pct < 12 || exploration.pct > 65 ? "bad" : "";
+    const explorationTone = exploration.pct >= 12 && exploration.pct <= 58 ? "good" : exploration.pct < 6 || exploration.pct > 72 ? "bad" : "";
     const benchTone = bench.length <= 2 ? "good" : bench.length >= 6 ? "bad" : "";
-    const acquisitionTone = acquisition.score >= 70 ? "good" : acquisition.score < 45 ? "bad" : "";
     const fatigueTone = fatigue.count <= 1 ? "good" : fatigue.count >= 4 ? "bad" : "";
-    const frictionTone = friction.avgAcceptance >= 35 ? "good" : friction.avgAcceptance < 18 ? "bad" : "";
-    const recoveryTone = valueRecovery.totalRecoveryWears <= 8 ? "good" : valueRecovery.totalRecoveryWears >= 24 ? "bad" : "";
+    const frictionTone = friction.avgAcceptance >= 24 ? "good" : friction.avgAcceptance < 12 ? "bad" : "";
+    const recoveryTone = valueRecovery.totalRecoveryWears <= 14 ? "good" : valueRecovery.totalRecoveryWears >= 34 ? "bad" : "";
     const confidenceTone = confidence.avgConfidence >= 70 ? "good" : confidence.avgConfidence < 45 ? "bad" : "";
     const adaptiveTone = adaptive.sampleSize >= 5 ? "good" : adaptive.sampleSize <= 1 ? "bad" : "";
-    const playbookTone = playbookCount <= 2 ? "good" : playbookCount >= 6 ? "bad" : "";
+    const playbookTone = playbookCount <= 3 ? "good" : playbookCount >= 7 ? "bad" : "";
     const sellTone = sellSuggestions.length <= 1 ? "good" : sellSuggestions.length >= 3 ? "bad" : "";
+    const coverageTone = rotationModel.coverageScore >= 65 ? "good" : rotationModel.coverageScore < 35 ? "bad" : "";
+    const adjustedBacklogTone = rotationModel.adjustedBacklogPct <= 18 ? "good" : rotationModel.adjustedBacklogPct >= 34 ? "bad" : "";
 
     const comebackByKey = {};
     comeback.forEach((item) => {
@@ -11763,10 +11849,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">High pressure means repeated exposure without selection. Wear one this week or snooze to declutter picks.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Queue readiness now</div>
-          <div class="insights-score-value">${queue.length} active suggestions</div>
-          <div class="insights-score-note">Top priority score: ${queueTopScore}${queueTop ? ` (${esc(queueTop.name)})` : ""}</div>
-          <div class="insights-score-note">Lower queue size usually means tighter rotation; larger queue means more recovery opportunities.</div>
+          <div class="insights-score-title">Annual coverage index</div>
+          ${insightValue(`${rotationModel.coverageScore}/100 (${rotationModel.annualCoveragePct}% touched)`, coverageTone)}
+          <div class="insights-score-note">${rotationModel.covered365Count}/${rotationModel.closetSize} wearable items worn at least once in the last 365 days.</div>
+          <div class="insights-score-note">Collector-normal target pace: ~${rotationModel.expectedTouchesPerMonth} unique touches per month.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Wildcard pick of the week</div>
@@ -11775,10 +11861,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Why this pick: ${esc(wildcardReasonText)}.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Acquisition quality</div>
-          ${insightValue(`${acquisition.score}/100`, acquisitionTone)}
-          <div class="insights-score-note">30d adoption: ${acquisition.adoptionRate30}% · 30d rewear: ${acquisition.rewearRate30}%</div>
-          <div class="insights-score-note">Median first wear: ${acquisition.medianFirstWearDays === null ? "n/a" : `${Math.round(acquisition.medianFirstWearDays)}d`} (${acquisition.eligibleAdds} recent adds)</div>
+          <div class="insights-score-title">Opportunity-adjusted backlog</div>
+          ${insightValue(`${rotationModel.neverWornEligibleCount}/${rotationModel.eligibleBacklogCount} (${rotationModel.adjustedBacklogPct}%)`, adjustedBacklogTone)}
+          <div class="insights-score-note">Excludes <120d adds, Whale/sentimental/archive items, and out-of-season exempt pieces.</div>
+          <div class="insights-score-note">Grace window items (not penalized yet): ${rotationModel.graceCount}.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Theme fatigue detector</div>
@@ -11828,6 +11914,15 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
         </div>
+      </div>
+      <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
+      <div class="stats-hint">These metrics are calibrated for large low-frequency closets (1-2 wears per item/year) instead of daily-use assumptions.</div>
+      <div class="insights-action-list">
+        <div class="stats-row stats-sub"><span class="stats-label">Tier A (worn last 365d)</span><span class="stats-value">${rotationModel.tierA.count} items (${rotationModel.tierA.pct}%)</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tier B (worn 366-730d ago)</span><span class="stats-value">${rotationModel.tierB.count} items (${rotationModel.tierB.pct}%)</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tier C (dormant >730d)</span><span class="stats-value">${rotationModel.tierC.count} items (${rotationModel.tierC.pct}%)</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tier balance score</span><span class="stats-value">${rotationModel.tierBalanceScore}/100</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Seasonal exemptions this cycle</span><span class="stats-value">${rotationModel.seasonalExemptCount} items</span></div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
       <div class="stats-hint">Historically strong items now cooling off; useful when you want safe re-entry pieces (Whale-tagged items are excluded).</div>
@@ -11912,18 +12007,19 @@ const openInsightsDialog = (stats, options = {}) => {
     const neverWornPctOfWearables = wearableItems.length
       ? Math.round((neverWornCount / wearableItems.length) * 100)
       : 0;
-    const healthTone = health.score >= 70 ? "good" : health.score < 50 ? "bad" : "";
-    const idleTone = (inactive?.inactive180Count || 0) <= 5 ? "good" : (inactive?.inactive180Count || 0) >= 20 ? "bad" : "";
+    const healthTone = health.score >= 60 ? "good" : health.score < 38 ? "bad" : "";
+    const idleRatio = wearableItems.length ? ((inactive?.inactive180Count || 0) / wearableItems.length) : 0;
+    const idleTone = idleRatio <= 0.16 ? "good" : idleRatio >= 0.42 ? "bad" : "";
     const adoptionLagDays = adoption?.medianDaysToFirstWear === null || adoption?.medianDaysToFirstWear === undefined
       ? null
       : Math.round(adoption.medianDaysToFirstWear);
     const adoptionTone = adoptionLagDays === null ? "" : adoptionLagDays <= 14 ? "good" : adoptionLagDays >= 40 ? "bad" : "";
-    const backlogTone = neverWornPctOfWearables <= 15 ? "good" : neverWornPctOfWearables >= 35 ? "bad" : "";
-    const rotationTone = health.recencyPct >= 60 ? "good" : health.recencyPct < 35 ? "bad" : "";
+    const backlogTone = neverWornPctOfWearables <= 24 ? "good" : neverWornPctOfWearables >= 48 ? "bad" : "";
+    const rotationTone = health.recencyPct >= 20 ? "good" : health.recencyPct < 8 ? "bad" : "";
     const noBuyTone = noBuyCurrent >= 14 ? "good" : "";
     html += section(
       "Closet audit scorecard",
-      `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
+      `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value (calibrated for large low-frequency closets).</div>
       <div class="insights-score-grid">
         <div class="insights-score-card">
           <div class="insights-score-title">Health score</div>
