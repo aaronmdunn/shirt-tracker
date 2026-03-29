@@ -6,6 +6,10 @@
       "Added per-row Delete controls to No-Buy Game Recent button log so duplicate or mistaken temptation/buy entries can be removed",
       "Wired deletion to underlying no-buy sources (buy log and temptation check-ins) so Trends and summaries stay consistent after removals",
       "Improved no-buy cross-device continuity by preserving fallback timestamp behavior for older payloads while syncing/deleting log actions",
+      "Fixed no-buy cross-device conflict cases by introducing freshness-aware merge metadata (`revision` + `updatedAt`) so latest state wins and deleted entries do not reappear",
+      "Updated no-buy purchase counting and trend aggregation to use event-level behavior, including same-day multi-buy support and action-log-first purchase trend/source logic",
+      "Corrected Last buy reason to derive from the latest timestamped purchase action (with legacy fallback only when needed)",
+      "Added near real-time Insights dialog refresh while open (with preserved sim-date and scroll position) so stat changes appear immediately after edits/actions",
       "Shipped routine release maintenance: version references updated to 2.0.20 across web, shared, and Tauri metadata"
     ]
   },
