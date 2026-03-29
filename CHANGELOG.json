@@ -1,5 +1,14 @@
 [
   {
+    "version": "2.1.1",
+    "date": "2026-03-29",
+    "changes": [
+      "Added a stats-only pre-app wear cutoff starting 2026-03-01 so Jan/Feb 2026 wear history no longer skews collector analytics, while preserving the real shirt rows, add dates, and purchase timing",
+      "Applied the cutoff to wear-log-driven analytics across Insights, Main Stats, Advanced Stats, and wishlist first-wear / repeat-wear stats so app-era behavior reads more honestly",
+      "Kept inventory data, createdAt values, purchase streaks, no-buy data, and underlying row state untouched so the app does not invent fake March 1 purchases or overwrite legacy collection history"
+    ]
+  },
+  {
     "version": "2.1.0",
     "date": "2026-03-29",
     "changes": [
