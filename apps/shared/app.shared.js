@@ -10844,6 +10844,9 @@ const openInsightsDialog = (stats, options = {}) => {
     }).length;
     const noBuyCurrent = Number.isFinite(stats.noBuyCurrentDays) ? stats.noBuyCurrentDays : 0;
     const noBuyLongest = Number.isFinite(stats.noBuyLongestDays) ? stats.noBuyLongestDays : 0;
+    const neverWornPctOfWearables = wearableItems.length
+      ? Math.round((neverWornCount / wearableItems.length) * 100)
+      : 0;
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
@@ -10880,10 +10883,20 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Recommended next actions</div>
+      <div class="stats-hint">This is your quick weekly game plan: queue first, then long-idle value, then never-worn backlog.</div>
       <div class="insights-action-list">
-        <div class="stats-row stats-sub"><span class="stats-label">1. Wear-next queue</span><span class="stats-value">${queue.length} suggestions</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">2. Inactive >180d</span><span class="stats-value">${inactive?.inactive180Count || 0} items</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items</span></div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">1. Wear-next queue</span><span class="stats-value">${queue.length} suggestions</span></div>
+          <div class="stats-hint">Ranked by recency gap, never-worn pressure, season/date signals, and value/condition boosts. Suggested move: wear the top 3 this week.</div>
+        </div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">2. Inactive >180d</span><span class="stats-value">${inactive?.inactive180Count || 0} items · ${formatCurrency(inactive?.inactive180Value || 0)}</span></div>
+          <div class="stats-hint">These items have not been worn in 6+ months and may be dragging rotation value. Suggested move: test-wear 1-2, then keep/archive/sell.</div>
+        </div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items (${neverWornPctOfWearables}% of wearables)</span></div>
+          <div class="stats-hint">Added but never worn items are adoption risk. Suggested move: prioritize NWT/NWOT and newest adds first to prevent backlog creep.</div>
+        </div>
       </div>`
     );
   }
