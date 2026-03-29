@@ -2585,6 +2585,10 @@ dialog {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
+  background:
+    radial-gradient(circle at top right, rgba(120, 164, 255, 0.10), transparent 34%),
+    radial-gradient(circle at top left, rgba(255, 184, 108, 0.10), transparent 30%),
+    linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
 }
 
 #stats-dialog .dialog-actions {
@@ -2600,10 +2604,11 @@ dialog {
 
 .stats-section {
   margin-bottom: 16px;
-  padding: 10px 12px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 12px 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, #d7e0ea);
   border-radius: 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, #ffffff) 0%, #ffffff 100%);
+  box-shadow: 0 10px 24px rgba(36, 53, 74, 0.05);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.98) 100%);
 }
 
 .stats-section:last-child {
@@ -2655,12 +2660,12 @@ dialog {
 .stats-section-title {
   font-weight: 700;
   font-size: 0.85rem;
-  color: color-mix(in srgb, var(--accent) 45%, #2d4053);
+  color: color-mix(in srgb, var(--accent) 34%, #21384c);
   margin-bottom: 6px;
-  padding: 2px 8px;
-  border-left: 3px solid color-mix(in srgb, var(--accent) 52%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, #f8fafc);
-  border-radius: 6px;
+  padding: 4px 10px;
+  border-left: 4px solid color-mix(in srgb, var(--accent) 40%, #8aa4c2);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 10%, #f8fafc), rgba(255,255,255,0.4));
+  border-radius: 8px;
 }
 
 .stats-hint {
@@ -2686,7 +2691,8 @@ dialog {
   list-style: none;
   user-select: none;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 6%, #f7f9fb);
+  background: linear-gradient(90deg, rgba(102, 163, 255, 0.08), rgba(170, 118, 255, 0.07));
+  border: 1px solid color-mix(in srgb, var(--line) 78%, #d6e0ea);
 }
 
 .stats-tab-summary::-webkit-details-marker {
@@ -2753,7 +2759,7 @@ dialog {
 .stats-bar-track {
   flex: 1;
   height: 14px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--line));
+  background: linear-gradient(180deg, rgba(180, 192, 206, 0.26), rgba(226, 233, 241, 0.58));
   border-radius: 7px;
   overflow: hidden;
   min-width: 40px;
@@ -2761,7 +2767,7 @@ dialog {
 
 .stats-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 46%, #89a9bf), var(--accent-2));
+  background: linear-gradient(90deg, #67b8ff 0%, #6e8cff 38%, #9a72ff 70%, #ff9f7a 100%);
   border-radius: 7px;
   min-width: 3px;
   transition: width 0.3s ease;
@@ -2787,14 +2793,14 @@ dialog {
 .stats-progress-track {
   flex: 1;
   height: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--line));
+  background: linear-gradient(180deg, rgba(180, 192, 206, 0.26), rgba(226, 233, 241, 0.58));
   border-radius: 5px;
   overflow: hidden;
 }
 
 .stats-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 46%, #89a9bf), var(--accent-2));
+  background: linear-gradient(90deg, #4fc3c8 0%, #56a8ff 45%, #8f7dff 100%);
   border-radius: 5px;
   transition: width 0.3s ease;
 }
@@ -2854,7 +2860,7 @@ input[type="date"].stats-date-input {
   width: fit-content;
   border: none;
   background: transparent;
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 42%, #355d9c);
   padding: 0;
   margin: 0;
   font-size: 0.8rem;
@@ -2885,14 +2891,15 @@ input[type="date"].stats-date-input {
 
 .insights-score-card {
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, #f9fbfc) 0%, #f7f7f7 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 250, 252, 0.98) 100%);
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 9px 11px;
+  box-shadow: 0 10px 20px rgba(35, 52, 71, 0.05);
 }
 
 .insights-score-title {
   font-size: 0.72rem;
-  color: color-mix(in srgb, var(--accent) 46%, #5f7080);
+  color: color-mix(in srgb, var(--accent) 36%, #46627c);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -2906,20 +2913,20 @@ input[type="date"].stats-date-input {
 
 .insights-score-value.tone-good,
 .stats-value.tone-good {
-  color: #1f8a4c;
+  color: #188d72;
 }
 
 .stats-label.tone-good {
-  color: #1f8a4c;
+  color: #188d72;
 }
 
 .insights-score-value.tone-bad,
 .stats-value.tone-bad {
-  color: #b13a3a;
+  color: #c26a2a;
 }
 
 .stats-label.tone-bad {
-  color: #b13a3a;
+  color: #c26a2a;
 }
 
 .insights-score-note {
@@ -2927,6 +2934,61 @@ input[type="date"].stats-date-input {
   font-size: 0.74rem;
   color: color-mix(in srgb, var(--ink) 46%, #647687);
   line-height: 1.35;
+}
+
+#stats-dialog .stats-section:nth-of-type(4n + 1),
+#advanced-stats-dialog .stats-section:nth-of-type(4n + 1),
+#no-buy-game-dialog .stats-section:nth-of-type(4n + 1),
+#insights-dialog .stats-section:nth-of-type(4n + 1) {
+  background: linear-gradient(180deg, rgba(88, 166, 255, 0.08), rgba(255, 255, 255, 0.98));
+}
+
+#stats-dialog .stats-section:nth-of-type(4n + 2),
+#advanced-stats-dialog .stats-section:nth-of-type(4n + 2),
+#no-buy-game-dialog .stats-section:nth-of-type(4n + 2),
+#insights-dialog .stats-section:nth-of-type(4n + 2) {
+  background: linear-gradient(180deg, rgba(101, 200, 188, 0.08), rgba(255, 255, 255, 0.98));
+}
+
+#stats-dialog .stats-section:nth-of-type(4n + 3),
+#advanced-stats-dialog .stats-section:nth-of-type(4n + 3),
+#no-buy-game-dialog .stats-section:nth-of-type(4n + 3),
+#insights-dialog .stats-section:nth-of-type(4n + 3) {
+  background: linear-gradient(180deg, rgba(255, 183, 94, 0.09), rgba(255, 255, 255, 0.98));
+}
+
+#stats-dialog .stats-section:nth-of-type(4n + 4),
+#advanced-stats-dialog .stats-section:nth-of-type(4n + 4),
+#no-buy-game-dialog .stats-section:nth-of-type(4n + 4),
+#insights-dialog .stats-section:nth-of-type(4n + 4) {
+  background: linear-gradient(180deg, rgba(176, 125, 255, 0.09), rgba(255, 255, 255, 0.98));
+}
+
+.insights-score-card:nth-child(4n + 1) {
+  background: linear-gradient(180deg, rgba(92, 165, 255, 0.12), rgba(255, 255, 255, 0.98));
+  border-color: rgba(125, 163, 214, 0.42);
+}
+
+.insights-score-card:nth-child(4n + 2) {
+  background: linear-gradient(180deg, rgba(91, 206, 180, 0.12), rgba(255, 255, 255, 0.98));
+  border-color: rgba(114, 191, 171, 0.42);
+}
+
+.insights-score-card:nth-child(4n + 3) {
+  background: linear-gradient(180deg, rgba(255, 190, 96, 0.13), rgba(255, 255, 255, 0.98));
+  border-color: rgba(220, 178, 114, 0.42);
+}
+
+.insights-score-card:nth-child(4n + 4) {
+  background: linear-gradient(180deg, rgba(177, 128, 255, 0.13), rgba(255, 255, 255, 0.98));
+  border-color: rgba(177, 145, 222, 0.42);
+}
+
+.dialog-body h3 {
+  background: linear-gradient(90deg, #4e7cff 0%, #7d72ff 35%, #45b8c8 70%, #ff9d66 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .insights-story-launch {
@@ -3399,6 +3461,10 @@ input[type="date"].stats-date-input {
   padding: 20px 24px 12px;
   overflow-y: auto;
   max-height: 70vh;
+  background:
+    radial-gradient(circle at top right, rgba(116, 162, 255, 0.10), transparent 32%),
+    radial-gradient(circle at top left, rgba(255, 190, 107, 0.08), transparent 28%),
+    linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
 }
 
 #wear-history-dialog .dialog-actions,

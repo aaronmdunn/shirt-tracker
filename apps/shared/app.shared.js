@@ -9415,7 +9415,13 @@ const collectAllStats = () => {
       if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
         const name = getCellValue(entry, "Name") || "Unnamed";
         const type = getCellValue(entry, "Type") || "";
-        whaleItems.push({ name, tab: tab.name, type });
+        whaleItems.push({
+          name,
+          tab: tab.name,
+          type,
+          wearCount: Math.max(0, Number(entry.row.wearCount || 0)),
+          lastWorn: entry.row.lastWorn || "",
+        });
       }
     });
   });
@@ -9443,6 +9449,8 @@ const collectAllStats = () => {
     brand: item.brand,
     createdAt: item.date.toISOString(),
     price: item.price,
+    wearCount: Math.max(0, Number(item.row?.wearCount || 0)),
+    lastWorn: item.row?.lastWorn || "",
   }));
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => ({
     name: item.name,
@@ -9451,6 +9459,8 @@ const collectAllStats = () => {
     brand: item.brand,
     createdAt: item.date.toISOString(),
     price: item.price,
+    wearCount: Math.max(0, Number(item.row?.wearCount || 0)),
+    lastWorn: item.row?.lastWorn || "",
   }));
 
   // --- Recently deleted ---
@@ -10564,6 +10574,7 @@ const openAdvancedStatsDialog = (stats) => {
   const content = dialog.querySelector("#advanced-stats-content");
   if (!content) return;
   content.textContent = "";
+  const s = stats || {};
 
   const esc = (str) => String(str)
     .replace(/&/g, "&amp;")
@@ -10573,6 +10584,7 @@ const openAdvancedStatsDialog = (stats) => {
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
+  const hint = (text) => `<div class="stats-hint">${esc(text)}</div>`;
 
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Advanced stats are currently available in Inventory mode.</div>`;
@@ -10582,13 +10594,58 @@ const openAdvancedStatsDialog = (stats) => {
   }
 
   const adv = stats.advanced || {};
+  const behavior = buildBehaviorInsights(stats, buildWearNextQueue(stats, loadInsightsSnoozes()));
+  const rotationModel = behavior?.rotationModel || { graceCount: 0, adjustedBacklogPct: 0, topBrandDominance: null, parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } } };
   let html = "";
+
+  if (s.isInventory) {
+    const nowMs = Date.now();
+    const yearStartMs = new Date(new Date().getFullYear(), 0, 1).getTime();
+    const yearlyWearEvents = (s.wearEvents || []).filter((event) => {
+      const ms = new Date(event.wornAt).getTime();
+      return Number.isFinite(ms) && ms >= yearStartMs && ms <= nowMs;
+    });
+    const uniqueWornThisYear = new Set(yearlyWearEvents.map((event) => `${event.name}||${event.tab}||${event.type || ""}`)).size;
+    const parkedItems = (s.wearableItems || []).filter((item) => {
+      if (!item?.lastWorn) return true;
+      const ms = new Date(item.lastWorn).getTime();
+      if (!Number.isFinite(ms)) return true;
+      return Math.floor((nowMs - ms) / 86400000) > 365;
+    });
+    const parkedValue = parkedItems.reduce((sum, item) => sum + Math.max(0, Number(item?.price || 0)), 0);
+    const topBrandCounts = {};
+    yearlyWearEvents.forEach((event) => {
+      const brand = String(event.tab || "Unknown");
+      topBrandCounts[brand] = (topBrandCounts[brand] || 0) + 1;
+    });
+    const topBrandEntry = Object.entries(topBrandCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+    const recentUnwornCount = (s.allRecentlyAdded || []).filter((item) => Number(item?.wearCount || 0) === 0).length;
+    let story = "Today’s story: your collection breadth looks healthy right now.";
+    if ((s.allRecentlyAdded || []).length >= 4 && recentUnwornCount >= Math.ceil((s.allRecentlyAdded || []).length * 0.5)) {
+      story = "Today’s story: new additions are outpacing first wears, so the closet is expanding faster than it is getting activated.";
+    } else if (topBrandEntry && yearlyWearEvents.length) {
+      const pct = Math.round((topBrandEntry[1] / yearlyWearEvents.length) * 100);
+      if (pct >= 35) story = `Today’s story: recent wear is leaning heavily into ${topBrandEntry[0]}, which is carrying ${pct}% of this year’s logged wears.`;
+    } else if (parkedItems.length >= Math.max(12, Math.round((s.wearableItems || []).length * 0.25))) {
+      story = "Today’s story: a noticeable slice of closet value is parked long-term, so the next best move is revisiting one or two in-season deep cuts.";
+    }
+    html += section("Collector snapshot",
+      hint(story) +
+      `<div class="insights-score-grid">
+         <div class="insights-score-card"><div class="insights-score-title">Total items</div><div class="insights-score-value">${s.totalItems}</div><div class="insights-score-note">Across ${s.perTab.length} ${s.perTab.length === 1 ? "brand tab" : "brand tabs"}</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Worn this year</div><div class="insights-score-value">${uniqueWornThisYear}</div><div class="insights-score-note">Unique wearable items touched in ${new Date().getFullYear()}</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div></div>
+       </div>`
+    );
+  }
 
   if (adv.closetHealth) {
     const recencyWindow = Number(adv.closetHealth.recencyWindowDays || 365);
     const inactiveWindow = Number(adv.closetHealth.inactiveValueWindowDays || 365);
+    const healthRead = adv.closetHealth.score >= 75 ? "Collector rotation looks strong right now." : adv.closetHealth.score >= 55 ? "Collector rotation is stable, but there is room to wake up more parked value." : "Collector rotation is getting sticky, so breadth and parked value need attention.";
     html += section("Closet health score",
-      `<div class="stats-hint">A 0-100 snapshot of collector rotation health. Higher is better, based on yearly closet reach, never-worn share, parked value, and cost-per-wear efficiency.</div>` +
+      hint(`A 0-100 snapshot of collector rotation health. Higher is better, based on yearly closet reach, never-worn share, parked value, and cost-per-wear efficiency. ${healthRead}`) +
       row("Score", `${adv.closetHealth.score}/100`) +
       sub(`Worn in last ${recencyWindow} days`, `${adv.closetHealth.recencyPct}%`) +
       sub("Never worn", `${adv.closetHealth.neverWornPct}%`) +
@@ -10598,7 +10655,8 @@ const openAdvancedStatsDialog = (stats) => {
   }
 
   if (Array.isArray(adv.firstWearLag) && adv.firstWearLag.length) {
-    let body = `<div class="stats-hint">Higher days means slower adoption after adding.</div>`;
+    const slowest = adv.firstWearLag[0] || null;
+    let body = hint(slowest ? `${slowest.name} is your slowest adopter right now at ${slowest.firstWearLagDays || 0} days to first wear.` : "Higher days means slower adoption after adding.");
     adv.firstWearLag.forEach((item, idx) => {
       const firstWearLabel = item.firstWearAt ? new Date(item.firstWearAt).toLocaleDateString() : "Unknown";
       body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${item.firstWearLagDays || 0} days | first worn ${firstWearLabel}`);
@@ -10611,6 +10669,7 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (adv.newItemAdoption) {
     let body = "";
+    const adjustedBacklog = Math.max(0, Number(adv.newItemAdoption.neverWornSinceAddedTotal || 0) - Number(rotationModel.graceCount || 0));
     body += row("Items with add date", String(adv.newItemAdoption.itemsWithCreatedAt || 0));
     body += row("Adoption rate", `${adv.newItemAdoption.adoptionRatePct || 0}%`);
     const medianDays = adv.newItemAdoption.medianDaysToFirstWear;
@@ -10620,6 +10679,9 @@ const openAdvancedStatsDialog = (stats) => {
       ? adv.newItemAdoption.neverWornSinceAddedTotal
       : never.length;
     body += row("Never worn since added", String(neverTotal));
+    body += row("Grace-window unworn (<120d)", String(rotationModel.graceCount || 0));
+    body += row("Adjusted backlog", `${adjustedBacklog} (${rotationModel.adjustedBacklogPct || 0}%)`);
+    body += hint(adjustedBacklog <= 6 ? "Fresh adds are still mostly within grace, so backlog pressure looks controlled." : "A meaningful chunk of unworn items now sits outside the grace window, so adoption is lagging behind intake.");
     if (never.length) {
       body += `<div class="stats-section-title" style="margin-top:8px">Never worn since added (top ${never.length})</div>`;
       never.forEach((item, idx) => {
@@ -10631,15 +10693,34 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (Array.isArray(adv.monthlySpendVsWear) && adv.monthlySpendVsWear.length) {
     let body = "";
-    adv.monthlySpendVsWear.slice(-12).forEach((m) => {
+    const scoredMonths = adv.monthlySpendVsWear.slice(-12).map((m) => {
+      const verdict = m.added >= Math.max(3, m.wears + 2)
+        ? "Heavy intake"
+        : m.wears >= Math.max(3, m.added * 2)
+          ? "Wear-first"
+          : m.spendPerWear !== null && m.spendPerWear <= 25
+            ? "Efficient"
+            : "Balanced";
+      return { ...m, verdict };
+    });
+    const strongestMonth = scoredMonths.slice().sort((a, b) => a.added - b.added || b.wears - a.wears || a.label.localeCompare(b.label))[0] || null;
+    const weakestMonth = scoredMonths.slice().sort((a, b) => b.added - b.wears - (a.added - a.wears) || b.spend - a.spend)[0] || null;
+    body += hint(`Strongest month: ${strongestMonth ? `${strongestMonth.label} (${strongestMonth.verdict})` : "n/a"}. Heaviest intake month: ${weakestMonth ? `${weakestMonth.label} (${weakestMonth.verdict})` : "n/a"}.`);
+    scoredMonths.forEach((m) => {
       const cpw = m.spendPerWear === null ? "n/a" : `${formatCurrency(m.spendPerWear)}/wear`;
-      body += sub(m.label, `${formatCurrency(m.spend)} | ${m.added} added | ${m.wears} wears | ${cpw}`);
+      body += sub(m.label, `${m.verdict} | ${formatCurrency(m.spend)} | ${m.added} added | ${m.wears} wears | ${cpw}`);
     });
     html += section("Monthly spend vs wear value", body);
   }
 
   if (Array.isArray(adv.brandUtilization) && adv.brandUtilization.length) {
     let body = "";
+    const strongestBrand = adv.brandUtilization.slice().sort((a, b) => b.utilizationPct - a.utilizationPct || b.totalWears - a.totalWears)[0] || null;
+    const weakestBrand = adv.brandUtilization[0] || null;
+    const crowdingNote = rotationModel.topBrandDominance && rotationModel.topBrandDominance.sharePct >= 35
+      ? `${rotationModel.topBrandDominance.label} is over-carrying the year at ${rotationModel.topBrandDominance.sharePct}% of wears.`
+      : "No brand is crowding the closet too aggressively right now.";
+    body += hint(`Strongest reach: ${strongestBrand ? strongestBrand.brand : "n/a"}. Weakest reach: ${weakestBrand ? weakestBrand.brand : "n/a"}. ${crowdingNote}`);
     adv.brandUtilization.slice(0, 10).forEach((brand) => {
       const cpw = brand.avgCpw === null ? "n/a" : formatCurrency(brand.avgCpw);
       body += sub(brand.brand, `${brand.utilizationPct}% active (365d) | ${brand.inventory} items | ${brand.totalWears} wears | avg CPW ${cpw}`);
@@ -10649,6 +10730,9 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (Array.isArray(adv.typeRotationBalance) && adv.typeRotationBalance.length) {
     let body = "";
+    const mostOver = adv.typeRotationBalance.slice().sort((a, b) => b.deltaPct - a.deltaPct)[0] || null;
+    const mostUnder = adv.typeRotationBalance.slice().sort((a, b) => a.deltaPct - b.deltaPct)[0] || null;
+    body += hint(`Most overrepresented in wear: ${mostOver ? `${mostOver.type} (${mostOver.deltaPct >= 0 ? "+" : ""}${mostOver.deltaPct.toFixed(1)}%)` : "n/a"}. Most underused: ${mostUnder ? `${mostUnder.type} (${mostUnder.deltaPct.toFixed(1)}%)` : "n/a"}.`);
     adv.typeRotationBalance.slice(0, 10).forEach((t) => {
       const delta = `${t.deltaPct >= 0 ? "+" : ""}${t.deltaPct.toFixed(1)}%`;
       body += sub(t.type, `inventory ${t.inventoryPct.toFixed(1)}% vs wear ${t.wearPct.toFixed(1)}% (${delta})`);
@@ -10658,6 +10742,7 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (adv.inactiveCapital) {
     const body =
+      hint(`Intentional parked pieces: ${rotationModel.parkedValueSplit.intentional.count}. Uncertain parked pieces: ${rotationModel.parkedValueSplit.uncertain.count}.`) +
       row("Parked >180d", `${adv.inactiveCapital.inactive180Count} items | ${formatCurrency(adv.inactiveCapital.inactive180Value)}`) +
       row("Parked >365d", `${adv.inactiveCapital.inactive365Count} items | ${formatCurrency(adv.inactiveCapital.inactive365Value)}`) +
       row("Total wearable value", formatCurrency(adv.inactiveCapital.totalWearableValue));
@@ -10685,6 +10770,8 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (Array.isArray(adv.seasonalityByMonth) && adv.seasonalityByMonth.length) {
     let body = "";
+    const quietMonths = adv.seasonalityByMonth.filter((m) => !m.type || !m.count).map((m) => m.month);
+    body += hint(quietMonths.length ? `Missed or quiet seasonal windows: ${quietMonths.join(", ")}.` : "Every month has at least one clear wear lane logged." );
     adv.seasonalityByMonth.forEach((m) => {
       body += sub(m.month, m.type ? `${m.type} (${m.count})` : "—");
     });
@@ -10693,6 +10780,9 @@ const openAdvancedStatsDialog = (stats) => {
 
   if (Array.isArray(adv.tagPerformance) && adv.tagPerformance.length) {
     let body = "";
+    const sleeperTag = adv.tagPerformance.slice().sort((a, b) => ((b.avgWears / Math.max(1, b.samples)) - (a.avgWears / Math.max(1, a.samples))) || a.tag.localeCompare(b.tag))[0] || null;
+    const overloadedTag = adv.tagPerformance.slice().sort((a, b) => ((b.samples - b.avgWears) - (a.samples - a.avgWears)) || b.samples - a.samples)[0] || null;
+    body += hint(`Sleeper tag: ${sleeperTag ? sleeperTag.tag : "n/a"}. Most overloaded tag: ${overloadedTag ? overloadedTag.tag : "n/a"}.`);
     adv.tagPerformance.forEach((tag) => {
       const cpw = tag.avgCpw === null ? "n/a" : `${formatCurrency(tag.avgCpw)}/wear`;
       body += sub(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`);
@@ -11176,6 +11266,19 @@ const noBuyReasonLabel = (value) => {
   return key.replace(/[-_]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 };
 
+const noBuyReasonGroup = (value) => {
+  const key = String(value || "").trim().toLowerCase();
+  if (["boredom", "fomo", "drop"].includes(key)) return "impulse";
+  if (["sale", "gooddeal", "rarefind", "gotpaid", "marketed", "promo"].includes(key)) return "planned";
+  return "other";
+};
+
+const getNoBuyReasonGroupLabel = (group) => {
+  if (group === "impulse") return "Impulse pressure";
+  if (group === "planned") return "Planned pressure";
+  return "Other pressure";
+};
+
 const getNoBuyNextMilestone = (streak) => {
   const safeStreak = Math.max(0, Number(streak || 0));
   const next = getNoBuyMilestones().find((day) => day > safeStreak);
@@ -11202,8 +11305,23 @@ const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
 
 const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
   const safe = normalizeNoBuyGamifyState(state);
-  const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
+  const nowMs = Date.now();
+  const windowDays = Math.max(1, Number(lookbackDays) || 1);
+  const threshold = nowMs - (windowDays * 86400000);
+  const compareWindowDays = Math.min(7, windowDays);
+  const recentThreshold = nowMs - (compareWindowDays * 86400000);
+  const priorThreshold = recentThreshold - (compareWindowDays * 86400000);
   const counts = {};
+  const recentCounts = {};
+  const priorCounts = {};
+  const bump = (map, key) => {
+    map[key] = (map[key] || 0) + 1;
+  };
+  const track = (label, ms) => {
+    bump(counts, label);
+    if (ms >= recentThreshold) bump(recentCounts, label);
+    else if (ms >= priorThreshold) bump(priorCounts, label);
+  };
 
   safe.dailyCheckins.forEach((entry) => {
     if (!entry?.tempted) return;
@@ -11213,7 +11331,7 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
     if (!Number.isFinite(ms) || ms < threshold) return;
     const trigger = String(entry.trigger || "other").trim() || "other";
     const label = `Temptation: ${noBuyReasonLabel(trigger)}`;
-    counts[label] = (counts[label] || 0) + 1;
+    track(label, ms);
   });
 
   const purchaseActions = Array.isArray(safe.actionLog)
@@ -11226,7 +11344,7 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
       if (!Number.isFinite(ms) || ms < threshold) return;
       const reason = String(entry?.reason || "other").trim() || "other";
       const label = `Purchase: ${noBuyReasonLabel(reason)}`;
-      counts[label] = (counts[label] || 0) + 1;
+      track(label, ms);
     });
   } else {
     // Fallback for older state snapshots that predate actionLog purchases.
@@ -11238,13 +11356,44 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
       if (!Number.isFinite(ms) || ms < threshold) return;
       const reason = String(entry?.reason || "other").trim() || "other";
       const label = `Purchase: ${noBuyReasonLabel(reason)}`;
-      counts[label] = (counts[label] || 0) + 1;
+      track(label, ms);
     });
   }
 
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([label, count]) => ({ label, count }));
+    .map(([label, count]) => {
+      const recent = Number(recentCounts[label] || 0);
+      const prior = Number(priorCounts[label] || 0);
+      const direction = recent > prior ? "rising" : recent < prior ? "cooling" : "steady";
+      return { label, count, recent, prior, direction };
+    });
+};
+
+const getNoBuyPressureSummary = (state, lookbackDays = 30) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
+  const groups = {
+    impulse: { count: 0, reasons: {} },
+    planned: { count: 0, reasons: {} },
+    other: { count: 0, reasons: {} },
+  };
+  safe.dailyCheckins.forEach((entry) => {
+    if (!entry?.tempted) return;
+    const key = String(entry.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const reason = String(entry.trigger || "other").trim() || "other";
+    const group = noBuyReasonGroup(reason);
+    groups[group].count += 1;
+    groups[group].reasons[reason] = (groups[group].reasons[reason] || 0) + 1;
+  });
+  Object.values(groups).forEach((group) => {
+    const top = Object.entries(group.reasons).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+    group.topReason = top ? noBuyReasonLabel(top[0]) : "none";
+  });
+  return groups;
 };
 
 const createNoBuyRecoveryMission = (state, nowIso) => {
@@ -11274,9 +11423,12 @@ const isNoBuyCooldownActive = (state) => {
 const startNoBuyCooldown = (state, hours = 24) => {
   const safe = normalizeNoBuyGamifyState(state);
   if (isNoBuyCooldownActive(safe)) return safe;
+  const nowIso = new Date().toISOString();
   const until = new Date();
   until.setHours(until.getHours() + Math.max(1, Number(hours) || 24));
   safe.cooldownUntil = until.toISOString();
+  safe.actionLog.push({ at: nowIso, type: "cooldown", reason: `${Math.max(1, Number(hours) || 24)}h` });
+  safe.actionLog = safe.actionLog.slice(-300);
   return markNoBuyStateUpdated(safe);
 };
 
@@ -13891,6 +14043,9 @@ const openNoBuyGameDialog = (stats) => {
     : "inactive";
   const trends = getNoBuyTrendSummary(gamify, 30);
   const topTrend = trends.length ? `${trends[0].label} (${trends[0].count})` : "none";
+  const pressureSummary = getNoBuyPressureSummary(gamify, 30);
+  const topTriggerSummary = getNoBuyTriggerSummary(gamify, 14);
+  const topTrigger = topTriggerSummary[0] || null;
   const recentActions = (() => {
     const fromActionLog = Array.isArray(gamify.actionLog)
       ? gamify.actionLog
@@ -13944,9 +14099,80 @@ const openNoBuyGameDialog = (stats) => {
   })();
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryDaysLeft = recoveryActive
+    ? Math.max(0, Math.ceil((new Date(recovery.deadline).getTime() - Date.now()) / 86400000))
+    : null;
+  const recoveryRemaining = recoveryActive
+    ? Math.max(0, Number(recovery.target || 0) - Number(recovery.progress || 0))
+    : 0;
   const recoveryLabel = recoveryActive
     ? `${recovery.progress}/${recovery.target} by ${new Date(recovery.deadline).toLocaleDateString()}`
     : "none";
+  const recoveryUrgencyLabel = recoveryActive
+    ? recoveryRemaining <= 1
+      ? `${recoveryRemaining} wear left`
+      : `${recoveryRemaining} wears left`
+    : "No active recovery";
+  const recoveryUrgencyNote = recoveryActive
+    ? recoveryDaysLeft <= 0
+      ? "Recovery deadline is today"
+      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline`
+    : "Complete to gain +50 XP";
+  const nowMs = Date.now();
+  const weekThreshold = nowMs - (7 * 86400000);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const cleanWeekTemptations = gamify.dailyCheckins.filter((entry) => {
+    if (!entry?.tempted) return false;
+    const key = String(entry.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    return Number.isFinite(ms) && ms >= weekThreshold;
+  }).length;
+  const cleanMonthBuys = (() => {
+    const purchaseActions = Array.isArray(gamify.actionLog)
+      ? gamify.actionLog.filter((entry) => String(entry?.type || "") === "purchase")
+      : [];
+    return purchaseActions.filter((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      return Number.isFinite(ms) && ms >= monthStart.getTime();
+    }).length;
+  })();
+  const cleanBadgeLabel = cleanMonthBuys === 0 && cleanWeekTemptations === 0
+    ? "Clean month + clean week"
+    : cleanMonthBuys === 0
+      ? "Clean month"
+      : cleanWeekTemptations === 0
+        ? "Clean week"
+        : "Pressure active";
+  const cleanBadgeNote = cleanMonthBuys === 0
+    ? `${cleanWeekTemptations} temptation day${cleanWeekTemptations === 1 ? "" : "s"} in last 7 days`
+    : `${cleanMonthBuys} buy${cleanMonthBuys === 1 ? "" : "s"} logged this month`;
+  const topStreakKiller = (() => {
+    const purchaseTrend = trends.find((entry) => String(entry.label || "").startsWith("Purchase:"));
+    if (purchaseTrend) return purchaseTrend.label.replace(/^Purchase:\s*/, "");
+    if (topTrigger) return noBuyReasonLabel(topTrigger.label);
+    return "n/a";
+  })();
+  const riskDrivers = [];
+  if (topTrigger && topTrigger.count > 0) riskDrivers.push(noBuyReasonLabel(topTrigger.label));
+  if (!cooldownActive && (pressureSummary.impulse.count + pressureSummary.planned.count) >= 2) riskDrivers.push("no cooldown buffer");
+  if (recoveryActive) riskDrivers.push("post-buy recovery window");
+  const riskLabel = riskDrivers.length ? riskDrivers.slice(0, 2).join(" + ") : "Low pressure";
+  const riskNote = pressureSummary.impulse.count > pressureSummary.planned.count
+    ? `Impulse pressure leads ${pressureSummary.impulse.count}-${pressureSummary.planned.count} over planned pressure in the last 30 days.`
+    : pressureSummary.planned.count > pressureSummary.impulse.count
+      ? `Planned pressure leads ${pressureSummary.planned.count}-${pressureSummary.impulse.count} over impulse pressure in the last 30 days.`
+      : "Impulse and planned pressure are balanced right now.";
+  const bestMoveToday = (() => {
+    if (recoveryActive && recoveryRemaining > 0) return `Best move today: finish ${recoveryRemaining === 1 ? "the last recovery wear" : `${recoveryRemaining} more recovery wears`} before buying.`;
+    if (!cooldownActive && (pressureSummary.impulse.count + pressureSummary.planned.count) >= 2) return "Best move today: start cooldown before browsing marketplaces or drops.";
+    if (nextMilestone && daysToMilestone <= 2 && gamify.currentStreak > 0) return `Best move today: protect the streak, you are ${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} from ${nextMilestone}d.`;
+    if (pressureSummary.planned.count > pressureSummary.impulse.count && pressureSummary.planned.count > 0) return `Best move today: avoid search feeds and deal hunting, ${pressureSummary.planned.topReason} is your main pressure lane.`;
+    if (pressureSummary.impulse.count > 0) return `Best move today: step away from quick-hit browsing, ${pressureSummary.impulse.topReason} is your main impulse trigger.`;
+    return "Best move today: keep the streak quiet and only open the app if you are logging a win, not chasing a shirt.";
+  })();
   const buysLoggedDisplay = Math.max(
     Number(gamify.totalBuysLogged || 0),
     Array.isArray(gamify.buyLog) ? gamify.buyLog.length : 0,
@@ -13963,6 +14189,11 @@ const openNoBuyGameDialog = (stats) => {
   content.innerHTML = `
     <div class="stats-hint">Daily anti-buy loop: build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
     <div class="insights-score-grid">
+      <div class="insights-score-card">
+        <div class="insights-score-title">Risk right now</div>
+        <div class="insights-score-value">${esc(riskLabel)}</div>
+        <div class="insights-score-note">${esc(riskNote)}</div>
+      </div>
       <div class="insights-score-card">
         <div class="insights-score-title">Current streak</div>
         <div class="insights-score-value">${gamify.currentStreak} days</div>
@@ -13990,10 +14221,18 @@ const openNoBuyGameDialog = (stats) => {
       </div>
       <div class="insights-score-card">
         <div class="insights-score-title">Recovery mission</div>
-        <div class="insights-score-value">${esc(recoveryLabel)}</div>
-        <div class="insights-score-note">Complete to gain +50 XP</div>
+        <div class="insights-score-value">${esc(recoveryUrgencyLabel)}</div>
+        <div class="insights-score-note">${esc(recoveryUrgencyNote)}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Clean badge</div>
+        <div class="insights-score-value">${esc(cleanBadgeLabel)}</div>
+        <div class="insights-score-note">${esc(cleanBadgeNote)}</div>
       </div>
     </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Best move today</div>
+    <div class="stats-hint">${esc(bestMoveToday)}</div>
 
     <div class="stats-section-title" style="margin-top:8px">Actions</div>
     <div class="insights-controls no-buy-actions-row" style="margin-top:4px">
@@ -14033,30 +14272,42 @@ const openNoBuyGameDialog = (stats) => {
     </div>
 
     <div class="stats-section-title" style="margin-top:8px">Recent button log</div>
-    <div class="stats-hint">Last 10 clicks for Tempted today and Log buy now, with timestamp and reason.</div>
+    <div class="stats-hint">Last 10 logged no-buy actions, including cooldown starts, temptations, and purchases.</div>
     ${recentActions.length
       ? `<div class="insights-action-list">${recentActions.map((entry, idx) => {
           const whenMs = new Date(entry.at).getTime();
           const whenLabel = Number.isFinite(whenMs)
             ? new Date(whenMs).toLocaleString()
             : "Unknown date";
-          const typeLabel = entry.type === "purchase" ? "Buy logged" : "Tempted";
-          const toneClass = entry.type === "purchase" ? "tone-bad" : "tone-good";
+          const typeLabel = entry.type === "purchase"
+            ? "Buy logged"
+            : entry.type === "cooldown"
+              ? "Cooldown started"
+              : "Temptation logged";
+          const toneClass = entry.type === "purchase" ? "tone-bad" : entry.type === "cooldown" ? "" : "tone-good";
           return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
-      ? `<div class="insights-action-list">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count}</span></div>`).join("")}</div>`
+      ? `<div class="insights-action-list">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} · ${esc(entry.direction)}</span></div>`).join("")}</div>`
       : `<div class="stats-hint">No trend data yet. Use Tempted today and Log buy now to capture both temptation and purchase reasons.</div>`}
+
+    <div class="stats-section-title" style="margin-top:8px">Pressure mix (30d)</div>
+    <div class="insights-action-list">
+      <div class="stats-row stats-sub"><span class="stats-label">${getNoBuyReasonGroupLabel("impulse")}</span><span class="stats-value">${pressureSummary.impulse.count} · lead ${esc(pressureSummary.impulse.topReason)}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">${getNoBuyReasonGroupLabel("planned")}</span><span class="stats-value">${pressureSummary.planned.count} · lead ${esc(pressureSummary.planned.topReason)}</span></div>
+    </div>
 
     <div class="stats-section-title" style="margin-top:8px">Status summary</div>
     <div class="insights-action-list">
       <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${buysLoggedDisplay}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Top streak killer</span><span class="stats-value">${esc(topStreakKiller)}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Recovery state</span><span class="stats-value">${esc(recoveryLabel)}</span></div>
     </div>
   `;
 
@@ -14173,18 +14424,27 @@ const openStatsDialog = () => {
     return section(`<div class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
   };
 
+  const renderCollapsibleSection = (title, valueLabel, bodyHtml) => {
+    if (!bodyHtml) return "";
+    return section(`<details class="stats-tab-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(title)}</span><span class="stats-value">${esc(valueLabel || "")}</span></summary><div class="stats-tab-body">${bodyHtml}</div></details>`);
+  };
+
   const progressBar = (pct, label) => {
     return `<div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${Math.min(pct, 100)}%"></div></div><span class="stats-progress-label">${esc(label)}</span></div>`;
   };
 
   const renderPricing = (stats) => {
     if (!s.isInventory || !stats.top5Expensive.length) return "";
+    const topValueShare = stats.totalCost > 0
+      ? Math.round((stats.top5Expensive.reduce((sum, item) => sum + Math.max(0, Number(item.price || 0)), 0) / stats.totalCost) * 100)
+      : 0;
     let block = row("Total value", formatCurrency(stats.totalCost));
     block += row("Mean price", formatCurrency(stats.meanPrice));
     block += row("Median price", formatCurrency(stats.medianPrice));
     if (stats.priceStdDev > 0) {
       block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
+    block += `<div class="stats-hint" style="margin-top:8px">${topValueShare >= 35 ? `A few grails are carrying ${topValueShare}% of total closet value.` : "Closet value is spread fairly evenly across the collection."}</div>`;
     block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
       const brand = item.tab || "Unknown";
@@ -14311,16 +14571,26 @@ const openStatsDialog = () => {
     if (s.whaleItems.length) {
       let whaleBlock = `<div class="stats-section-title">Whales</div>`;
       whaleBlock += row("Total whales", String(s.whaleItems.length));
+      const whalesWorn365 = s.whaleItems.filter((item) => {
+        if (!item?.lastWorn) return false;
+        const ms = new Date(item.lastWorn).getTime();
+        return Number.isFinite(ms) && Math.floor((Date.now() - ms) / 86400000) <= 365;
+      }).length;
+      const whalesParked = s.whaleItems.length - whalesWorn365;
+      whaleBlock += `<div class="stats-hint">${whalesWorn365} worn in the last 365 days · ${whalesParked} parked intentionally as collector anchors.</div>`;
       s.whaleItems.forEach((item) => {
         const type = item.type ? ` - ${item.type}` : "";
-        whaleBlock += sub(`${item.name} (${item.tab})${type}`, "");
+        const status = item.lastWorn
+          ? `${Math.max(0, Math.floor((Date.now() - new Date(item.lastWorn).getTime()) / 86400000))}d ago`
+          : "Parked";
+        whaleBlock += sub(`${item.name} (${item.tab})${type}`, status);
       });
       html += section(whaleBlock);
     }
 
     // --- Name word frequency (Inventory only) ---
     if (s.isInventory && s.topWords.length) {
-      html += renderTallySection("Common words in names", s.topWords, 10);
+      html += renderCollapsibleSection("Common words in names", `${s.topWords.length} tracked`, barChart(s.topWords, 10));
     }
 
     // --- Items added per month (Inventory only) ---
@@ -14345,6 +14615,7 @@ const openStatsDialog = () => {
   // --- Wear tracking stats (Inventory only) ---
   if (s.isInventory && (s.topRotationScore.length || s.longestUnworn || s.last5Worn.length || s.unwornOverSixMonths.length)) {
     let wearBlock = `<div class="stats-section-title">Wear tracking</div>`;
+    wearBlock += `<div class="stats-hint">${s.longestUnworn ? `Longest current cold spot is ${s.longestUnworn.daysSince} days.` : "Wear tracking is active."} ${s.last5Worn.length ? "Recent logs are flowing, so this section is reflecting live rotation behavior." : "Add a wear log to bring this section to life."}</div>`;
     const todayKey = toLocalDateKey(new Date());
     if (s.longestUnworn) {
       const longestType = s.longestUnworn.type ? ` - ${esc(s.longestUnworn.type)}` : "";
@@ -14415,13 +14686,18 @@ const openStatsDialog = () => {
   // --- Recently added ---
   if (s.recentlyAdded.length) {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
+    const recentWornCount = s.recentlyAdded.filter((item) => Number(item?.wearCount || 0) > 0).length;
+    const recentUnwornCount = s.recentlyAdded.length - recentWornCount;
+    addedBlock += `<div class="stats-hint">${recentWornCount} already entered rotation · ${recentUnwornCount} still waiting for a first wear.</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
       // Wishlist: show Brand column value; Inventory: show tab name (which IS the brand)
       const brandLabel = !s.isInventory ? (item.brand || "Unknown") : (item.tab || "Unknown");
       const typeLabel = item.type || "Unknown";
       const label = `${item.name} (${brandLabel}) - ${typeLabel}`;
-      const right = date;
+      const right = Number(item?.wearCount || 0) > 0
+        ? `${date} · Worn ${Math.max(1, Number(item.wearCount || 0))}x`
+        : `${date} · Unworn`;
       addedBlock += sub(label, right);
     });
     addedBlock += `<button type="button" id="stats-all-added-link" class="stats-link-button">View all added shirts</button>`;
@@ -14430,14 +14706,14 @@ const openStatsDialog = () => {
 
   // --- Recently deleted (Inventory only) ---
   if (s.isInventory && s.recentlyDeleted.length) {
-    let delBlock = `<div class="stats-section-title">Recently deleted</div>`;
+    let delBlock = "";
     s.recentlyDeleted.forEach((item) => {
       const brand = item.tab || "Unknown";
       const type = item.type || "Unknown";
       const label = `${item.name} (${brand}) - ${type}`;
       delBlock += sub(label, item.date);
     });
-    html += section(delBlock);
+    html += renderCollapsibleSection("Recently deleted", `${s.recentlyDeleted.length} recent`, delBlock);
   }
 
   // --- Wishlist-only: Items obtained & Most recent "Got it!" ---
