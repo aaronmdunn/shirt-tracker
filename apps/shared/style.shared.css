@@ -3030,6 +3030,8 @@ input[type="date"].stats-date-input {
 }
 
 .insights-queue-sim-controls {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
 }
@@ -3041,13 +3043,12 @@ input[type="date"].stats-date-input {
 }
 
 .insights-queue-sim-controls .insights-sim-label {
-  flex-basis: 100%;
   text-align: center;
 }
 
 .insights-queue-sim-controls .insights-queue-sim-date {
-  flex-basis: 100%;
-  width: 160px;
+  flex: 0 0 auto;
+  width: 11.5em;
   min-width: 0;
   margin: 0 auto;
 }
