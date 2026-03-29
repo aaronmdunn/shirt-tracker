@@ -10619,6 +10619,10 @@ const openAdvancedStatsDialog = (stats) => {
       topBrandCounts[brand] = (topBrandCounts[brand] || 0) + 1;
     });
     const topBrandEntry = Object.entries(topBrandCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+    const activeBrandsThisYear = Object.keys(topBrandCounts).length;
+    const activeRecentAdds = (s.allRecentlyAdded || []).filter((item) => Number(item?.wearCount || 0) > 0).length;
+    const recentAddsTotal = (s.allRecentlyAdded || []).length;
+    const recentActivationPct = recentAddsTotal ? Math.round((activeRecentAdds / recentAddsTotal) * 100) : 0;
     const recentUnwornCount = (s.allRecentlyAdded || []).filter((item) => Number(item?.wearCount || 0) === 0).length;
     let story = "Today’s story: your collection breadth looks healthy right now.";
     if ((s.allRecentlyAdded || []).length >= 4 && recentUnwornCount >= Math.ceil((s.allRecentlyAdded || []).length * 0.5)) {
@@ -10636,6 +10640,8 @@ const openAdvancedStatsDialog = (stats) => {
          <div class="insights-score-card"><div class="insights-score-title">Worn this year</div><div class="insights-score-value">${uniqueWornThisYear}</div><div class="insights-score-note">Unique wearable items touched in ${new Date().getFullYear()}</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div></div>
        </div>`
     );
   }
@@ -13371,6 +13377,13 @@ const openInsightsDialog = (stats, options = {}) => {
       .join(" · ");
     const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
+    const marketplaceTaggedCount = marketplaceRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+    const marketplaceKeeperCount = marketplaceRows.reduce((sum, row) => sum + Number(row.strongKeepers || 0), 0);
+    const marketplaceInactiveCount = marketplaceRows.reduce((sum, row) => sum + Number(row.inactive180 || 0), 0);
+    const marketplaceAvgWears = marketplaceTaggedCount
+      ? Math.round((marketplaceRows.reduce((sum, row) => sum + (Number(row.avgWears || 0) * Number(row.count || 0)), 0) / marketplaceTaggedCount) * 10) / 10
+      : 0;
+    const marketplaceKeeperPct = marketplaceTaggedCount ? Math.round((marketplaceKeeperCount / marketplaceTaggedCount) * 100) : 0;
     const dominanceLabel = rotationModel.topBrandDominance
       ? `${rotationModel.topBrandDominance.label} (${rotationModel.topBrandDominance.sharePct}% of last-year wears)`
       : "No dominant brand lane yet";
@@ -13554,6 +13567,16 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Marketplace keepers</div>
+          ${insightValue(`${marketplaceKeeperPct}% keeper rate`, marketplaceKeeperPct >= 45 ? "good" : marketplaceKeeperPct <= 20 ? "bad" : "")}
+          <div class="insights-score-note">${marketplaceKeeperCount}/${marketplaceTaggedCount || 0} tagged items still perform like clear keepers.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Marketplace drag</div>
+          ${insightValue(`${marketplaceInactiveCount} parked · ${marketplaceAvgWears} avg wears`, marketplaceInactiveCount <= 2 ? "good" : marketplaceInactiveCount >= 6 ? "bad" : "")}
+          <div class="insights-score-note">Shows how many marketplace-tagged pieces are sitting idle instead of earning their spot.</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
@@ -14155,6 +14178,8 @@ const openNoBuyGameDialog = (stats) => {
     if (topTrigger) return noBuyReasonLabel(topTrigger.label);
     return "n/a";
   })();
+  const bossTriggerLabel = topTrigger ? noBuyReasonLabel(topTrigger.label) : "Quiet";
+  const bossTriggerGroup = topTrigger ? getNoBuyReasonGroupLabel(noBuyReasonGroup(topTrigger.label)) : "No recent pressure";
   const riskDrivers = [];
   if (topTrigger && topTrigger.count > 0) riskDrivers.push(noBuyReasonLabel(topTrigger.label));
   if (!cooldownActive && (pressureSummary.impulse.count + pressureSummary.planned.count) >= 2) riskDrivers.push("no cooldown buffer");
@@ -14228,6 +14253,11 @@ const openNoBuyGameDialog = (stats) => {
         <div class="insights-score-title">Clean badge</div>
         <div class="insights-score-value">${esc(cleanBadgeLabel)}</div>
         <div class="insights-score-note">${esc(cleanBadgeNote)}</div>
+      </div>
+      <div class="insights-score-card">
+        <div class="insights-score-title">Boss trigger</div>
+        <div class="insights-score-value">${esc(bossTriggerLabel)}</div>
+        <div class="insights-score-note">${esc(bossTriggerGroup)}${topTrigger ? ` · ${topTrigger.count} hit${topTrigger.count === 1 ? "" : "s"} in 14d` : ""}</div>
       </div>
     </div>
 
