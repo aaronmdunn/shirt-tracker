@@ -10610,6 +10610,8 @@ const openAdvancedStatsDialog = (stats) => {
   const adv = stats.advanced || {};
   const behavior = buildBehaviorInsights(stats, buildWearNextQueue(stats, loadInsightsSnoozes()));
   const rotationModel = behavior?.rotationModel || { graceCount: 0, adjustedBacklogPct: 0, topBrandDominance: null, parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } } };
+  const workLane = buildTaggedLaneStats(s.wearableItems || [], ["workappropriate", "work appropriate"]);
+  const formalLane = buildTaggedLaneStats(s.wearableItems || [], ["formal"]);
   let html = "";
 
   if (s.isInventory) {
@@ -10656,6 +10658,8 @@ const openAdvancedStatsDialog = (stats) => {
          <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Work-ready lane</div><div class="insights-score-value">${workLane.total} items · ${workLane.activePct}% active</div><div class="insights-score-note">Top brand: ${workLane.topBrand} · top type: ${workLane.topType}</div></div>
+         <div class="insights-score-card"><div class="insights-score-title">Formal lane</div><div class="insights-score-value">${formalLane.total} items · ${formalLane.activePct}% active</div><div class="insights-score-note">Top brand: ${formalLane.topBrand} · top type: ${formalLane.topType}</div></div>
        </div>`
     );
   }
@@ -10808,6 +10812,19 @@ const openAdvancedStatsDialog = (stats) => {
       body += sub(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`);
     });
     html += section("Tag performance", body);
+  }
+
+  if (workLane.total || formalLane.total) {
+    let body = hint("Special-purpose coverage tracks how deep these tagged lanes are and how alive they still are in real wear activity.");
+    if (workLane.total) {
+      body += row("Work-ready lane", `${workLane.total} items | ${workLane.active365} active in 365d | ${workLane.neverWorn} never worn`);
+      body += sub("Work-ready leaders", `${workLane.topBrand} brand | ${workLane.topType} type`);
+    }
+    if (formalLane.total) {
+      body += row("Formal lane", `${formalLane.total} items | ${formalLane.active365} active in 365d | ${formalLane.neverWorn} never worn`);
+      body += sub("Formal leaders", `${formalLane.topBrand} brand | ${formalLane.topType} type`);
+    }
+    html += section("Occasion lanes", body);
   }
 
   content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
@@ -11725,8 +11742,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const isWhaleTagged = (item) => hasTag(item, "whale");
   const isProtectedTagged = (item) => hasAnyTag(item, ["whale", "sentimental", "archive"]);
 
-  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving"];
-  const holidayMonths = new Set([1, 2, 4, 6, 9, 10, 11]);
+  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead"];
+  const holidayMonths = new Set([1, 2, 3, 4, 6, 9, 10, 11]);
   const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
   const isFlannelLikeText = (text) => {
     const normalized = String(text || "").toLowerCase();
@@ -12506,6 +12523,43 @@ const normalizeHolidayTagKey = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
 
+const buildTaggedLaneStats = (items, aliases, options = {}) => {
+  const allItems = Array.isArray(items) ? items : [];
+  const aliasSet = new Set((Array.isArray(aliases) ? aliases : [])
+    .map((value) => String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, ""))
+    .filter(Boolean));
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  const taggedItems = allItems.filter((item) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    return tags.some((tag) => aliasSet.has(String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "")));
+  });
+  const active365 = taggedItems.filter((item) => {
+    if (!item?.lastWorn) return false;
+    const ms = new Date(item.lastWorn).getTime();
+    return Number.isFinite(ms) && Math.floor((nowMs - ms) / 86400000) <= 365;
+  }).length;
+  const neverWorn = taggedItems.filter((item) => Number(item?.wearCount || 0) <= 0).length;
+  const brandCounts = {};
+  const typeCounts = {};
+  taggedItems.forEach((item) => {
+    const brand = String(item?.tab || "Unknown");
+    const type = String(item?.type || "Unknown");
+    brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+    typeCounts[type] = (typeCounts[type] || 0) + 1;
+  });
+  const topBrand = Object.entries(brandCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+  const topType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] || null;
+  const activePct = taggedItems.length ? Math.round((active365 / taggedItems.length) * 100) : 0;
+  return {
+    total: taggedItems.length,
+    active365,
+    activePct,
+    neverWorn,
+    topBrand: topBrand ? topBrand[0] : "n/a",
+    topType: topType ? topType[0] : "n/a",
+  };
+};
+
 const getLastMondayOfMay = (year) => {
   const d = new Date(year, 4, 31);
   while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
@@ -12517,6 +12571,31 @@ const getThanksgivingDate = (year) => {
   while (d.getDay() !== 4) d.setDate(d.getDate() + 1);
   d.setDate(d.getDate() + 21);
   return d;
+};
+
+const getEasterDate = (year) => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + (2 * e) + (2 * i) - h - k) % 7;
+  const m = Math.floor((a + (11 * h) + (22 * l)) / 451);
+  const month = Math.floor((h + l - (7 * m) + 114) / 31) - 1;
+  const day = ((h + l - (7 * m) + 114) % 31) + 1;
+  return new Date(year, month, day);
+};
+
+const getMardiGrasDate = (year) => {
+  const easter = getEasterDate(year);
+  const mardiGras = new Date(easter);
+  mardiGras.setDate(easter.getDate() - 47);
+  return mardiGras;
 };
 
 const getHanukkahStartDate = (year) => {
@@ -12560,6 +12639,8 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
   const memorialDay = getLastMondayOfMay(year);
   const thanksgivingDay = getThanksgivingDate(year);
+  const easterDay = getEasterDate(year);
+  const mardiGrasDay = getMardiGrasDate(year);
   const hanukkahStart = getHanukkahStartDate(year);
   const holidayWindowDays = 7;
   const holidayProfiles = [
@@ -12588,6 +12669,18 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       aliases: ["valentinesday", "valentines", "valentine"],
     },
     {
+      id: "mardigras",
+      label: "Mardi Gras",
+      dates: [mardiGrasDay],
+      aliases: ["mardigras", "mardi", "mardigrasday", "margigras"],
+    },
+    {
+      id: "easter",
+      label: "Easter",
+      dates: [easterDay],
+      aliases: ["easter", "eastersunday"],
+    },
+    {
       id: "thanksgiving",
       label: "Thanksgiving",
       dates: [thanksgivingDay],
@@ -12610,6 +12703,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       label: "Halloween",
       dates: [new Date(year, 9, 31)],
       aliases: ["halloween", "spooky"],
+    },
+    {
+      id: "diadelosmuertos",
+      label: "Dia de los Muertos",
+      dates: [new Date(year, 10, 2)],
+      aliases: ["diadelosmuertos", "diadelosmuerto", "dayofthedead", "muertos"],
     },
   ];
 
@@ -13297,6 +13396,8 @@ const openInsightsDialog = (stats, options = {}) => {
   const yearLabel = String(now.getFullYear());
   const monthDna = buildStyleDnaPeriod(stats, monthStartMs, nowMs);
   const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
+  const workLane = buildTaggedLaneStats(stats?.wearableItems || [], ["workappropriate", "work appropriate"], { nowMs });
+  const formalLane = buildTaggedLaneStats(stats?.wearableItems || [], ["formal"], { nowMs });
 
   const renderDnaCard = (title, dna) => {
     if (!dna || dna.totalWears === 0) {
@@ -13595,6 +13696,16 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-title">Marketplace drag</div>
           ${insightValue(`${marketplaceInactiveCount} parked · ${marketplaceAvgWears} avg wears`, marketplaceInactiveCount <= 2 ? "good" : marketplaceInactiveCount >= 6 ? "bad" : "")}
           <div class="insights-score-note">Shows how many marketplace-tagged pieces are sitting idle instead of earning their spot.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Work-ready coverage</div>
+          ${insightValue(`${workLane.total} items · ${workLane.active365} active`, workLane.activePct >= 60 ? "good" : workLane.total && workLane.activePct <= 30 ? "bad" : "")}
+          <div class="insights-score-note">${workLane.neverWorn} never worn · top brand ${esc(workLane.topBrand)} · top type ${esc(workLane.topType)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Formal coverage</div>
+          ${insightValue(`${formalLane.total} items · ${formalLane.active365} active`, formalLane.activePct >= 60 ? "good" : formalLane.total && formalLane.activePct <= 30 ? "bad" : "")}
+          <div class="insights-score-note">${formalLane.neverWorn} never worn · top brand ${esc(formalLane.topBrand)} · top type ${esc(formalLane.topType)}</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
