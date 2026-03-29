@@ -10,6 +10,7 @@
       "Added Trends and Recent button log sections in No-Buy Game, including the last 10 actions with timestamp + reason and color-coded entries (temptation green, buy red)",
       "Mapped internal reason keys to human-readable labels across trends, recent logs, and last-buy summary",
       "Updated no-buy reason dropdowns to start blank with explicit 'Select reason' placeholders instead of preselected defaults",
+      "Added cloud sync support for No-Buy Game state (XP, logs, reasons, cooldown, recovery) so desktop web and Tauri desktop stay in sync",
       "Refined No-Buy Game controls layout and spacing: one-row action buttons, centered reason selectors, and smaller button sizing for cleaner density",
       "Removed the Stats button from mobile-only header actions while keeping desktop web and Tauri desktop stats functionality intact"
     ]
