@@ -10316,6 +10316,37 @@ const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
     .map(([label, count]) => ({ label, count }));
 };
 
+const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
+  const safe = normalizeNoBuyGamifyState(state);
+  const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
+  const counts = {};
+
+  safe.dailyCheckins.forEach((entry) => {
+    if (!entry?.tempted) return;
+    const key = String(entry.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const trigger = String(entry.trigger || "other").trim() || "other";
+    const label = `Temptation: ${trigger}`;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+
+  safe.buyLog.forEach((entry) => {
+    const key = String(entry?.dateKey || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const ms = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isFinite(ms) || ms < threshold) return;
+    const reason = String(entry?.reason || "other").trim() || "other";
+    const label = `Purchase: ${reason}`;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([label, count]) => ({ label, count }));
+};
+
 const createNoBuyRecoveryMission = (state, nowIso) => {
   const safe = normalizeNoBuyGamifyState(state);
   if (safe.activeRecovery && !safe.activeRecovery.completedAt) return safe;
@@ -12614,8 +12645,8 @@ const openNoBuyGameDialog = (stats) => {
   const cooldownLabel = cooldownActive
     ? `${Math.max(1, Math.ceil((new Date(gamify.cooldownUntil).getTime() - Date.now()) / 3600000))}h left`
     : "inactive";
-  const triggers = getNoBuyTriggerSummary(gamify, 30);
-  const topTrigger = triggers.length ? `${triggers[0].label} (${triggers[0].count})` : "none";
+  const trends = getNoBuyTrendSummary(gamify, 30);
+  const topTrend = trends.length ? `${trends[0].label} (${trends[0].count})` : "none";
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryLabel = recoveryActive
@@ -12696,14 +12727,14 @@ const openNoBuyGameDialog = (stats) => {
       </div>
     </div>
 
-    <div class="stats-section-title" style="margin-top:8px">Trigger trends (30d)</div>
-    ${triggers.length
-      ? `<div class="insights-action-list">${triggers.slice(0, 5).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count}</span></div>`).join("")}</div>`
-      : `<div class="stats-hint">No temptation check-ins yet. Log a trigger on tempted days so patterns become visible.</div>`}
+    <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
+    ${trends.length
+      ? `<div class="insights-action-list">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count}</span></div>`).join("")}</div>`
+      : `<div class="stats-hint">No trend data yet. Use Tempted today and Log buy now to capture both temptation and purchase reasons.</div>`}
 
     <div class="stats-section-title" style="margin-top:8px">Status summary</div>
     <div class="insights-action-list">
-      <div class="stats-row stats-sub"><span class="stats-label">Top trigger</span><span class="stats-value">${esc(topTrigger)}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Top trend</span><span class="stats-value">${esc(topTrend)}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Buys logged</span><span class="stats-value">${gamify.totalBuysLogged}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason || "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
