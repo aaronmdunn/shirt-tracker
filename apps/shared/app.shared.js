@@ -10295,6 +10295,7 @@ const normalizeNoBuyGamifyState = (value) => {
           .slice(-120)
           .map((entry) => ({
             dateKey: String(entry?.dateKey || ""),
+            at: String(entry?.at || ""),
             reason: String(entry?.reason || ""),
           }))
       : [],
@@ -10493,9 +10494,10 @@ const getNoBuyTrendSummary = (state, lookbackDays = 30) => {
   });
 
   safe.buyLog.forEach((entry) => {
+    const atMs = new Date(String(entry?.at || "")).getTime();
     const key = String(entry?.dateKey || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
-    const ms = new Date(`${key}T12:00:00`).getTime();
+    const dateMs = /^\d{4}-\d{2}-\d{2}$/.test(key) ? new Date(`${key}T12:00:00`).getTime() : NaN;
+    const ms = Number.isFinite(atMs) ? atMs : dateMs;
     if (!Number.isFinite(ms) || ms < threshold) return;
     const reason = String(entry?.reason || "other").trim() || "other";
     const label = `Purchase: ${noBuyReasonLabel(reason)}`;
@@ -10545,13 +10547,11 @@ const logNoBuyBuyEvent = (state, reason = "") => {
   const todayKey = localDateKeyFromDate(new Date());
   const cleanReason = String(reason || "other").trim() || "other";
   const nowIso = new Date().toISOString();
-  if (safe.lastBuyDate !== todayKey) {
-    safe.totalBuysLogged += 1;
-    safe.lastBuyDate = todayKey;
-    safe.lastBuyReason = cleanReason;
-    safe.buyLog.push({ dateKey: todayKey, reason: cleanReason });
-    safe.buyLog = safe.buyLog.slice(-120);
-  }
+  safe.totalBuysLogged += 1;
+  safe.lastBuyDate = todayKey;
+  safe.lastBuyReason = cleanReason;
+  safe.buyLog.push({ dateKey: todayKey, at: nowIso, reason: cleanReason });
+  safe.buyLog = safe.buyLog.slice(-120);
   safe.actionLog.push({ at: nowIso, type: "purchase", reason: cleanReason });
   safe.actionLog = safe.actionLog.slice(-300);
   safe.currentStreak = 0;
@@ -10670,8 +10670,10 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
 
   if (type === "purchase") {
     let removed = false;
+    const exactAt = String(at || "");
     safe.buyLog = safe.buyLog.filter((entry) => {
       if (removed) return true;
+      if (exactAt && String(entry?.at || "") !== exactAt) return true;
       if (String(entry?.dateKey || "") !== targetDateKey) return true;
       if (String(entry?.reason || "") !== reason) return true;
       removed = true;
@@ -10681,7 +10683,11 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
 
     const latestBuy = safe.buyLog
       .slice()
-      .sort((a, b) => String(a.dateKey || "").localeCompare(String(b.dateKey || "")))
+      .sort((a, b) => {
+        const aMs = new Date(String(a.at || `${a.dateKey || ""}T12:00:00`)).getTime();
+        const bMs = new Date(String(b.at || `${b.dateKey || ""}T12:00:00`)).getTime();
+        return aMs - bMs;
+      })
       .slice(-1)[0] || null;
     safe.lastBuyDate = latestBuy ? String(latestBuy.dateKey || "") : "";
     safe.lastBuyReason = latestBuy ? String(latestBuy.reason || "") : "";
