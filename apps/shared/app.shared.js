@@ -4533,6 +4533,176 @@ const enforceWishlistDropdownDefaults = () => {
   }
 };
 
+const normalizeDuplicateCheckText = (value) => String(value || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .trim();
+
+const getRowValuesByLabel = (row, columns) => {
+  const values = {};
+  if (!row || !row.cells || !Array.isArray(columns)) return values;
+  columns.forEach((column) => {
+    const label = getColumnLabel(column).trim().toLowerCase();
+    const raw = row.cells[column.id];
+    if (raw) values[label] = String(raw).trim();
+  });
+  return values;
+};
+
+const sharedTokenCount = (left, right) => {
+  const leftTokens = new Set(normalizeDuplicateCheckText(left).split(/\s+/).filter(Boolean));
+  const rightTokens = new Set(normalizeDuplicateCheckText(right).split(/\s+/).filter(Boolean));
+  let count = 0;
+  leftTokens.forEach((token) => {
+    if (rightTokens.has(token)) count += 1;
+  });
+  return count;
+};
+
+const buildDuplicateRiskMatches = (wishlistRow, wishlistColumns, invTabs, chosenBrandName) => {
+  const wishlistValues = getRowValuesByLabel(wishlistRow, wishlistColumns);
+  const desiredBrand = String(chosenBrandName || wishlistValues.brand || "").trim();
+  const wishlistName = normalizeDuplicateCheckText(wishlistValues.name);
+  const wishlistType = normalizeDuplicateCheckText(wishlistValues.type);
+  const wishlistFandom = normalizeDuplicateCheckText(wishlistValues.fandom);
+  const wishlistBrand = normalizeDuplicateCheckText(desiredBrand);
+  const wishlistTags = new Set(
+    getRowTags(wishlistRow)
+      .map((tag) => normalizeDuplicateCheckText(tag))
+      .filter(Boolean)
+  );
+  const matches = [];
+
+  invTabs.forEach((tab) => {
+    let invState = null;
+    try {
+      const stored = localStorage.getItem(`${STORAGE_KEY}:${tab.id}`);
+      if (stored) invState = JSON.parse(stored);
+    } catch (error) {
+      invState = null;
+    }
+    if (!invState || !Array.isArray(invState.columns) || !Array.isArray(invState.rows)) return;
+    invState.rows.forEach((entry) => {
+      const values = getRowValuesByLabel(entry, invState.columns);
+      const entryName = String(values.name || "").trim();
+      const entryType = String(values.type || "").trim();
+      const entryFandom = String(values.fandom || "").trim();
+      const entryBrand = String(tab.name || "").trim();
+      const tagOverlap = getRowTags(entry)
+        .map((tag) => normalizeDuplicateCheckText(tag))
+        .filter((tag) => tag && wishlistTags.has(tag));
+      if (!entryName && !entryType && !entryFandom && tagOverlap.length === 0) return;
+
+      const normalizedName = normalizeDuplicateCheckText(entryName);
+      const normalizedType = normalizeDuplicateCheckText(entryType);
+      const normalizedFandom = normalizeDuplicateCheckText(entryFandom);
+      const normalizedBrand = normalizeDuplicateCheckText(entryBrand);
+      const reasons = [];
+      let score = 0;
+
+      if (wishlistBrand && normalizedBrand && wishlistBrand === normalizedBrand) {
+        score += 30;
+        reasons.push("same brand");
+      }
+      if (wishlistType && normalizedType && wishlistType === normalizedType) {
+        score += 20;
+        reasons.push("same type");
+      }
+      if (wishlistFandom && normalizedFandom && wishlistFandom === normalizedFandom) {
+        score += 15;
+        reasons.push("same fandom");
+      }
+      if (wishlistName && normalizedName) {
+        if (wishlistName === normalizedName) {
+          score += 45;
+          reasons.push("same name");
+        } else if (wishlistName.length > 3 && normalizedName.length > 3 && (wishlistName.includes(normalizedName) || normalizedName.includes(wishlistName))) {
+          score += 30;
+          reasons.push("very similar name");
+        } else {
+          const tokenOverlap = sharedTokenCount(wishlistName, normalizedName);
+          if (tokenOverlap >= 2) {
+            score += 20;
+            reasons.push(`${tokenOverlap} shared name words`);
+          } else if (tokenOverlap === 1) {
+            score += 10;
+            reasons.push("1 shared name word");
+          }
+        }
+      }
+      if (tagOverlap.length) {
+        score += Math.min(15, tagOverlap.length * 5);
+        reasons.push(`${tagOverlap.length} shared tag${tagOverlap.length === 1 ? "" : "s"}`);
+      }
+      if (score < 45) return;
+
+      matches.push({
+        name: entryName || "Unnamed",
+        brand: entryBrand || "Unknown",
+        type: entryType || "Unknown",
+        score,
+        reasons,
+      });
+    });
+  });
+
+  return matches.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+};
+
+const openDuplicateRiskDialog = (matches, chosenBrandName) => new Promise((resolve) => {
+  const topMatches = matches.slice(0, 3);
+  const strongest = matches[0] || null;
+  const maxScore = strongest ? strongest.score : 0;
+  const riskLevel = maxScore >= 80 || (matches.length >= 3 && maxScore >= 55)
+    ? "High"
+    : maxScore >= 55 || matches.length >= 2
+      ? "Medium"
+      : "Low";
+  const esc = (str) => String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const dialog = document.createElement("dialog");
+  dialog.className = "privacy-dialog";
+  dialog.innerHTML = `
+    <div class="dialog-body">
+      <h3 style="margin-top:0">Duplicate Risk Check</h3>
+      <div class="stats-hint">This wishlist item looks close to ${matches.length} owned item${matches.length === 1 ? "" : "s"}${chosenBrandName ? ` in or around ${esc(chosenBrandName)}` : ""}. Review before moving it into Inventory.</div>
+      <div class="stats-section" style="margin-top:12px">
+        <div class="stats-row"><span class="stats-label">Risk level</span><span class="stats-value">${esc(riskLevel)}</span></div>
+        <div class="stats-row"><span class="stats-label">Similar owned items</span><span class="stats-value">${matches.length}</span></div>
+        <div class="stats-row"><span class="stats-label">Strongest match</span><span class="stats-value">${strongest ? esc(`${strongest.name} (${strongest.brand}) - ${strongest.type}`) : "n/a"}</span></div>
+      </div>
+      <div class="stats-section-title" style="margin-top:12px">Closest matches</div>
+      <div class="insights-action-list">${topMatches.map((match, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${match.name} (${match.brand}) - ${match.type}`)}</span><span class="stats-value">Score ${match.score} · ${esc(match.reasons.join(" · "))}</span></div>`).join("")}</div>
+      <div class="stats-hint" style="margin-top:12px">You can still move it. This is a pause-and-think guardrail, not a lockout.</div>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="btn" data-duplicate-cancel="1">Cancel</button>
+      <button type="button" class="btn btn-move-confirm" data-duplicate-confirm="1">Move anyway</button>
+    </div>
+  `;
+  document.body.appendChild(dialog);
+  resetDialogScroll(dialog);
+  openDialog(dialog);
+
+  const cleanup = (result) => {
+    closeDialog(dialog);
+    dialog.remove();
+    resolve(result);
+  };
+
+  const cancelBtn = dialog.querySelector("[data-duplicate-cancel='1']");
+  const confirmBtn = dialog.querySelector("[data-duplicate-confirm='1']");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => cleanup(false));
+  if (confirmBtn) confirmBtn.addEventListener("click", () => cleanup(true));
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    cleanup(false);
+  });
+});
+
 const moveRowToInventory = async (rowId) => {
   if (appMode !== "wishlist") return;
   const row = state.rows.find((r) => r.id === rowId);
@@ -4610,6 +4780,20 @@ const moveRowToInventory = async (rowId) => {
     const val = row.cells[col.id];
     if (val) cellValuesByName[label] = val;
   });
+  const chosenTab = invTabs.find((tab) => tab.id === chosenTabId);
+  const duplicateMatches = buildDuplicateRiskMatches(
+    row,
+    wishlistColumns,
+    invTabs,
+    chosenTab ? chosenTab.name : cellValuesByName.brand || ""
+  );
+  if (duplicateMatches.length) {
+    const shouldContinue = await openDuplicateRiskDialog(
+      duplicateMatches,
+      chosenTab ? chosenTab.name : cellValuesByName.brand || ""
+    );
+    if (!shouldContinue) return;
+  }
   let invState = null;
   try {
     const stored = localStorage.getItem(`${STORAGE_KEY}:${chosenTabId}`);
@@ -4656,7 +4840,6 @@ const moveRowToInventory = async (rowId) => {
   // Log the "Got it!" transfer for stats
   try {
     const gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
-    const chosenTab = invTabs.find((t) => t.id === chosenTabId);
     const activeWishTab = tabsState.tabs.find((t) => t.id === tabsState.activeTabId);
     gotItLog.push({
       name: cellValuesByName["name"] || "Unnamed",
