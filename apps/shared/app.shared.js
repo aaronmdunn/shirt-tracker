@@ -10350,6 +10350,36 @@ const normalizeNoBuyGamifyState = (value) => {
     purchaseEventsFromActionLog,
     purchaseEventsFromBuyLog
   );
+
+  const purchaseCandidates = [];
+  if (Array.isArray(out.actionLog)) {
+    out.actionLog.forEach((entry) => {
+      if (String(entry?.type || "") !== "purchase") return;
+      const at = String(entry?.at || "");
+      const ms = new Date(at).getTime();
+      if (!Number.isFinite(ms)) return;
+      purchaseCandidates.push({ ms, dateKey: localDateKeyFromDate(new Date(ms)), reason: String(entry?.reason || "") });
+    });
+  }
+  if (Array.isArray(out.buyLog)) {
+    out.buyLog.forEach((entry) => {
+      const atRaw = String(entry?.at || "");
+      const dateKey = String(entry?.dateKey || "");
+      let ms = new Date(atRaw).getTime();
+      if (!Number.isFinite(ms) && /^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        ms = new Date(`${dateKey}T12:00:00`).getTime();
+      }
+      if (!Number.isFinite(ms)) return;
+      purchaseCandidates.push({ ms, dateKey: /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : localDateKeyFromDate(new Date(ms)), reason: String(entry?.reason || "") });
+    });
+  }
+  if (purchaseCandidates.length) {
+    purchaseCandidates.sort((a, b) => a.ms - b.ms);
+    const latest = purchaseCandidates[purchaseCandidates.length - 1];
+    out.lastBuyDate = String(latest.dateKey || out.lastBuyDate || "");
+    out.lastBuyReason = String(latest.reason || out.lastBuyReason || "");
+  }
+
   if (out.currentStreak > out.longestStreak) out.longestStreak = out.currentStreak;
   return out;
 };
