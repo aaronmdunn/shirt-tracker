@@ -3444,6 +3444,19 @@ const applyCloudPayload = (payload) => {
 const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
+let insightsRefreshTimer = null;
+const requestInsightsRefreshIfOpen = () => {
+  window.clearTimeout(insightsRefreshTimer);
+  insightsRefreshTimer = window.setTimeout(() => {
+    const dialog = document.getElementById("insights-dialog");
+    if (!dialog || !dialog.open) return;
+    const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
+    const body = dialog.querySelector(".dialog-body");
+    const previousScrollTop = body ? body.scrollTop : 0;
+    openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+  }, 120);
+};
+
 const scheduleSync = () => {
   if (!supabase || !currentUser) return;
   if (syncRetryTimer) {
@@ -3452,6 +3465,7 @@ const scheduleSync = () => {
   }
   window.clearTimeout(syncTimer);
   syncTimer = window.setTimeout(syncToSupabase, SYNC_DEBOUNCE_MS);
+  requestInsightsRefreshIfOpen();
 };
 
 const scheduleSyncRetry = () => {
@@ -12140,13 +12154,16 @@ const openInsightsDialog = (stats, options = {}) => {
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Insights are currently available in Inventory mode.</div>`;
     openDialog(dialog);
-    resetDialogScroll(dialog);
+    if (!options.preserveScroll) {
+      resetDialogScroll(dialog);
+    }
     return;
   }
 
   const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
     : localDateKeyFromDate(new Date());
+  dialog.setAttribute("data-sim-date-key", activeSimDateKey);
   const snoozes = loadInsightsSnoozes();
   const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
   const behavior = buildBehaviorInsights(stats, queue);
@@ -12852,7 +12869,12 @@ const openInsightsDialog = (stats, options = {}) => {
   }
 
   openDialog(dialog);
-  resetDialogScroll(dialog);
+  if (options.preserveScroll) {
+    const body = dialog.querySelector(".dialog-body");
+    if (body) body.scrollTop = Math.max(0, Number(options.scrollTop || 0));
+  } else {
+    resetDialogScroll(dialog);
+  }
 };
 
 const openNoBuyGameDialog = (stats) => {
