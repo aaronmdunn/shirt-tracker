@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.1.0",
+    "date": "2026-03-29",
+    "changes": [
+      "Recalibrated Insights, Main Stats, and Advanced Stats around collector-normal behavior so low-frequency closets are judged by yearly reach, protected-piece intent, and adoption reality instead of fast-rotation assumptions",
+      "Added richer collector coaching across stats windows, including queue lanes with explanations, heatmap day/month drilldowns, confidence reasons, review-first sell suggestions, and stronger marketplace/parked-value summaries",
+      "Expanded No-Buy Game coaching with Risk right now, Best move today, pressure mix, clean badges, boss-trigger summaries, trend direction labels, cooldown action logging, and more urgent recovery guidance",
+      "Upgraded Main Stats with a collector snapshot, today’s-story summary, richer whale context, recent-add activation status, and lighter collapsible treatment for lower-priority sections",
+      "Upgraded Advanced Stats with stronger strongest/weakest callouts, grace-window-adjusted backlog reads, monthly verdicts, seasonal quiet-window detection, and sleeper-vs-overloaded tag reads",
+      "Added extra summary cards in Insights, Advanced Stats, and No-Buy so marketplace, activation, and trigger grids feel fuller and more informative",
+      "Refreshed stats-related dialogs with a softer multi-color visual system across cards, sections, bars, links, and headings so analytics feel richer without becoming harsh",
+      "Shipped routine release maintenance: version references updated to 2.1.0 across web, shared, and Tauri metadata"
+    ]
+  },
+  {
     "version": "2.0.20",
     "date": "2026-03-29",
     "changes": [
