@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.0.16";
+const APP_VERSION = "2.0.17";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -51,6 +51,7 @@ const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
+const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -3198,7 +3199,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.0.16",
+    version: "2.0.17",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -10092,6 +10093,781 @@ const saveInsightsSnoozes = (value) => {
 
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
+const normalizeInsightsQueueActivity = (value) => {
+  const next = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : { ...value };
+  if (!next.__daily || typeof next.__daily !== "object" || Array.isArray(next.__daily)) next.__daily = {};
+  Object.keys(next).forEach((key) => {
+    if (key === "__daily") return;
+    const entry = next[key];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      delete next[key];
+      return;
+    }
+    next[key] = {
+      exposures: Number(entry.exposures || 0),
+      selections: Number(entry.selections || 0),
+      exposureDays: Number(entry.exposureDays || 0),
+      selectionDays: Number(entry.selectionDays || 0),
+      lastExposureDate: String(entry.lastExposureDate || ""),
+      lastSelectedDate: String(entry.lastSelectedDate || ""),
+    };
+  });
+  return next;
+};
+
+const loadInsightsQueueActivity = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY) || "{}");
+    return normalizeInsightsQueueActivity(parsed);
+  } catch (error) {
+    return normalizeInsightsQueueActivity({});
+  }
+};
+
+const saveInsightsQueueActivity = (value) => {
+  try {
+    localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(normalizeInsightsQueueActivity(value || {})));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const pruneInsightsQueueDailyActivity = (activity, keepDays = 90) => {
+  const next = normalizeInsightsQueueActivity(activity);
+  const threshold = Date.now() - (Math.max(1, keepDays) * 86400000);
+  Object.keys(next.__daily).forEach((dateKey) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+      delete next.__daily[dateKey];
+      return;
+    }
+    const ms = new Date(`${dateKey}T12:00:00`).getTime();
+    if (Number.isNaN(ms) || ms < threshold) delete next.__daily[dateKey];
+  });
+  return next;
+};
+
+const trackInsightsQueueExposure = (queueItems, dateKey) => {
+  if (!Array.isArray(queueItems) || !queueItems.length) return;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return;
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
+    next.__daily[todayKey] = { exposures: 0, selections: 0 };
+  }
+  queueItems.forEach((item) => {
+    const key = String(item?.key || "");
+    if (!key) return;
+    if (!next[key] || typeof next[key] !== "object") {
+      next[key] = { exposures: 0, selections: 0, exposureDays: 0, selectionDays: 0, lastExposureDate: "", lastSelectedDate: "" };
+    }
+    if (next[key].lastExposureDate === todayKey) return;
+    next[key].exposures = (next[key].exposures || 0) + 1;
+    next[key].exposureDays = (next[key].exposureDays || 0) + 1;
+    next[key].lastExposureDate = todayKey;
+    next.__daily[todayKey].exposures = (next.__daily[todayKey].exposures || 0) + 1;
+  });
+  saveInsightsQueueActivity(next);
+};
+
+const trackInsightsQueueSelection = (queueKey, dateKey) => {
+  const key = String(queueKey || "");
+  if (!key) return;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return;
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
+    next.__daily[todayKey] = { exposures: 0, selections: 0 };
+  }
+  if (!next[key] || typeof next[key] !== "object") {
+    next[key] = { exposures: 0, selections: 0, exposureDays: 0, selectionDays: 0, lastExposureDate: "", lastSelectedDate: "" };
+  }
+  if (next[key].lastSelectedDate === todayKey) {
+    saveInsightsQueueActivity(next);
+    return;
+  }
+  next[key].selections = (next[key].selections || 0) + 1;
+  next[key].selectionDays = (next[key].selectionDays || 0) + 1;
+  next[key].lastSelectedDate = todayKey;
+  next.__daily[todayKey].selections = (next.__daily[todayKey].selections || 0) + 1;
+  saveInsightsQueueActivity(next);
+};
+
+const safePercent = (numerator, denominator) => {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 100);
+};
+
+const toDateMsFromWearEvent = (event) => {
+  const direct = new Date(event?.wornAt).getTime();
+  if (!Number.isNaN(direct)) return direct;
+  const key = String(event?.dateKey || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+    const fromKey = new Date(`${key}T12:00:00`).getTime();
+    if (!Number.isNaN(fromKey)) return fromKey;
+  }
+  return null;
+};
+
+const toWeekStartKey = (ms) => {
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  d.setHours(0, 0, 0, 0);
+  return localDateKeyFromDate(d);
+};
+
+const normalizeCounts = (counts) => {
+  const entries = Object.entries(counts || {});
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (!total) return {};
+  const out = {};
+  entries.forEach(([label, count]) => {
+    out[label] = count / total;
+  });
+  return out;
+};
+
+const distributionDrift = (aCounts, bCounts) => {
+  const a = normalizeCounts(aCounts);
+  const b = normalizeCounts(bCounts);
+  const labels = new Set([...Object.keys(a), ...Object.keys(b)]);
+  if (!labels.size) return 0;
+  let sumAbs = 0;
+  labels.forEach((label) => {
+    sumAbs += Math.abs((a[label] || 0) - (b[label] || 0));
+  });
+  return Math.min(1, sumAbs / 2);
+};
+
+const topCounts = (counts, limit) => Object.entries(counts || {})
+  .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+  .slice(0, limit)
+  .map(([label, count]) => ({ label, count }));
+
+const medianOf = (values) => {
+  if (!Array.isArray(values) || !values.length) return null;
+  const sorted = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  return (sorted[mid - 1] + sorted[mid]) / 2;
+};
+
+const buildBehaviorInsights = (stats, queue = []) => {
+  const nowMs = Date.now();
+  const dayMs = 86400000;
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const itemLookup = {};
+  wearableItems.forEach((item) => {
+    const key = getInsightsQueueKey(item);
+    if (!itemLookup[key]) itemLookup[key] = item;
+  });
+
+  const recentEvents = wearEvents
+    .map((event) => ({ ...event, wornMs: toDateMsFromWearEvent(event) }))
+    .filter((event) => Number.isFinite(event.wornMs));
+
+  const weekly = {};
+  recentEvents.forEach((event) => {
+    const ageDays = Math.floor((nowMs - event.wornMs) / dayMs);
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > 7 * 12) return;
+    const weekKey = toWeekStartKey(event.wornMs);
+    if (!weekKey) return;
+    if (!weekly[weekKey]) weekly[weekKey] = { typeCounts: {}, total: 0 };
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    weekly[weekKey].typeCounts[type] = (weekly[weekKey].typeCounts[type] || 0) + 1;
+    weekly[weekKey].total += 1;
+  });
+  const weeklyKeys = Object.keys(weekly).sort();
+  const weeklyDrifts = [];
+  for (let i = 1; i < weeklyKeys.length; i += 1) {
+    const prev = weekly[weeklyKeys[i - 1]].typeCounts;
+    const next = weekly[weeklyKeys[i]].typeCounts;
+    weeklyDrifts.push(Math.round(distributionDrift(prev, next) * 100));
+  }
+  const volatilityScore = weeklyDrifts.length
+    ? Math.round(weeklyDrifts.reduce((sum, value) => sum + value, 0) / weeklyDrifts.length)
+    : 0;
+  const volatilityLabel = volatilityScore < 18 ? "Stable" : volatilityScore < 36 ? "Shifting" : "Volatile";
+
+  const split = {
+    weekday: { brandCounts: {}, typeCounts: {}, tagCounts: {}, total: 0 },
+    weekend: { brandCounts: {}, typeCounts: {}, tagCounts: {}, total: 0 },
+  };
+  recentEvents.forEach((event) => {
+    const ageDays = Math.floor((nowMs - event.wornMs) / dayMs);
+    if (!Number.isFinite(ageDays) || ageDays < 0 || ageDays > 120) return;
+    const day = new Date(event.wornMs).getDay();
+    const bucket = day === 5 || day === 6 || day === 0 ? split.weekend : split.weekday;
+    const brand = String(event.tab || "Unknown").trim() || "Unknown";
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    bucket.brandCounts[brand] = (bucket.brandCounts[brand] || 0) + 1;
+    bucket.typeCounts[type] = (bucket.typeCounts[type] || 0) + 1;
+    bucket.total += 1;
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    const tags = Array.isArray(itemLookup[key]?.tags) ? itemLookup[key].tags : [];
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      bucket.tagCounts[clean] = (bucket.tagCounts[clean] || 0) + 1;
+    });
+  });
+  const personaSimilarity = Math.max(0, 100 - Math.round(distributionDrift(split.weekday.typeCounts, split.weekend.typeCounts) * 100));
+
+  const makeTopLabel = (counts) => {
+    const top = topCounts(counts, 1)[0];
+    return top ? `${top.label} (${top.count})` : "n/a";
+  };
+
+  const coreStartMs = nowMs - (180 * dayMs);
+  const priorStartMs = nowMs - (60 * dayMs);
+  const windowStartMs = nowMs - (30 * dayMs);
+  const baselineTypeCounts = {};
+  const windowTypeCounts = {};
+  const priorTypeCounts = {};
+  recentEvents.forEach((event) => {
+    if (event.wornMs < coreStartMs || event.wornMs > nowMs) return;
+    const type = String(event.type || "Unknown").trim() || "Unknown";
+    if (event.wornMs < priorStartMs) baselineTypeCounts[type] = (baselineTypeCounts[type] || 0) + 1;
+    else if (event.wornMs < windowStartMs) priorTypeCounts[type] = (priorTypeCounts[type] || 0) + 1;
+    else windowTypeCounts[type] = (windowTypeCounts[type] || 0) + 1;
+  });
+  const coreTypes = new Set(topCounts(baselineTypeCounts, 3).map((item) => item.label));
+  const countCore = (counts) => Object.entries(counts).reduce((sum, [label, count]) => sum + (coreTypes.has(label) ? count : 0), 0);
+  const windowTotal = Object.values(windowTypeCounts).reduce((sum, count) => sum + count, 0);
+  const priorTotal = Object.values(priorTypeCounts).reduce((sum, count) => sum + count, 0);
+  const windowExploration = windowTotal - countCore(windowTypeCounts);
+  const priorExploration = priorTotal - countCore(priorTypeCounts);
+  const explorationPct = safePercent(windowExploration, windowTotal);
+  const priorExplorationPct = safePercent(priorExploration, priorTotal);
+
+  const acquisitionWindowMs = nowMs - (180 * dayMs);
+  const acquisitionRows = wearableItems
+    .map((item) => {
+      if (!item?.createdAt) return null;
+      const createdMs = new Date(item.createdAt).getTime();
+      if (Number.isNaN(createdMs) || createdMs < acquisitionWindowMs || createdMs > nowMs) return null;
+      const wearLog = Array.isArray(item.wearLog) ? item.wearLog : [];
+      const wearMsList = wearLog
+        .map((stamp) => new Date(stamp).getTime())
+        .filter((ms) => Number.isFinite(ms) && ms >= createdMs)
+        .sort((a, b) => a - b);
+      const firstWearMs = wearMsList.length ? wearMsList[0] : null;
+      const firstWearDays = firstWearMs === null ? null : Math.max(0, Math.floor((firstWearMs - createdMs) / dayMs));
+      const wearsIn30 = wearMsList.filter((ms) => ms <= (createdMs + (30 * dayMs))).length;
+      return {
+        name: String(item.name || "Unnamed"),
+        tab: String(item.tab || "Unknown"),
+        type: String(item.type || "Unknown"),
+        firstWearDays,
+        adopted30: firstWearDays !== null && firstWearDays <= 30,
+        rewear30: wearsIn30 >= 2,
+      };
+    })
+    .filter(Boolean);
+  const firstWearDaysList = acquisitionRows.map((row) => row.firstWearDays).filter((value) => value !== null);
+  const adoption30Count = acquisitionRows.filter((row) => row.adopted30).length;
+  const rewear30Count = acquisitionRows.filter((row) => row.rewear30).length;
+  const adoptionRate30 = safePercent(adoption30Count, acquisitionRows.length);
+  const rewearRate30 = safePercent(rewear30Count, acquisitionRows.length);
+  const medianFirstWearDays = medianOf(firstWearDaysList);
+  const medianComponent = medianFirstWearDays === null ? 0 : Math.max(0, 100 - Math.min(100, Math.round(medianFirstWearDays * 2.5)));
+  const acquisitionScore = acquisitionRows.length
+    ? Math.round((adoptionRate30 * 0.5) + (medianComponent * 0.3) + (rewearRate30 * 0.2))
+    : 0;
+
+  const fatigueLookbackMs = nowMs - (90 * dayMs);
+  const fatigueRecentMs = nowMs - (45 * dayMs);
+  const themeBuckets = {};
+  let priorThemeTotal = 0;
+  let recentThemeTotal = 0;
+  recentEvents.forEach((event) => {
+    if (event.wornMs < fatigueLookbackMs || event.wornMs > nowMs) return;
+    const isRecent = event.wornMs >= fatigueRecentMs;
+    const key = getInsightsQueueKey({ name: event.name, tab: event.tab, type: event.type });
+    const tags = Array.isArray(itemLookup[key]?.tags) ? itemLookup[key].tags : [];
+    const fandom = String(itemLookup[key]?.fandom || "").trim();
+    const themes = [];
+    if (fandom) themes.push(`fandom:${fandom}`);
+    tags.forEach((tag) => {
+      const clean = String(tag || "").trim();
+      if (!clean || clean.toLowerCase() === "original") return;
+      themes.push(`tag:${clean}`);
+    });
+    themes.forEach((theme) => {
+      if (!themeBuckets[theme]) themeBuckets[theme] = { prior: 0, recent: 0 };
+      if (isRecent) {
+        themeBuckets[theme].recent += 1;
+        recentThemeTotal += 1;
+      } else {
+        themeBuckets[theme].prior += 1;
+        priorThemeTotal += 1;
+      }
+    });
+  });
+  const fatigueThemes = Object.entries(themeBuckets)
+    .map(([theme, counts]) => {
+      const priorShare = priorThemeTotal ? (counts.prior / priorThemeTotal) : 0;
+      const recentShare = recentThemeTotal ? (counts.recent / recentThemeTotal) : 0;
+      const drop = priorShare - recentShare;
+      const minSamples = counts.prior + counts.recent;
+      if (counts.prior < 4 || minSamples < 6 || drop < 0.05 || priorShare < 0.08) return null;
+      const rawLabel = theme.includes(":") ? theme.split(":")[1] : theme;
+      return {
+        label: rawLabel,
+        family: theme.startsWith("fandom:") ? "Fandom" : "Tag",
+        priorShare: Math.round(priorShare * 100),
+        recentShare: Math.round(recentShare * 100),
+        drop: Math.round(drop * 100),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.drop - a.drop || a.label.localeCompare(b.label))
+    .slice(0, 5);
+
+  const queueActivity = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  const dailyActivity = queueActivity.__daily || {};
+  const frictionDays = Object.entries(dailyActivity)
+    .map(([dateKey, day]) => {
+      const exposures = Number(day?.exposures || 0);
+      const selections = Number(day?.selections || 0);
+      if (exposures <= 0) return null;
+      const acceptance = selections / exposures;
+      return {
+        dateKey,
+        exposures,
+        selections,
+        acceptance,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+    .slice(-28);
+  const frictionAvgAcceptance = frictionDays.length
+    ? Math.round((frictionDays.reduce((sum, day) => sum + day.acceptance, 0) / frictionDays.length) * 100)
+    : 0;
+  const highFrictionDays = frictionDays.filter((day) => day.exposures >= 5 && day.acceptance < 0.2).length;
+  const worstFrictionDay = frictionDays.length
+    ? frictionDays.slice().sort((a, b) => a.acceptance - b.acceptance || b.exposures - a.exposures)[0]
+    : null;
+
+  const weekdayFriction = {};
+  frictionDays.forEach((day) => {
+    const ms = new Date(`${day.dateKey}T12:00:00`).getTime();
+    if (Number.isNaN(ms)) return;
+    const label = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(ms).getDay()];
+    if (!weekdayFriction[label]) weekdayFriction[label] = { accept: 0, exposures: 0 };
+    weekdayFriction[label].accept += day.selections;
+    weekdayFriction[label].exposures += day.exposures;
+  });
+  const weekdayFrictionRows = Object.entries(weekdayFriction)
+    .map(([label, row]) => ({ label, acceptance: safePercent(row.accept, row.exposures), exposures: row.exposures }))
+    .sort((a, b) => a.acceptance - b.acceptance || b.exposures - a.exposures)
+    .slice(0, 3);
+
+  const comebackCandidates = wearableItems
+    .map((item) => {
+      const itemTags = Array.isArray(item?.tags) ? item.tags : [];
+      const isWhale = itemTags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+      if (isWhale) return null;
+      const wearCount = Number(item?.wearCount || 0);
+      const key = getInsightsQueueKey(item);
+      const name = String(item?.name || "Unnamed");
+      const tab = String(item?.tab || "Unknown");
+      const type = String(item?.type || "Unknown");
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      const price = Number(item?.price || 0);
+      if (wearCount < 2 || daysSince === null || daysSince < 45) return null;
+      const score = Math.round(Math.min(90, wearCount * 8) + Math.min(90, daysSince * 0.45) + Math.min(24, Math.log10(price + 1) * 10));
+      return {
+        key,
+        name,
+        tab,
+        type,
+        wearCount,
+        daysSince,
+        score,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 5);
+
+  const benchPressure = wearableItems
+    .map((item) => {
+      const key = getInsightsQueueKey(item);
+      const activity = queueActivity[key];
+      if (!activity || (activity.exposures || 0) < 4) return null;
+      const exposures = Number(activity.exposures || 0);
+      const selections = Number(activity.selections || 0);
+      const selectionRate = exposures > 0 ? selections / exposures : 0;
+      const skips = Math.max(0, exposures - selections);
+      const lastExposureMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastExposureDate || ""))
+        ? new Date(`${activity.lastExposureDate}T12:00:00`).getTime()
+        : NaN;
+      const lastSelectedMs = /^\d{4}-\d{2}-\d{2}$/.test(String(activity.lastSelectedDate || ""))
+        ? new Date(`${activity.lastSelectedDate}T12:00:00`).getTime()
+        : NaN;
+      const daysSinceSeen = Number.isNaN(lastExposureMs) ? null : Math.max(0, Math.floor((nowMs - lastExposureMs) / dayMs));
+      const daysSincePicked = Number.isNaN(lastSelectedMs) ? null : Math.max(0, Math.floor((nowMs - lastSelectedMs) / dayMs));
+      const pressureScore = Math.round(
+        (skips * 7)
+        + Math.max(0, (1 - selectionRate) * 46)
+        + Math.min(24, Number(activity.exposureDays || 0) * 2)
+        + (daysSincePicked !== null && daysSincePicked > 14 ? 10 : 0)
+      );
+      if (selectionRate >= 0.4 && pressureScore < 55) return null;
+      return {
+        key,
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        exposures,
+        selections,
+        skips,
+        selectionRate,
+        pressureScore,
+        exposureDays: Number(activity.exposureDays || 0),
+        daysSinceSeen,
+        daysSincePicked,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.pressureScore - a.pressureScore || b.exposures - a.exposures || a.name.localeCompare(b.name))
+    .slice(0, 8);
+
+  const wearsLast60 = recentEvents.filter((event) => event.wornMs >= (nowMs - (60 * dayMs)) && event.wornMs <= nowMs).length;
+  const collectionDailyCadence = wearsLast60 > 0 ? (wearsLast60 / 60) : 0.12;
+  const valueRecoveryCandidates = wearableItems
+    .map((item) => {
+      const tags = Array.isArray(item?.tags) ? item.tags : [];
+      const isWhale = tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+      if (isWhale) return null;
+      const price = Number(item?.price || 0);
+      if (!Number.isFinite(price) || price <= 0) return null;
+      const wearCount = Math.max(0, Number(item?.wearCount || 0));
+      const currentCpw = price / Math.max(1, wearCount);
+      const targetCpw = Math.max(8, Math.min(20, price / 10));
+      const targetWearCount = Math.ceil(price / targetCpw);
+      const additionalWears = Math.max(0, targetWearCount - wearCount);
+      if (additionalWears <= 0) return null;
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      const itemDailyCadence = Math.max(0.08, collectionDailyCadence * 0.2);
+      const etaDays = Math.ceil(additionalWears / itemDailyCadence);
+      const recoveryPressure = Math.round((currentCpw * 1.6) + (additionalWears * 4) + Math.min(30, Number(daysSince || 0) * 0.25));
+      return {
+        key: getInsightsQueueKey(item),
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        currentCpw,
+        targetCpw,
+        additionalWears,
+        etaDays,
+        recoveryPressure,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.recoveryPressure - a.recoveryPressure || b.currentCpw - a.currentCpw || a.name.localeCompare(b.name))
+    .slice(0, 8);
+  const totalRecoveryWears = valueRecoveryCandidates.reduce((sum, item) => sum + item.additionalWears, 0);
+
+  const confidenceRows = wearableItems
+    .map((item) => {
+      const wearLog = Array.isArray(item?.wearLog) ? item.wearLog : [];
+      const wearTimes = wearLog
+        .map((stamp) => new Date(stamp).getTime())
+        .filter((ms) => Number.isFinite(ms))
+        .sort((a, b) => a - b);
+      const wearCount = Math.max(Number(item?.wearCount || 0), wearTimes.length);
+      if (wearCount <= 0) return null;
+      const gaps = [];
+      for (let i = 1; i < wearTimes.length; i += 1) {
+        gaps.push(Math.max(0, Math.floor((wearTimes[i] - wearTimes[i - 1]) / dayMs)));
+      }
+      const medianGap = medianOf(gaps);
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : (wearTimes.length ? wearTimes[wearTimes.length - 1] : NaN);
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      let score = 0;
+      score += Math.min(45, wearCount * 4.5);
+      score += medianGap === null ? 8 : Math.max(0, 30 - Math.min(30, medianGap));
+      score += daysSince === null ? 0 : Math.max(0, 25 - Math.min(25, Math.round(daysSince / 2)));
+      return {
+        key: getInsightsQueueKey(item),
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        wearCount,
+        medianGap,
+        daysSince,
+        confidenceScore: Math.max(0, Math.min(100, Math.round(score))),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.confidenceScore - a.confidenceScore || a.name.localeCompare(b.name));
+  const avgConfidence = confidenceRows.length
+    ? Math.round(confidenceRows.reduce((sum, row) => sum + row.confidenceScore, 0) / confidenceRows.length)
+    : 0;
+  const lowConfidence = confidenceRows.filter((row) => row.confidenceScore <= 45).slice(0, 5);
+
+  const typePerformance = {};
+  wearableItems.forEach((item) => {
+    const key = getInsightsQueueKey(item);
+    const activity = queueActivity[key];
+    if (!activity) return;
+    const type = String(item?.type || "Unknown").trim() || "Unknown";
+    if (!typePerformance[type]) typePerformance[type] = { exposures: 0, selections: 0 };
+    typePerformance[type].exposures += Number(activity.exposures || 0);
+    typePerformance[type].selections += Number(activity.selections || 0);
+  });
+  const typePerfRows = Object.entries(typePerformance)
+    .map(([type, row]) => {
+      const exposures = Number(row.exposures || 0);
+      const selections = Number(row.selections || 0);
+      const rate = exposures > 0 ? (selections / exposures) : 0;
+      return { type, exposures, selections, rate };
+    })
+    .filter((row) => row.exposures >= 4)
+    .sort((a, b) => b.rate - a.rate || b.exposures - a.exposures);
+  const adaptiveBoosts = typePerfRows.filter((row) => row.rate >= 0.35).slice(0, 3);
+  const adaptiveSuppressions = typePerfRows.slice().sort((a, b) => a.rate - b.rate || b.exposures - a.exposures).filter((row) => row.rate <= 0.16).slice(0, 3);
+
+  const hasWhaleTag = (item) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    return tags.some((tag) => String(tag || "").trim().toLowerCase() === "whale");
+  };
+  const whaleKeySet = new Set(wearableItems.filter((item) => hasWhaleTag(item)).map((item) => getInsightsQueueKey(item)));
+
+  const getMarketplaceMatches = (item) => {
+    const tags = Array.isArray(item?.tags) ? item.tags : [];
+    const normalized = tags.map((tag) => String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const set = new Set(normalized);
+    const matches = [];
+    if (set.has("bst")) matches.push("bst");
+    if (set.has("ebay")) matches.push("ebay");
+    if (set.has("mercari")) matches.push("mercari");
+    return matches;
+  };
+
+  const marketplaceTagStats = {
+    bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+  };
+
+  const confidenceByKey = {};
+  confidenceRows.forEach((row) => {
+    if (row?.key) confidenceByKey[row.key] = row;
+  });
+
+  const benchByKey = {};
+  benchPressure.forEach((row) => {
+    if (row?.key) benchByKey[row.key] = row;
+  });
+
+  const recoveryByKey = {};
+  valueRecoveryCandidates.forEach((row) => {
+    if (row?.key) recoveryByKey[row.key] = row;
+  });
+
+  wearableItems.forEach((item) => {
+    const price = Number(item?.price || 0);
+    const wearCount = Math.max(0, Number(item?.wearCount || 0));
+    const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+    const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+    const matches = getMarketplaceMatches(item);
+    matches.forEach((id) => {
+      const bucket = marketplaceTagStats[id];
+      if (!bucket) return;
+      bucket.count += 1;
+      if (wearCount === 0) bucket.neverWorn += 1;
+      if (daysSince !== null && daysSince >= 180) bucket.inactive180 += 1;
+      if (price > 0) {
+        bucket.totalValue += price;
+        bucket.cpwSamples.push(price / Math.max(1, wearCount));
+      }
+    });
+  });
+
+  Object.values(marketplaceTagStats).forEach((bucket) => {
+    if (bucket.cpwSamples.length) {
+      const avg = bucket.cpwSamples.reduce((sum, value) => sum + value, 0) / bucket.cpwSamples.length;
+      bucket.avgCpw = Math.round(avg * 10) / 10;
+    }
+    delete bucket.cpwSamples;
+  });
+
+  const sellSuggestions = wearableItems
+    .map((item) => {
+      if (hasWhaleTag(item)) return null;
+      const key = getInsightsQueueKey(item);
+      const wearCount = Math.max(0, Number(item?.wearCount || 0));
+      const price = Number(item?.price || 0);
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      let score = 0;
+      const reasons = [];
+      if (wearCount === 0) {
+        score += 55;
+        reasons.push("never worn");
+      }
+      if (daysSince !== null && daysSince >= 365) {
+        score += 40;
+        reasons.push(`${daysSince}d idle`);
+      } else if (daysSince !== null && daysSince >= 180) {
+        score += 28;
+        reasons.push(`${daysSince}d inactive`);
+      }
+      const benchHit = benchByKey[key] || null;
+      if (benchHit) {
+        score += Math.min(35, Math.round(benchHit.pressureScore * 0.35));
+        reasons.push(`bench pressure ${benchHit.pressureScore}`);
+      }
+      const confidenceHit = confidenceByKey[key] || null;
+      if (confidenceHit && confidenceHit.confidenceScore <= 45) {
+        score += Math.round((50 - confidenceHit.confidenceScore) * 0.6);
+        reasons.push(`confidence ${confidenceHit.confidenceScore}`);
+      }
+      const recoveryHit = recoveryByKey[key] || null;
+      if (recoveryHit) {
+        score += Math.min(26, Math.round(recoveryHit.currentCpw));
+        reasons.push(`${Math.round(recoveryHit.currentCpw)}/wear`);
+      }
+      const marketMatches = getMarketplaceMatches(item);
+      if (marketMatches.length) {
+        score += 8;
+        reasons.push(`tagged ${marketMatches.map((id) => marketplaceTagStats[id]?.label || id).join("/")}`);
+      }
+      if (daysSince !== null && daysSince <= 30) score -= 25;
+
+      if (score < 45) return null;
+      return {
+        key,
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        score,
+        reasons,
+        daysSince,
+        wearCount,
+        price,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
+    .slice(0, 3);
+
+  const queueByKey = {};
+  (Array.isArray(queue) ? queue : []).forEach((item) => {
+    if (!item?.key || queueByKey[item.key]) return;
+    queueByKey[item.key] = item;
+  });
+  const reactivationSeeds = [];
+  comebackCandidates.forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Comeback ${item.daysSince}d idle` });
+  });
+  benchPressure.slice(0, 5).forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Bench pressure ${item.pressureScore}` });
+  });
+  valueRecoveryCandidates.slice(0, 5).forEach((item) => {
+    if (whaleKeySet.has(String(item?.key || ""))) return;
+    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Recovery ${Math.round(item.currentCpw)}/wear` });
+  });
+  const playbook = [];
+  const used = new Set();
+  reactivationSeeds.forEach((seed) => {
+    if (playbook.length >= 7 || !seed?.key || used.has(seed.key)) return;
+    const qItem = queueByKey[seed.key];
+    const source = qItem || wearableItems.find((item) => getInsightsQueueKey(item) === seed.key);
+    if (!source) return;
+    used.add(seed.key);
+    playbook.push({
+      key: seed.key,
+      name: String(source.name || "Unnamed"),
+      tab: String(source.tab || "Unknown"),
+      type: String(source.type || "Unknown"),
+      reason: seed.reason,
+    });
+  });
+
+  return {
+    volatility: {
+      score: volatilityScore,
+      label: volatilityLabel,
+      weeklyDrifts,
+      latestShift: weeklyDrifts.length ? weeklyDrifts[weeklyDrifts.length - 1] : 0,
+    },
+    persona: {
+      similarity: personaSimilarity,
+      weekday: {
+        total: split.weekday.total,
+        topBrand: makeTopLabel(split.weekday.brandCounts),
+        topType: makeTopLabel(split.weekday.typeCounts),
+        topTag: makeTopLabel(split.weekday.tagCounts),
+      },
+      weekend: {
+        total: split.weekend.total,
+        topBrand: makeTopLabel(split.weekend.brandCounts),
+        topType: makeTopLabel(split.weekend.typeCounts),
+        topTag: makeTopLabel(split.weekend.tagCounts),
+      },
+    },
+    exploration: {
+      pct: explorationPct,
+      trend: explorationPct - priorExplorationPct,
+      coreTypes: Array.from(coreTypes),
+      windowTotal,
+    },
+    acquisition: {
+      score: acquisitionScore,
+      eligibleAdds: acquisitionRows.length,
+      adoptionRate30,
+      rewearRate30,
+      medianFirstWearDays,
+    },
+    fatigue: {
+      count: fatigueThemes.length,
+      themes: fatigueThemes,
+    },
+    friction: {
+      avgAcceptance: frictionAvgAcceptance,
+      highFrictionDays,
+      worstDay: worstFrictionDay,
+      weekdayRows: weekdayFrictionRows,
+      totalDays: frictionDays.length,
+    },
+    valueRecovery: {
+      candidates: valueRecoveryCandidates,
+      totalRecoveryWears,
+      cadencePerDay: collectionDailyCadence,
+    },
+    confidence: {
+      avgConfidence,
+      lowConfidence,
+      totalTracked: confidenceRows.length,
+    },
+    adaptive: {
+      boosts: adaptiveBoosts,
+      suppressions: adaptiveSuppressions,
+      sampleSize: typePerfRows.length,
+    },
+    reactivation: {
+      playbook,
+    },
+    sellSuggestions,
+    marketplaceTags: marketplaceTagStats,
+    comebackCandidates,
+    benchPressure,
+  };
+};
+
 const normalizeHolidayTagKey = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
@@ -10504,6 +11280,13 @@ const topCountEntry = (counts) => {
   return { label: entries[0][0], count: entries[0][1] };
 };
 
+const topCountEntries = (counts, limit) => {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return [];
+  entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return entries.slice(0, Math.max(0, Number(limit) || 0)).map(([label, count]) => ({ label, count }));
+};
+
 const longestConsecutiveDateRun = (dateKeys) => {
   if (!Array.isArray(dateKeys) || !dateKeys.length) return 0;
   const sorted = Array.from(new Set(dateKeys)).sort();
@@ -10650,6 +11433,7 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
     topType: topCountEntry(typeCounts),
     topFandom: topCountEntry(fandomCounts),
     topTag: topCountEntry(tagCounts),
+    topTags: topCountEntries(tagCounts, 3),
     topDay: topCountEntry(dayCounts),
     topItem,
     spotlightWear,
@@ -10657,6 +11441,70 @@ const buildStyleDnaPeriod = (stats, startMs, endMs) => {
     addsCount,
     addsSpend,
   };
+};
+
+const formatWrappedTop = (entry) => {
+  if (!entry || !entry.label) return "n/a";
+  return `${entry.label} (${entry.count || 0})`;
+};
+
+const buildWrappedStorySlides = (periodLabel, dna) => {
+  const title = `${periodLabel} Wrapped`;
+  if (!dna || dna.totalWears === 0) {
+    return [{
+      title,
+      stat: "No wear activity yet",
+      narration: "Start logging wears and this recap will automatically turn into a narrated story.",
+    }];
+  }
+
+  const topBrand = dna.topBrand?.label || "n/a";
+  const topType = dna.topType?.label || "n/a";
+  const topDay = dna.topDay?.label || "n/a";
+  const topDayCount = Number(dna.topDay?.count || 0);
+  const spotlightLabel = dna.spotlightWear
+    ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
+    : "No standout wear signal yet";
+  const topTags = Array.isArray(dna.topTags)
+    ? dna.topTags.map((tag) => `${tag.label} (${tag.count})`).join(" · ")
+    : "";
+
+  return [
+    {
+      title,
+      stat: `${dna.totalWears} wears across ${dna.uniqueItems} items`,
+      narration: `You logged ${dna.totalWears} wears across ${dna.uniqueItems} unique items. Insight: this is your rotation breadth baseline. Recommendation: if you want more variety next period, target one extra item each week from your underworn group.`,
+    },
+    {
+      title: "Signature profile",
+      stat: `${formatWrappedTop(dna.topBrand)} · ${formatWrappedTop(dna.topType)}`,
+      narration: `Your signature lane this period was ${topBrand} + ${topType}. Peak day was ${topDay} with ${topDayCount} logged wear${topDayCount === 1 ? "" : "s"}. Recommendation: schedule your riskier style experiments on lower-volume days so the core rotation stays stable.`,
+    },
+    {
+      title: "Spotlight wear",
+      stat: spotlightLabel,
+      narration: dna.spotlightWear
+        ? `Why this popped: ${dna.spotlightWear.reason}. Insight: spotlight combines dormancy gap, item value, and condition/event boosts to identify high-impact wears. Recommendation: repeat one spotlight-style wear this week to convert momentum into habit.`
+        : "No standout wear signal yet. Recommendation: wear one high-value or long-idle item soon to create a stronger spotlight signal.",
+    },
+    {
+      title: "Momentum",
+      stat: `${dna.longestStreak} day streak · ${dna.addsCount} adds · ${formatCurrency(dna.addsSpend)} spend`,
+      narration: `Momentum tracks consistency (streak), intake (adds), and investment (spend). You peaked at a ${dna.longestStreak}-day streak with ${dna.addsCount} add${dna.addsCount === 1 ? "" : "s"}. Recommendation: if adds are rising faster than wears, run a short no-buy + wear-first week to prevent backlog drift.`,
+    },
+    {
+      title: "Top tags",
+      stat: topTags || "n/a",
+      narration: topTags
+        ? "These tags describe your strongest wearable themes this period. Insight: repeated tags reveal reliable outfit identities. Recommendation: pair one top tag with a non-top tag next week to expand range without losing fit confidence."
+        : "No dominant tag signal yet. Recommendation: add intentional tags to future wears so your story mode can detect stronger style patterns.",
+    },
+    {
+      title: "Flavor check",
+      stat: `${dna.topFandom?.label || "n/a"} fandom · ${dna.topTag?.label || "n/a"} tag`,
+      narration: `Flavor check is your style identity snapshot, not a score. It combines fandom signal (${dna.topFandom?.label || "n/a"}) with your strongest tag signal (${dna.topTag?.label || "n/a"}) to show what your closet "voice" sounded like this period. Recommendation: keep one flavor anchor, then rotate one contrasting item to avoid repetition fatigue.`,
+    },
+  ];
 };
 
 const openInsightsDialog = (stats, options = {}) => {
@@ -10708,6 +11556,7 @@ const openInsightsDialog = (stats, options = {}) => {
     : localDateKeyFromDate(new Date());
   const snoozes = loadInsightsSnoozes();
   const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
+  const behavior = buildBehaviorInsights(stats, queue);
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
   const adoption = stats.advanced?.newItemAdoption || null;
@@ -10728,6 +11577,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const spotlightLabel = dna.spotlightWear
       ? `${dna.spotlightWear.name} (${dna.spotlightWear.tab}) - ${dna.spotlightWear.type}`
       : "n/a";
+    const peakDayLabel = dna.topDay
+      ? `${dna.topDay.label} (${dna.topDay.count} wear${dna.topDay.count === 1 ? "" : "s"})`
+      : "n/a";
     return `<div class="insights-score-card">
       <div class="insights-score-title">${esc(title)}</div>
       <div class="insights-score-value">${dna.totalWears} wears · ${dna.uniqueItems} items</div>
@@ -10735,10 +11587,278 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="insights-score-note">Top type: ${esc(dna.topType ? `${dna.topType.label} (${dna.topType.count})` : "n/a")}</div>
       <div class="insights-score-note">Spotlight wear: ${esc(spotlightLabel)}</div>
       <div class="insights-score-note">${esc(dna.spotlightWear ? dna.spotlightWear.reason : "No standout wear signal yet")}</div>
-      <div class="insights-score-note">Peak day: ${esc(dna.topDay ? `${dna.topDay.label} (${dna.topDay.count})` : "n/a")} · Best streak: ${dna.longestStreak} days</div>
+      <div class="insights-score-note">Peak day (most logged wears): ${esc(peakDayLabel)} · Best streak: ${dna.longestStreak} days</div>
       <div class="insights-score-note">Adds: ${dna.addsCount} · Spend: ${formatCurrency(dna.addsSpend)}</div>
       <div class="insights-score-note">Top fandom: ${esc(dna.topFandom ? dna.topFandom.label : "n/a")} · Top tag: ${esc(dna.topTag ? dna.topTag.label : "n/a")}</div>
     </div>`;
+  };
+
+  const renderBehaviorInsights = () => {
+    const volatility = behavior?.volatility || { score: 0, label: "n/a", weeklyDrifts: [], latestShift: 0 };
+    const persona = behavior?.persona || null;
+    const exploration = behavior?.exploration || { pct: 0, trend: 0, coreTypes: [], windowTotal: 0 };
+    const acquisition = behavior?.acquisition || { score: 0, eligibleAdds: 0, adoptionRate30: 0, rewearRate30: 0, medianFirstWearDays: null };
+    const fatigue = behavior?.fatigue || { count: 0, themes: [] };
+    const friction = behavior?.friction || { avgAcceptance: 0, highFrictionDays: 0, worstDay: null, weekdayRows: [], totalDays: 0 };
+    const valueRecovery = behavior?.valueRecovery || { candidates: [], totalRecoveryWears: 0, cadencePerDay: 0.12 };
+    const confidence = behavior?.confidence || { avgConfidence: 0, lowConfidence: [], totalTracked: 0 };
+    const adaptive = behavior?.adaptive || { boosts: [], suppressions: [], sampleSize: 0 };
+    const reactivation = behavior?.reactivation || { playbook: [] };
+    const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
+    const marketplaceTags = behavior?.marketplaceTags || {
+      bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+    };
+    const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
+    const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
+    const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
+      ? volatility.weeklyDrifts.slice(-6).join(" · ")
+      : "n/a";
+    const trendLabel = exploration.trend === 0
+      ? "flat"
+      : exploration.trend > 0
+        ? `+${exploration.trend} pts vs prior 30d`
+        : `${exploration.trend} pts vs prior 30d`;
+    const benchAvgRate = bench.length
+      ? Math.round(bench.reduce((sum, item) => sum + item.selectionRate, 0) * 100 / bench.length)
+      : 0;
+    const queueTop = queue.length ? queue[0] : null;
+    const queueTopScore = queueTop ? Math.round(queueTop.score || 0) : 0;
+    const fatigueLead = Array.isArray(fatigue.themes) && fatigue.themes.length
+      ? `${fatigue.themes[0].label} (-${fatigue.themes[0].drop} pts)`
+      : "n/a";
+    const frictionWorstLabel = friction.worstDay
+      ? `${friction.worstDay.dateKey} (${Math.round(friction.worstDay.acceptance * 100)}%)`
+      : "n/a";
+    const recoveryLead = Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
+      ? `${valueRecovery.candidates[0].name} (${Math.round(valueRecovery.candidates[0].currentCpw)}/wear)`
+      : "n/a";
+    const confidenceLead = Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
+      ? `${confidence.lowConfidence[0].name} (${confidence.lowConfidence[0].confidenceScore})`
+      : "n/a";
+    const adaptiveBoostLabel = Array.isArray(adaptive.boosts) && adaptive.boosts.length
+      ? `${adaptive.boosts[0].type} (${Math.round(adaptive.boosts[0].rate * 100)}%)`
+      : "n/a";
+    const playbookCount = Array.isArray(reactivation.playbook) ? reactivation.playbook.length : 0;
+    const sellLead = sellSuggestions.length
+      ? `${sellSuggestions[0].name} (${sellSuggestions[0].score})`
+      : "n/a";
+    const marketSummary = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+      .map((row) => `${row.label} ${row.count}`)
+      .join(" · ");
+    const marketValueTotal = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+      .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
+
+    const comebackByKey = {};
+    comeback.forEach((item) => {
+      if (!item?.key) return;
+      comebackByKey[item.key] = item;
+    });
+    const benchByKey = {};
+    bench.forEach((item) => {
+      if (!item?.key) return;
+      benchByKey[item.key] = item;
+    });
+    const coreTypes = new Set(Array.isArray(exploration.coreTypes) ? exploration.coreTypes : []);
+
+    const wildcard = queue
+      .map((item) => {
+        let score = Number(item.score || 0);
+        const reasons = [];
+        const comebackHit = comebackByKey[item.key] || null;
+        const benchHit = benchByKey[item.key] || null;
+        const isCoreType = coreTypes.has(String(item.type || ""));
+
+        if (comebackHit) {
+          score += Math.min(48, (Number(comebackHit.daysSince) || 0) * 0.35) + 10;
+          reasons.push(`${comebackHit.daysSince}d idle comeback candidate`);
+        }
+        if (benchHit) {
+          score += Math.round((1 - (benchHit.selectionRate || 0)) * 36) + Math.min(16, (benchHit.exposures || 0) * 2);
+          reasons.push(`high bench pressure (${benchHit.exposures}x seen)`);
+        }
+        if (monthDna?.topBrand?.label && item.tab === monthDna.topBrand.label) {
+          score += 12;
+          reasons.push("matches current top brand lane");
+        }
+        if (monthDna?.topType?.label && item.type === monthDna.topType.label) {
+          score += 10;
+          reasons.push("matches current top type lane");
+        }
+        if (exploration.pct < 22 && !isCoreType) {
+          score += 18;
+          reasons.push("pushes exploration beyond core types");
+        }
+        if (exploration.pct > 48 && isCoreType) {
+          score += 10;
+          reasons.push("stabilizes after high exploration");
+        }
+        if (volatility.label === "Volatile" && isCoreType) {
+          score += 14;
+          reasons.push("calms volatile rotation pattern");
+        }
+        if (volatility.label === "Stable" && !isCoreType) {
+          score += 12;
+          reasons.push("adds novelty to stable pattern");
+        }
+
+        return {
+          ...item,
+          wildcardScore: Math.round(score),
+          wildcardReasons: reasons,
+        };
+      })
+      .sort((a, b) => b.wildcardScore - a.wildcardScore || a.name.localeCompare(b.name))[0] || null;
+
+    const wildcardReasonText = wildcard
+      ? (wildcard.wildcardReasons.length ? wildcard.wildcardReasons.slice(0, 2).join(" · ") : "high combined queue priority signal")
+      : "n/a";
+
+    return section(
+      "Behavior & coaching",
+      `<div class="stats-hint">Why rotation patterns changed and what to do next, based on your recent wear behavior.</div>
+      <div class="insights-score-grid">
+        <div class="insights-score-card">
+          <div class="insights-score-title">Rotation volatility</div>
+          <div class="insights-score-value">${volatility.score}/100 (${esc(volatility.label)})</div>
+          <div class="insights-score-note">Week-to-week type drift (last 12 weeks). Higher means sharper rotation swings.</div>
+          <div class="insights-score-note">Recent drift points: ${esc(driftPreview)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Weekday vs weekend persona</div>
+          <div class="insights-score-value">${persona ? `${persona.similarity}% match` : "n/a"}</div>
+          <div class="insights-score-note">Weekday: ${esc(persona ? `${persona.weekday.topBrand} · ${persona.weekday.topType}` : "n/a")}</div>
+          <div class="insights-score-note">Weekend: ${esc(persona ? `${persona.weekend.topBrand} · ${persona.weekend.topType}` : "n/a")}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Style exploration ratio</div>
+          <div class="insights-score-value">${exploration.pct}% exploratory wears</div>
+          <div class="insights-score-note">Core style baseline: ${esc(exploration.coreTypes.length ? exploration.coreTypes.join(" · ") : "n/a")}</div>
+          <div class="insights-score-note">Trend: ${esc(trendLabel)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Bench pressure</div>
+          <div class="insights-score-value">${bench.length} queued-but-skipped items</div>
+          <div class="insights-score-note">Average selection rate: ${benchAvgRate}%</div>
+          <div class="insights-score-note">High pressure means repeated exposure without selection. Wear one this week or snooze to declutter picks.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Queue readiness now</div>
+          <div class="insights-score-value">${queue.length} active suggestions</div>
+          <div class="insights-score-note">Top priority score: ${queueTopScore}${queueTop ? ` (${esc(queueTop.name)})` : ""}</div>
+          <div class="insights-score-note">Lower queue size usually means tighter rotation; larger queue means more recovery opportunities.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Wildcard pick of the week</div>
+          <div class="insights-score-value">${wildcard ? esc(wildcard.name) : "n/a"}</div>
+          <div class="insights-score-note">${wildcard ? `${esc(wildcard.tab)} · ${esc(wildcard.type || "Unknown")} · score ${wildcard.wildcardScore}` : "No eligible item yet. Add wear data or queue signals to generate a wildcard."}</div>
+          <div class="insights-score-note">Why this pick: ${esc(wildcardReasonText)}.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Acquisition quality</div>
+          <div class="insights-score-value">${acquisition.score}/100</div>
+          <div class="insights-score-note">30d adoption: ${acquisition.adoptionRate30}% · 30d rewear: ${acquisition.rewearRate30}%</div>
+          <div class="insights-score-note">Median first wear: ${acquisition.medianFirstWearDays === null ? "n/a" : `${Math.round(acquisition.medianFirstWearDays)}d`} (${acquisition.eligibleAdds} recent adds)</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Theme fatigue detector</div>
+          <div class="insights-score-value">${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}</div>
+          <div class="insights-score-note">Lead fade: ${esc(fatigueLead)}</div>
+          <div class="insights-score-note">Signals where previously strong fandom/tag themes are cooling off in recent wear windows.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Decision friction</div>
+          <div class="insights-score-value">${friction.avgAcceptance}% queue acceptance</div>
+          <div class="insights-score-note">${friction.highFrictionDays} high-friction day${friction.highFrictionDays === 1 ? "" : "s"} in last ${friction.totalDays} tracked days</div>
+          <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Value recovery forecast</div>
+          <div class="insights-score-value">${valueRecovery.totalRecoveryWears} wears to recover</div>
+          <div class="insights-score-note">Collection cadence: ${valueRecovery.cadencePerDay.toFixed(2)} wears/day</div>
+          <div class="insights-score-note">Lead recovery target: ${esc(recoveryLead)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Outfit confidence curve</div>
+          <div class="insights-score-value">${confidence.avgConfidence}/100 avg confidence</div>
+          <div class="insights-score-note">Items tracked: ${confidence.totalTracked} · low-confidence picks: ${Array.isArray(confidence.lowConfidence) ? confidence.lowConfidence.length : 0}</div>
+          <div class="insights-score-note">Most fragile signal: ${esc(confidenceLead)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Adaptive queue profile</div>
+          <div class="insights-score-value">${adaptive.sampleSize} type signals</div>
+          <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
+          <div class="insights-score-note">Uses actual queue selection rates to suggest what to amplify or cool down.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">7-day reactivation plan</div>
+          <div class="insights-score-value">${playbookCount} planned wears</div>
+          <div class="insights-score-note">Built from comeback, bench pressure, and value-recovery priorities.</div>
+          <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Sell suggestions</div>
+          <div class="insights-score-value">${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}</div>
+          <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
+          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">BST/eBay/Mercari tags</div>
+          <div class="insights-score-value">${esc(marketSummary)}</div>
+          <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
+          <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
+        </div>
+      </div>
+      <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
+      <div class="stats-hint">Historically strong items now cooling off; useful when you want safe re-entry pieces (Whale-tagged items are excluded).</div>
+      ${comeback.length
+    ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
+      <div class="stats-hint">Detects fandom/tag themes that were strong earlier but dropped in recent wear share.</div>
+      ${Array.isArray(fatigue.themes) && fatigue.themes.length
+    ? `<div class="insights-action-list">${fatigue.themes.map((theme, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(theme.label)} (${esc(theme.family)})</span><span class="stats-value">${theme.priorShare}% -> ${theme.recentShare}% (${theme.drop}pt drop)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong fatigue signals yet. This fills in once a theme was previously dominant and then cooled.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
+      <div class="stats-hint">Shows where queue suggestions and actual choices diverge, by acceptance rate and weekday hotspots.</div>
+      ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
+    ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Value recovery targets</div>
+      <div class="stats-hint">High cost-per-wear items that need additional wears to reach a healthier value baseline.</div>
+      ${Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
+    ? `<div class="insights-action-list">${valueRecovery.candidates.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${Math.round(item.currentCpw)}/wear -> ${Math.round(item.targetCpw)}/wear · +${item.additionalWears} wears (~${item.etaDays}d)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No value recovery backlog right now. Items here appear when cost-per-wear is still far above target.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
+      <div class="stats-hint">Items with weak repeat confidence based on wear depth, repeat gaps, and recency.</div>
+      ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
+    ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">Confidence curve is healthy. Low-signal list appears when a worn item drifts into weak repeat confidence.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
+      <div class="stats-hint">Type-level boost/cool suggestions derived from actual queue exposure vs selection outcomes.</div>
+      ${(Array.isArray(adaptive.boosts) && adaptive.boosts.length) || (Array.isArray(adaptive.suppressions) && adaptive.suppressions.length)
+    ? `<div class="insights-action-list">${(adaptive.boosts || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Boost ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}${(adaptive.suppressions || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Cool ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">Need more queue telemetry for adaptive tuning. Keep using Wear-next and Worn today to train this section.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">7-day reactivation playbook</div>
+      <div class="stats-hint">A one-week sequence built from pressure/recovery signals to restart dormant rotation (Whale-tagged items are excluded).</div>
+      ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
+    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Suggested sell shortlist</div>
+      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag (Whale-tagged items are excluded).</div>
+      ${sellSuggestions.length
+    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
+      <div class="stats-hint">Breaks down BST/eBay/Mercari-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
+      <div class="insights-action-list">${[marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari].map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
+      <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
+      <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
+      ${bench.length
+    ? `<div class="insights-action-list">${bench.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Pressure ${item.pressureScore} · seen ${item.exposures}x · chosen ${Math.round(item.selectionRate * 100)}%</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No bench pressure yet. Once queue exposures build up, this watchlist flags items that are repeatedly passed over.</div>`}`
+    );
   };
 
   let html = "";
@@ -10748,8 +11868,13 @@ const openInsightsDialog = (stats, options = {}) => {
      <div class="insights-score-grid">
        ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
        ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
-     </div>`
+     </div>
+     <div class="insights-story-launch">
+       <button type="button" class="btn secondary" id="insights-story-play">Play story</button>
+     </div>
+     <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
   );
+  html += renderBehaviorInsights();
 
   if (health) {
     const grade = health.score >= 85 ? "A" : health.score >= 70 ? "B" : health.score >= 55 ? "C" : health.score >= 40 ? "D" : "F";
@@ -10765,6 +11890,9 @@ const openInsightsDialog = (stats, options = {}) => {
     }).length;
     const noBuyCurrent = Number.isFinite(stats.noBuyCurrentDays) ? stats.noBuyCurrentDays : 0;
     const noBuyLongest = Number.isFinite(stats.noBuyLongestDays) ? stats.noBuyLongestDays : 0;
+    const neverWornPctOfWearables = wearableItems.length
+      ? Math.round((neverWornCount / wearableItems.length) * 100)
+      : 0;
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
@@ -10801,10 +11929,20 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Recommended next actions</div>
+      <div class="stats-hint">This is your quick weekly game plan: queue first, then long-idle value, then never-worn backlog.</div>
       <div class="insights-action-list">
-        <div class="stats-row stats-sub"><span class="stats-label">1. Wear-next queue</span><span class="stats-value">${queue.length} suggestions</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">2. Inactive >180d</span><span class="stats-value">${inactive?.inactive180Count || 0} items</span></div>
-        <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items</span></div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">1. Wear-next queue</span><span class="stats-value">${queue.length} suggestions</span></div>
+          <div class="stats-hint">Ranked by recency gap, never-worn pressure, season/date signals, and value/condition boosts. Suggested move: wear the top 3 this week.</div>
+        </div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">2. Inactive >180d</span><span class="stats-value">${inactive?.inactive180Count || 0} items · ${formatCurrency(inactive?.inactive180Value || 0)}</span></div>
+          <div class="stats-hint">These items have not been worn in 6+ months and may be dragging rotation value. Suggested move: test-wear 1-2, then keep/archive/sell.</div>
+        </div>
+        <div>
+          <div class="stats-row stats-sub"><span class="stats-label">3. Never-worn backlog</span><span class="stats-value">${neverWornCount} items (${neverWornPctOfWearables}% of wearables)</span></div>
+          <div class="stats-hint">Added but never worn items are adoption risk. Suggested move: prioritize NWT/NWOT and newest adds first to prevent backlog creep.</div>
+        </div>
       </div>`
     );
   }
@@ -10910,6 +12048,7 @@ const openInsightsDialog = (stats, options = {}) => {
       const item = Number.isFinite(idx) ? queue[idx] : null;
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
+      trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
       openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });
@@ -10945,6 +12084,130 @@ const openInsightsDialog = (stats, options = {}) => {
   bindChange(yearSelect, rerenderHeatmap);
   bindChange(brandSelect, rerenderHeatmap);
   rerenderHeatmap();
+  trackInsightsQueueExposure(queue, activeSimDateKey);
+
+  const storyRoot = content.querySelector("#insights-story-root");
+  const storyPlayButton = content.querySelector("#insights-story-play");
+  if (storyRoot && storyPlayButton) {
+    let storyOpen = false;
+    let storyPeriod = "month";
+    let storyIndex = 0;
+    const periodData = {
+      month: { label: monthLabel, dna: monthDna },
+      year: { label: yearLabel, dna: yearDna },
+    };
+
+    const renderStory = () => {
+      if (!storyOpen) {
+        storyRoot.classList.remove("is-open");
+        storyRoot.innerHTML = "";
+        storyPlayButton.textContent = "Play story";
+        return;
+      }
+
+      const active = periodData[storyPeriod] || periodData.month;
+      const slides = buildWrappedStorySlides(active.label, active.dna);
+      if (storyIndex < 0) storyIndex = 0;
+      if (storyIndex >= slides.length) storyIndex = slides.length - 1;
+
+      storyPlayButton.textContent = "Restart story";
+      storyRoot.classList.add("is-open");
+      storyRoot.innerHTML = `
+        <div class="insights-story-periods" role="tablist" aria-label="Story period">
+          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">${esc(`${monthLabel} Wrapped`)}</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">${esc(`${yearLabel} Wrapped`)}</button>
+        </div>
+        <div class="insights-story-shell" tabindex="0">
+          <div class="insights-story-track">
+            ${slides.map((slide, idx) => `<article class="insights-story-slide ${idx === storyIndex ? "is-active" : ""}" data-insights-story-slide="${idx}">
+              <div class="insights-story-step">Slide ${idx + 1} of ${slides.length}</div>
+              <div class="insights-story-title">${esc(slide.title)}</div>
+              <div class="insights-story-stat">${esc(slide.stat)}</div>
+              <div class="insights-story-narration">${esc(slide.narration)}</div>
+            </article>`).join("")}
+          </div>
+          <div class="insights-story-controls">
+            <button type="button" class="btn secondary" data-insights-story-prev ${storyIndex === 0 ? "disabled" : ""}>Back</button>
+            <div class="insights-story-dots">${slides.map((_, idx) => `<button type="button" class="insights-story-dot ${idx === storyIndex ? "is-active" : ""}" data-insights-story-dot="${idx}" aria-label="Go to slide ${idx + 1}"></button>`).join("")}</div>
+            <button type="button" class="btn secondary" data-insights-story-next ${storyIndex >= slides.length - 1 ? "disabled" : ""}>Next</button>
+          </div>
+          <div class="insights-story-footer">
+            <button type="button" class="insights-queue-snooze" data-insights-story-exit>Exit story</button>
+          </div>
+        </div>
+      `;
+
+      const bindStoryClick = (selector, handler) => {
+        const el = storyRoot.querySelector(selector);
+        if (!el) return;
+        el.addEventListener("click", handler);
+      };
+
+      bindStoryClick("[data-insights-story-prev]", () => {
+        storyIndex -= 1;
+        renderStory();
+      });
+      bindStoryClick("[data-insights-story-next]", () => {
+        storyIndex += 1;
+        renderStory();
+      });
+      bindStoryClick("[data-insights-story-exit]", () => {
+        storyOpen = false;
+        renderStory();
+      });
+
+      const periodButtons = storyRoot.querySelectorAll("[data-insights-story-period]");
+      periodButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const next = button.getAttribute("data-insights-story-period");
+          if (next !== "month" && next !== "year") return;
+          storyPeriod = next;
+          storyIndex = 0;
+          renderStory();
+        });
+      });
+
+      const dotButtons = storyRoot.querySelectorAll("[data-insights-story-dot]");
+      dotButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextIdx = Number(button.getAttribute("data-insights-story-dot"));
+          if (!Number.isFinite(nextIdx)) return;
+          storyIndex = nextIdx;
+          renderStory();
+        });
+      });
+
+      const shell = storyRoot.querySelector(".insights-story-shell");
+      if (shell) {
+        shell.focus();
+        shell.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft" && storyIndex > 0) {
+            event.preventDefault();
+            storyIndex -= 1;
+            renderStory();
+            return;
+          }
+          if (event.key === "ArrowRight" && storyIndex < slides.length - 1) {
+            event.preventDefault();
+            storyIndex += 1;
+            renderStory();
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            storyOpen = false;
+            renderStory();
+          }
+        });
+      }
+    };
+
+    storyPlayButton.addEventListener("click", () => {
+      storyOpen = true;
+      storyIndex = 0;
+      renderStory();
+    });
+  }
 
   openDialog(dialog);
   resetDialogScroll(dialog);
