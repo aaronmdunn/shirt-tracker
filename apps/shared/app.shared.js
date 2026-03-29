@@ -4963,11 +4963,19 @@ const moveRowToInventory = async (rowId) => {
   try {
     const gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
     const activeWishTab = tabsState.tabs.find((t) => t.id === tabsState.activeTabId);
+    const obtainedAt = newRow.createdAt || new Date().toISOString();
     gotItLog.push({
       name: cellValuesByName["name"] || "Unnamed",
       fromTab: activeWishTab ? activeWishTab.name : "Wishlist",
       toTab: chosenTab ? chosenTab.name : "Inventory",
-      date: new Date().toISOString(),
+      date: obtainedAt,
+      obtainedAt,
+      wishlistRowId: row.id,
+      inventoryRowId: newRow.id,
+      inventoryTabId: chosenTabId,
+      wishlistAddedAt: row.createdAt || "",
+      type: cellValuesByName["type"] || "",
+      brand: chosenTab ? chosenTab.name : (cellValuesByName["brand"] || ""),
     });
     // Prune to 500 entries max, tracking trimmed count for lifetime total
     const GOT_IT_CAP = 500;
@@ -9898,6 +9906,168 @@ const collectAllStats = () => {
     },
   };
 
+  let wishlistConversion = {
+    lifetimeTotal: 0,
+    trackedCount: 0,
+    linkedInventoryCount: 0,
+    legacyCount: 0,
+    firstWearCount: 0,
+    repeatWearCount: 0,
+    firstWearPct: null,
+    repeatWearPct: null,
+    medianWishlistToGotItDays: null,
+    medianGotItToFirstWearDays: null,
+    topBrands: [],
+    topTypes: [],
+    items: [],
+  };
+  if (!isInventory) {
+    let gotItLog = [];
+    try {
+      gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
+    } catch (error) { /* ignore */ }
+    const trimmedCount = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
+    const inventoryEntriesById = new Map();
+    try {
+      const storedTabs = localStorage.getItem(TAB_STORAGE_KEY);
+      const parsedTabs = storedTabs ? JSON.parse(storedTabs) : null;
+      const inventoryTabs = parsedTabs && Array.isArray(parsedTabs.tabs) ? parsedTabs.tabs : [];
+      inventoryTabs.forEach((tab) => {
+        if (!tab || !tab.id) return;
+        try {
+          const storedState = localStorage.getItem(`${STORAGE_KEY}:${tab.id}`);
+          const parsedState = storedState ? JSON.parse(storedState) : null;
+          if (!parsedState || !Array.isArray(parsedState.rows) || !Array.isArray(parsedState.columns)) return;
+          parsedState.rows.forEach((row) => {
+            if (!row || !row.id) return;
+            inventoryEntriesById.set(String(row.id), {
+              row,
+              columns: parsedState.columns,
+              tabName: tab.name || "",
+            });
+          });
+        } catch (error) { /* ignore */ }
+      });
+    } catch (error) { /* ignore */ }
+
+    const buildTopConverters = (items, key) => Object.values(items.reduce((acc, item) => {
+      const label = String(item[key] || "").trim();
+      if (!label) return acc;
+      if (!acc[label]) {
+        acc[label] = { label, obtainedCount: 0, firstWearCount: 0, repeatWearCount: 0, rate: 0 };
+      }
+      acc[label].obtainedCount += 1;
+      if (item.firstWearAt) acc[label].firstWearCount += 1;
+      if (item.repeatWear) acc[label].repeatWearCount += 1;
+      return acc;
+    }, {})).map((item) => ({
+      ...item,
+      rate: item.obtainedCount ? Math.round((item.firstWearCount / item.obtainedCount) * 100) : 0,
+    }))
+      .sort((a, b) => b.rate - a.rate || b.obtainedCount - a.obtainedCount || a.label.localeCompare(b.label))
+      .slice(0, 3);
+
+    const dayMs = 86400000;
+    const nowMs = Date.now();
+    const trackedItems = [];
+    const linkedItems = [];
+    const wishlistToGotItSamples = [];
+    const gotItToFirstWearSamples = [];
+
+    gotItLog.forEach((entry) => {
+      if (!entry || typeof entry !== "object") return;
+      const inventoryRowId = String(entry.inventoryRowId || "").trim();
+      if (!inventoryRowId) return;
+      const obtainedAt = String(entry.obtainedAt || entry.date || "").trim();
+      const wishlistAddedAt = String(entry.wishlistAddedAt || "").trim();
+      const inventoryEntry = inventoryEntriesById.get(inventoryRowId) || null;
+      let wearCount = 0;
+      let firstWearAt = "";
+      let gotItToFirstWearDays = null;
+
+      if (inventoryEntry) {
+        wearCount = Math.max(0, Number(inventoryEntry.row.wearCount || 0));
+        const wearLog = Array.isArray(inventoryEntry.row.wearLog) && inventoryEntry.row.wearLog.length
+          ? inventoryEntry.row.wearLog.slice()
+          : (inventoryEntry.row.lastWorn ? [inventoryEntry.row.lastWorn] : []);
+        const obtainedMs = obtainedAt ? new Date(obtainedAt).getTime() : NaN;
+        const wearTimes = wearLog
+          .map((stamp) => new Date(stamp).getTime())
+          .filter((ms) => Number.isFinite(ms))
+          .sort((a, b) => a - b);
+        const firstWearMs = Number.isFinite(obtainedMs)
+          ? wearTimes.find((ms) => ms >= obtainedMs)
+          : wearTimes[0];
+        if (Number.isFinite(firstWearMs)) {
+          firstWearAt = new Date(firstWearMs).toISOString();
+          if (Number.isFinite(obtainedMs) && firstWearMs >= obtainedMs) {
+            gotItToFirstWearDays = Math.floor((firstWearMs - obtainedMs) / dayMs);
+            gotItToFirstWearSamples.push(gotItToFirstWearDays);
+          }
+        }
+      }
+
+      let wishlistToGotItDays = null;
+      const wishlistAddedMs = wishlistAddedAt ? new Date(wishlistAddedAt).getTime() : NaN;
+      const obtainedMs = obtainedAt ? new Date(obtainedAt).getTime() : NaN;
+      if (Number.isFinite(wishlistAddedMs) && Number.isFinite(obtainedMs) && obtainedMs >= wishlistAddedMs) {
+        wishlistToGotItDays = Math.floor((obtainedMs - wishlistAddedMs) / dayMs);
+        wishlistToGotItSamples.push(wishlistToGotItDays);
+      }
+
+      const repeatWear = wearCount >= 2;
+      let status = "Inventory row missing";
+      if (inventoryEntry) {
+        if (firstWearAt && repeatWear) {
+          status = `Repeat worn${gotItToFirstWearDays === null ? "" : ` · first wear in ${gotItToFirstWearDays}d`} · ${wearCount} wears`;
+        } else if (firstWearAt) {
+          status = gotItToFirstWearDays === null ? "Worn once" : `First worn in ${gotItToFirstWearDays}d`;
+        } else if (Number.isFinite(obtainedMs)) {
+          const daysSince = Math.max(0, Math.floor((nowMs - obtainedMs) / dayMs));
+          status = `Not worn yet · ${daysSince}d since got it`;
+        } else {
+          status = "Not worn yet";
+        }
+      }
+
+      const item = {
+        name: String(entry.name || "Unnamed"),
+        brand: String(entry.brand || entry.toTab || (inventoryEntry ? inventoryEntry.tabName : "") || ""),
+        type: String(entry.type || (inventoryEntry ? getCellValue(inventoryEntry, "Type") : "") || ""),
+        obtainedAt,
+        wishlistAddedAt,
+        wishlistToGotItDays,
+        firstWearAt,
+        gotItToFirstWearDays,
+        wearCount,
+        repeatWear,
+        inventoryFound: Boolean(inventoryEntry),
+        status,
+      };
+      trackedItems.push(item);
+      if (item.inventoryFound) linkedItems.push(item);
+    });
+
+    trackedItems.sort((a, b) => new Date(b.obtainedAt || 0) - new Date(a.obtainedAt || 0) || a.name.localeCompare(b.name));
+    const firstWearCount = linkedItems.filter((item) => item.firstWearAt).length;
+    const repeatWearCount = linkedItems.filter((item) => item.repeatWear).length;
+    wishlistConversion = {
+      lifetimeTotal: gotItLog.length + trimmedCount,
+      trackedCount: trackedItems.length,
+      linkedInventoryCount: linkedItems.length,
+      legacyCount: gotItLog.filter((entry) => !String(entry?.inventoryRowId || "").trim()).length + trimmedCount,
+      firstWearCount,
+      repeatWearCount,
+      firstWearPct: linkedItems.length ? Math.round((firstWearCount / linkedItems.length) * 100) : null,
+      repeatWearPct: linkedItems.length ? Math.round((repeatWearCount / linkedItems.length) * 100) : null,
+      medianWishlistToGotItDays: wishlistToGotItSamples.length ? Math.round(median(wishlistToGotItSamples)) : null,
+      medianGotItToFirstWearDays: gotItToFirstWearSamples.length ? Math.round(median(gotItToFirstWearSamples)) : null,
+      topBrands: buildTopConverters(linkedItems, "brand"),
+      topTypes: buildTopConverters(linkedItems, "type"),
+      items: trackedItems,
+    };
+  }
+
   return {
     totalItems,
     isInventory,
@@ -9934,6 +10104,7 @@ const collectAllStats = () => {
     brandByDayOfWeek,
     brandByMonth,
     advanced,
+    wishlistConversion,
   };
 };
 
@@ -10138,6 +10309,84 @@ const openAllAddedDialog = (addedItems, isInventoryMode) => {
       item.type || "\u2014",
       dateLabel || "\u2014",
       priceLabel,
+    ];
+    values.forEach((value) => {
+      const cell = document.createElement("span");
+      cell.textContent = value;
+      rowEl.appendChild(cell);
+    });
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openWishlistConversionDialog = (funnel) => {
+  const items = funnel && Array.isArray(funnel.items) ? funnel.items.slice() : [];
+
+  let dialog = document.getElementById("wishlist-conversion-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "wishlist-conversion-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Wishlist Conversion Funnel</h3>
+        <div id="wishlist-conversion-summary" class="stats-hint"></div>
+        <div id="wishlist-conversion-list" class="added-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="wishlist-conversion-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#wishlist-conversion-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#wishlist-conversion-summary");
+  const list = dialog.querySelector("#wishlist-conversion-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (!items.length) {
+    if (summary) summary.textContent = "No tracked wishlist conversions yet.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "Newly obtained wishlist items will start appearing here once they are moved with Got It!.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) {
+    const firstWearLabel = funnel && typeof funnel.firstWearPct === "number"
+      ? `${funnel.firstWearPct}% first-wear rate`
+      : "No first-wear data yet";
+    summary.textContent = `${items.length} tracked conversion${items.length === 1 ? "" : "s"} · ${firstWearLabel}`;
+  }
+
+  const head = document.createElement("div");
+  head.className = "added-history-item added-history-head";
+  head.innerHTML = "<span>Name</span><span>Brand</span><span>Type</span><span>Obtained</span><span>Status</span>";
+  list.appendChild(head);
+
+  items.forEach((item) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "added-history-item";
+    const obtainedLabel = item.obtainedAt ? new Date(item.obtainedAt).toLocaleDateString() : "\u2014";
+    const values = [
+      item.name || "Unnamed",
+      item.brand || "\u2014",
+      item.type || "\u2014",
+      obtainedLabel,
+      item.status || "\u2014",
     ];
     values.forEach((value) => {
       const cell = document.createElement("span");
@@ -13849,8 +14098,14 @@ const openStatsDialog = () => {
     try {
       gotItLog = JSON.parse(localStorage.getItem(GOT_IT_LOG_KEY) || "[]");
     } catch (error) { /* ignore */ }
-    const trimmedCount = parseInt(localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed") || "0", 10);
-    const lifetimeTotal = gotItLog.length + trimmedCount;
+    const funnel = s.wishlistConversion || {};
+    const lifetimeTotal = typeof funnel.lifetimeTotal === "number" ? funnel.lifetimeTotal : gotItLog.length;
+    const topBrand = Array.isArray(funnel.topBrands) && funnel.topBrands.length
+      ? `${funnel.topBrands[0].label} (${funnel.topBrands[0].rate}% · ${funnel.topBrands[0].firstWearCount}/${funnel.topBrands[0].obtainedCount})`
+      : "n/a";
+    const topType = Array.isArray(funnel.topTypes) && funnel.topTypes.length
+      ? `${funnel.topTypes[0].label} (${funnel.topTypes[0].rate}% · ${funnel.topTypes[0].firstWearCount}/${funnel.topTypes[0].obtainedCount})`
+      : "n/a";
     let wishBlock = "";
     wishBlock += row("Items obtained", String(lifetimeTotal));
     if (gotItLog.length > 0) {
@@ -13858,6 +14113,34 @@ const openStatsDialog = () => {
       const lastDate = last.date ? new Date(last.date).toLocaleDateString() : "";
       wishBlock += row("Most recent 'Got it!'", `${esc(last.name)} \u00B7 ${lastDate}`);
     }
+    wishBlock += row("Tracked conversions", String(funnel.trackedCount || 0));
+    if (funnel.legacyCount) {
+      wishBlock += row("Legacy obtained items", String(funnel.legacyCount));
+    }
+    wishBlock += row(
+      "Worn at least once",
+      funnel.linkedInventoryCount
+        ? `${funnel.firstWearCount}/${funnel.linkedInventoryCount} (${funnel.firstWearPct}%)`
+        : "n/a"
+    );
+    wishBlock += row(
+      "Worn 2+ times",
+      funnel.linkedInventoryCount
+        ? `${funnel.repeatWearCount}/${funnel.linkedInventoryCount} (${funnel.repeatWearPct}%)`
+        : "n/a"
+    );
+    wishBlock += row(
+      "Median add -> got it",
+      funnel.medianWishlistToGotItDays === null ? "n/a" : `${funnel.medianWishlistToGotItDays}d`
+    );
+    wishBlock += row(
+      "Median got it -> first wear",
+      funnel.medianGotItToFirstWearDays === null ? "n/a" : `${funnel.medianGotItToFirstWearDays}d`
+    );
+    wishBlock += row("Top converting brand", topBrand);
+    wishBlock += row("Top converting type", topType);
+    wishBlock += `<div class="stats-hint" style="margin-top:8px">Conversion metrics use newer Got It! logs with stable wishlist-to-inventory links. Older obtained history still counts toward lifetime totals but may not have precise funnel data.</div>`;
+    wishBlock += `<div style="margin-top:8px"><button type="button" class="btn secondary" id="stats-wishlist-funnel-link">View conversion details</button></div>`;
     html += section(wishBlock);
   }
 
@@ -13868,6 +14151,7 @@ const openStatsDialog = () => {
   const wearHistoryLink = statsContent.querySelector("#stats-wear-history-link");
   const unwornSixMonthsLink = statsContent.querySelector("#stats-unworn-six-months-link");
   const allAddedLink = statsContent.querySelector("#stats-all-added-link");
+  const wishlistFunnelLink = statsContent.querySelector("#stats-wishlist-funnel-link");
   if (wornDateInput && wornDateResults) {
     const renderWornDateMatches = () => {
       const selectedDate = wornDateInput.value;
@@ -13917,6 +14201,11 @@ const openStatsDialog = () => {
   if (allAddedLink) {
     allAddedLink.addEventListener("click", () => {
       openAllAddedDialog(s.allRecentlyAdded, s.isInventory);
+    });
+  }
+  if (wishlistFunnelLink) {
+    wishlistFunnelLink.addEventListener("click", () => {
+      openWishlistConversionDialog(s.wishlistConversion);
     });
   }
   if (statsAdvancedButton) {
