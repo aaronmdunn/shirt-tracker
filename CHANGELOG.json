@@ -1,5 +1,20 @@
 [
   {
+    "version": "2.0.17",
+    "date": "2026-03-29",
+    "changes": [
+      "Added optional 'Play story' mode to Personal Style DNA (Wrapped) with monthly/yearly narrated carousel slides, keyboard navigation, and reduced-motion support",
+      "Expanded Wrapped storytelling content with deeper explanations, recommendations, a dedicated Top Tags slide, and clearer Peak Day wording (explicit wear-count meaning)",
+      "Added a new Behavior & Coaching Insights suite with volatility, weekday/weekend persona split, exploration ratio, comeback candidates, queue readiness, wildcard pick, and bench pressure",
+      "Implemented Phase 2 coaching analytics: acquisition quality scoring, theme fatigue detection, decision-friction tracking, and upgraded bench-pressure scoring with daily queue telemetry",
+      "Implemented Phase 3 predictive analytics: value-recovery forecasting, outfit-confidence curve, adaptive queue profile, and a generated 7-day reactivation playbook",
+      "Added selling intelligence with a suggested sell shortlist and BST/eBay/Mercari marketplace diagnostics (inventory count, inactivity, never-worn load, tagged value, and average CPW)",
+      "Excluded Whale-tagged items from sell and reactivation recommendations to respect collectible intent",
+      "Improved Insights copy clarity with section-level explanatory hints and expanded action-oriented guidance in the Closet Audit 'Recommended next actions' block",
+      "Refined Insights queue simulator layout: centered and compact date selector, content-width 'Use today' button, and cleaner control hierarchy"
+    ]
+  },
+  {
     "version": "2.0.16",
     "date": "2026-03-28",
     "changes": [
