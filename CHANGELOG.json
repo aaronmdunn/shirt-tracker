@@ -11,6 +11,8 @@
       "Mapped internal reason keys to human-readable labels across trends, recent logs, and last-buy summary",
       "Updated no-buy reason dropdowns to start blank with explicit 'Select reason' placeholders instead of preselected defaults",
       "Added cloud sync support for No-Buy Game state (XP, logs, reasons, cooldown, recovery) so desktop web and Tauri desktop stay in sync",
+      "Added no-buy fallback timestamp reconstruction for older synced payloads so recent logs still show readable date/time history in Tauri",
+      "Added no-buy resilience safeguards: rolling state snapshots, merged snapshot history across sync, and exportable No-Buy log JSON backups",
       "Refined No-Buy Game controls layout and spacing: one-row action buttons, centered reason selectors, and smaller button sizing for cleaner density",
       "Removed the Stats button from mobile-only header actions while keeping desktop web and Tauri desktop stats functionality intact"
     ]
