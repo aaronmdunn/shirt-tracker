@@ -158,24 +158,18 @@ test("Tauri index.html contains inlined <script>", () => {
 
 console.log("\n--- Minification Integrity ---\n");
 
-test("Desktop: no $& pattern corruption in inlined JS", () => {
-  // After minification and inlining, the string literal "$&" should not appear
-  // as a bare replacement artifact. It can appear inside string literals (like
-  // regex replacements in the app code), but should never appear as a broken
-  // variable name or statement.
+test("Desktop: inline JS/CSS contains no injected source tags", () => {
   const html = readFile("apps/web-root/d/index.html");
   assert.ok(html, "Could not read desktop index.html");
-  // Check for the specific corruption pattern: $& appearing at the start of a
-  // line or after a semicolon (which indicates .replace() expansion)
-  const corruptionPattern = /;\$&|^\$&/m;
-  assert.ok(!corruptionPattern.test(html), "Possible $& pattern corruption detected in desktop build");
+  assert.ok(!html.includes('<script src="app.js"></script>'), "Desktop build contains an injected app.js source tag");
+  assert.ok(!html.includes('<link rel="stylesheet" href="style.css">'), "Desktop build contains an injected style.css source tag");
 });
 
-test("Mobile: no $& pattern corruption in inlined JS", () => {
+test("Mobile: inline JS/CSS contains no injected source tags", () => {
   const html = readFile("apps/web-root/m/index.html");
   assert.ok(html, "Could not read mobile index.html");
-  const corruptionPattern = /;\$&|^\$&/m;
-  assert.ok(!corruptionPattern.test(html), "Possible $& pattern corruption detected in mobile build");
+  assert.ok(!html.includes('<script src="app.js"></script>'), "Mobile build contains an injected app.js source tag");
+  assert.ok(!html.includes('<link rel="stylesheet" href="style.css">'), "Mobile build contains an injected style.css source tag");
 });
 
 console.log("\n--- CHANGELOG.json Validation ---\n");
