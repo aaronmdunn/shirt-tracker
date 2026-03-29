@@ -3392,6 +3392,12 @@ input[type="date"].stats-date-input {
   width: 12.5em;
 }
 
+#no-buy-game-dialog .no-buy-log-delete {
+  margin-left: 8px;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+}
+
 #no-buy-game-dialog .insights-queue-sim-controls .btn {
   padding: 7px 12px;
   font-size: 0.78rem;
