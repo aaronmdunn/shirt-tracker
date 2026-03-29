@@ -10763,6 +10763,10 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const sellSuggestions = wearableItems
     .map((item) => {
       if (isWhaleTagged(item) || isSeasonalExempt(item)) return null;
+      if (item?.createdAt) {
+        const createdMs = new Date(item.createdAt).getTime();
+        if (Number.isFinite(createdMs) && createdMs > (nowMs - (30 * dayMs))) return null;
+      }
       const key = getInsightsQueueKey(item);
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
       const price = Number(item?.price || 0);
