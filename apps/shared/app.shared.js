@@ -14680,17 +14680,17 @@ const openStatsDialog = () => {
       html += section(block);
     }
 
-    // --- Price distribution histogram (Inventory) ---
-    if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
-      html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
-    }
-
     // --- Names ---
     if (s.longestName.name || s.shortestName.name) {
       let nameBlock = "";
       if (s.longestName.name) nameBlock += row("Longest name", `${s.longestName.name} (${s.longestName.length})`);
       if (s.shortestName.name) nameBlock += row("Shortest name", `${s.shortestName.name} (${s.shortestName.length})`);
       html += section(nameBlock);
+    }
+
+    // --- Price distribution histogram (Inventory) ---
+    if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
+      html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
     }
   }
 
