@@ -9,9 +9,13 @@
       "Implemented Phase 2 coaching analytics: acquisition quality scoring, theme fatigue detection, decision-friction tracking, and upgraded bench-pressure scoring with daily queue telemetry",
       "Implemented Phase 3 predictive analytics: value-recovery forecasting, outfit-confidence curve, adaptive queue profile, and a generated 7-day reactivation playbook",
       "Added selling intelligence with a suggested sell shortlist and BST/eBay/Mercari marketplace diagnostics (inventory count, inactivity, never-worn load, tagged value, and average CPW)",
+      "Expanded marketplace diagnostics to also track XXChange tags in summary and detailed Insights rollups",
       "Excluded Whale-tagged items from sell and reactivation recommendations to respect collectible intent",
       "Improved Insights copy clarity with section-level explanatory hints and expanded action-oriented guidance in the Closet Audit 'Recommended next actions' block",
-      "Refined Insights queue simulator layout: centered and compact date selector, content-width 'Use today' button, and cleaner control hierarchy"
+      "Refined Insights queue simulator layout: centered and compact date selector, content-width 'Use today' button, centered ranking preview date, and cleaner control hierarchy",
+      "Added semantic value coloring for key Insights and Closet Audit metrics (green for healthy signals, red for risk signals)",
+      "Improved stats dialog readability with subtle color hierarchy for section titles, labels, values, hints, and charts",
+      "Added thin bordered action-footer containers across stats-related dialogs to separate control buttons from data content"
     ]
   },
   {

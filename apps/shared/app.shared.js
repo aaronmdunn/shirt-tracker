@@ -10651,6 +10651,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     if (set.has("bst")) matches.push("bst");
     if (set.has("ebay")) matches.push("ebay");
     if (set.has("mercari")) matches.push("mercari");
+    if (set.has("xxchange")) matches.push("xxchange");
     return matches;
   };
 
@@ -10658,6 +10659,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
     ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
+    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, cpwSamples: [] },
   };
 
   const confidenceByKey = {};
@@ -11543,6 +11545,8 @@ const openInsightsDialog = (stats, options = {}) => {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+  const toneClass = (tone) => (tone === "good" ? "tone-good" : tone === "bad" ? "tone-bad" : "");
+  const insightValue = (valueHtml, tone) => `<div class="insights-score-value${toneClass(tone) ? ` ${toneClass(tone)}` : ""}">${valueHtml}</div>`;
 
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Insights are currently available in Inventory mode.</div>`;
@@ -11609,7 +11613,9 @@ const openInsightsDialog = (stats, options = {}) => {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
     };
+    const marketplaceRows = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari, marketplaceTags.xxchange];
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
     const bench = Array.isArray(behavior?.benchPressure) ? behavior.benchPressure : [];
     const driftPreview = Array.isArray(volatility.weeklyDrifts) && volatility.weeklyDrifts.length
@@ -11644,11 +11650,24 @@ const openInsightsDialog = (stats, options = {}) => {
     const sellLead = sellSuggestions.length
       ? `${sellSuggestions[0].name} (${sellSuggestions[0].score})`
       : "n/a";
-    const marketSummary = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+    const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
       .join(" · ");
-    const marketValueTotal = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari]
+    const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
+
+    const volatilityTone = volatility.score <= 18 ? "good" : volatility.score >= 36 ? "bad" : "";
+    const personaTone = persona && persona.similarity >= 70 ? "good" : persona && persona.similarity < 45 ? "bad" : "";
+    const explorationTone = exploration.pct >= 22 && exploration.pct <= 48 ? "good" : exploration.pct < 12 || exploration.pct > 65 ? "bad" : "";
+    const benchTone = bench.length <= 2 ? "good" : bench.length >= 6 ? "bad" : "";
+    const acquisitionTone = acquisition.score >= 70 ? "good" : acquisition.score < 45 ? "bad" : "";
+    const fatigueTone = fatigue.count <= 1 ? "good" : fatigue.count >= 4 ? "bad" : "";
+    const frictionTone = friction.avgAcceptance >= 35 ? "good" : friction.avgAcceptance < 18 ? "bad" : "";
+    const recoveryTone = valueRecovery.totalRecoveryWears <= 8 ? "good" : valueRecovery.totalRecoveryWears >= 24 ? "bad" : "";
+    const confidenceTone = confidence.avgConfidence >= 70 ? "good" : confidence.avgConfidence < 45 ? "bad" : "";
+    const adaptiveTone = adaptive.sampleSize >= 5 ? "good" : adaptive.sampleSize <= 1 ? "bad" : "";
+    const playbookTone = playbookCount <= 2 ? "good" : playbookCount >= 6 ? "bad" : "";
+    const sellTone = sellSuggestions.length <= 1 ? "good" : sellSuggestions.length >= 3 ? "bad" : "";
 
     const comebackByKey = {};
     comeback.forEach((item) => {
@@ -11721,25 +11740,25 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="insights-score-grid">
         <div class="insights-score-card">
           <div class="insights-score-title">Rotation volatility</div>
-          <div class="insights-score-value">${volatility.score}/100 (${esc(volatility.label)})</div>
+          ${insightValue(`${volatility.score}/100 (${esc(volatility.label)})`, volatilityTone)}
           <div class="insights-score-note">Week-to-week type drift (last 12 weeks). Higher means sharper rotation swings.</div>
           <div class="insights-score-note">Recent drift points: ${esc(driftPreview)}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Weekday vs weekend persona</div>
-          <div class="insights-score-value">${persona ? `${persona.similarity}% match` : "n/a"}</div>
+          ${insightValue(persona ? `${persona.similarity}% match` : "n/a", personaTone)}
           <div class="insights-score-note">Weekday: ${esc(persona ? `${persona.weekday.topBrand} · ${persona.weekday.topType}` : "n/a")}</div>
           <div class="insights-score-note">Weekend: ${esc(persona ? `${persona.weekend.topBrand} · ${persona.weekend.topType}` : "n/a")}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Style exploration ratio</div>
-          <div class="insights-score-value">${exploration.pct}% exploratory wears</div>
+          ${insightValue(`${exploration.pct}% exploratory wears`, explorationTone)}
           <div class="insights-score-note">Core style baseline: ${esc(exploration.coreTypes.length ? exploration.coreTypes.join(" · ") : "n/a")}</div>
           <div class="insights-score-note">Trend: ${esc(trendLabel)}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Bench pressure</div>
-          <div class="insights-score-value">${bench.length} queued-but-skipped items</div>
+          ${insightValue(`${bench.length} queued-but-skipped items`, benchTone)}
           <div class="insights-score-note">Average selection rate: ${benchAvgRate}%</div>
           <div class="insights-score-note">High pressure means repeated exposure without selection. Wear one this week or snooze to declutter picks.</div>
         </div>
@@ -11757,54 +11776,54 @@ const openInsightsDialog = (stats, options = {}) => {
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Acquisition quality</div>
-          <div class="insights-score-value">${acquisition.score}/100</div>
+          ${insightValue(`${acquisition.score}/100`, acquisitionTone)}
           <div class="insights-score-note">30d adoption: ${acquisition.adoptionRate30}% · 30d rewear: ${acquisition.rewearRate30}%</div>
           <div class="insights-score-note">Median first wear: ${acquisition.medianFirstWearDays === null ? "n/a" : `${Math.round(acquisition.medianFirstWearDays)}d`} (${acquisition.eligibleAdds} recent adds)</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Theme fatigue detector</div>
-          <div class="insights-score-value">${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}</div>
+          ${insightValue(`${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}`, fatigueTone)}
           <div class="insights-score-note">Lead fade: ${esc(fatigueLead)}</div>
           <div class="insights-score-note">Signals where previously strong fandom/tag themes are cooling off in recent wear windows.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Decision friction</div>
-          <div class="insights-score-value">${friction.avgAcceptance}% queue acceptance</div>
+          ${insightValue(`${friction.avgAcceptance}% queue acceptance`, frictionTone)}
           <div class="insights-score-note">${friction.highFrictionDays} high-friction day${friction.highFrictionDays === 1 ? "" : "s"} in last ${friction.totalDays} tracked days</div>
           <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Value recovery forecast</div>
-          <div class="insights-score-value">${valueRecovery.totalRecoveryWears} wears to recover</div>
+          ${insightValue(`${valueRecovery.totalRecoveryWears} wears to recover`, recoveryTone)}
           <div class="insights-score-note">Collection cadence: ${valueRecovery.cadencePerDay.toFixed(2)} wears/day</div>
           <div class="insights-score-note">Lead recovery target: ${esc(recoveryLead)}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Outfit confidence curve</div>
-          <div class="insights-score-value">${confidence.avgConfidence}/100 avg confidence</div>
+          ${insightValue(`${confidence.avgConfidence}/100 avg confidence`, confidenceTone)}
           <div class="insights-score-note">Items tracked: ${confidence.totalTracked} · low-confidence picks: ${Array.isArray(confidence.lowConfidence) ? confidence.lowConfidence.length : 0}</div>
           <div class="insights-score-note">Most fragile signal: ${esc(confidenceLead)}</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Adaptive queue profile</div>
-          <div class="insights-score-value">${adaptive.sampleSize} type signals</div>
+          ${insightValue(`${adaptive.sampleSize} type signals`, adaptiveTone)}
           <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
           <div class="insights-score-note">Uses actual queue selection rates to suggest what to amplify or cool down.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">7-day reactivation plan</div>
-          <div class="insights-score-value">${playbookCount} planned wears</div>
+          ${insightValue(`${playbookCount} planned wears`, playbookTone)}
           <div class="insights-score-note">Built from comeback, bench pressure, and value-recovery priorities.</div>
           <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Sell suggestions</div>
-          <div class="insights-score-value">${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}</div>
+          ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
           <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">BST/eBay/Mercari tags</div>
+          <div class="insights-score-title">BST/eBay/Mercari/XXChange tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
@@ -11851,8 +11870,8 @@ const openInsightsDialog = (stats, options = {}) => {
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
-      <div class="stats-hint">Breaks down BST/eBay/Mercari-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
-      <div class="insights-action-list">${[marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari].map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
+      <div class="stats-hint">Breaks down BST/eBay/Mercari/XXChange-tagged inventory by load, inactivity, never-worn risk, and value concentration.</div>
+      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgCpw === null ? "n/a" : `${Math.round(row.avgCpw)}/wear`} avg CPW</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency.</div>
       ${bench.length
@@ -11893,38 +11912,47 @@ const openInsightsDialog = (stats, options = {}) => {
     const neverWornPctOfWearables = wearableItems.length
       ? Math.round((neverWornCount / wearableItems.length) * 100)
       : 0;
+    const healthTone = health.score >= 70 ? "good" : health.score < 50 ? "bad" : "";
+    const idleTone = (inactive?.inactive180Count || 0) <= 5 ? "good" : (inactive?.inactive180Count || 0) >= 20 ? "bad" : "";
+    const adoptionLagDays = adoption?.medianDaysToFirstWear === null || adoption?.medianDaysToFirstWear === undefined
+      ? null
+      : Math.round(adoption.medianDaysToFirstWear);
+    const adoptionTone = adoptionLagDays === null ? "" : adoptionLagDays <= 14 ? "good" : adoptionLagDays >= 40 ? "bad" : "";
+    const backlogTone = neverWornPctOfWearables <= 15 ? "good" : neverWornPctOfWearables >= 35 ? "bad" : "";
+    const rotationTone = health.recencyPct >= 60 ? "good" : health.recencyPct < 35 ? "bad" : "";
+    const noBuyTone = noBuyCurrent >= 14 ? "good" : "";
     html += section(
       "Closet audit scorecard",
       `<div class="stats-hint">Action-oriented checkup of rotation health, backlog risk, and idle value.</div>
       <div class="insights-score-grid">
         <div class="insights-score-card">
           <div class="insights-score-title">Health score</div>
-          <div class="insights-score-value">${health.score}/100 (${grade})</div>
+          ${insightValue(`${health.score}/100 (${grade})`, healthTone)}
           <div class="insights-score-note">${health.recencyPct}% worn in last 30 days · ${health.neverWornPct}% never worn</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Idle capital</div>
-          <div class="insights-score-value">${formatCurrency(inactive?.inactive180Value || 0)}</div>
+          ${insightValue(`${formatCurrency(inactive?.inactive180Value || 0)}`, idleTone)}
           <div class="insights-score-note">${inactive?.inactive180Count || 0} items inactive over 180 days</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Adoption lag</div>
-          <div class="insights-score-value">${adoption?.medianDaysToFirstWear === null || adoption?.medianDaysToFirstWear === undefined ? "n/a" : `${Math.round(adoption.medianDaysToFirstWear)}d`}</div>
+          ${insightValue(`${adoptionLagDays === null ? "n/a" : `${adoptionLagDays}d`}`, adoptionTone)}
           <div class="insights-score-note">${adoption?.adoptionRatePct || 0}% adoption rate from add date to first wear</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Backlog risk</div>
-          <div class="insights-score-value">${neverWornCount}</div>
+          ${insightValue(`${neverWornCount}`, backlogTone)}
           <div class="insights-score-note">Items never worn since add date (full total)</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">30-day rotation</div>
-          <div class="insights-score-value">${wornLast30Count}/${wearableItems.length || 0}</div>
+          ${insightValue(`${wornLast30Count}/${wearableItems.length || 0}`, rotationTone)}
           <div class="insights-score-note">${health.recencyPct}% of wearable items were worn in the last 30 days</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">No-buy streak</div>
-          <div class="insights-score-value">${noBuyCurrent} days</div>
+          ${insightValue(`${noBuyCurrent} days`, noBuyTone)}
           <div class="insights-score-note">Longest no-buy streak: ${noBuyLongest} days</div>
         </div>
       </div>
@@ -11956,7 +11984,7 @@ const openInsightsDialog = (stats, options = {}) => {
         <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
         <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
       </div>
-      <div class="stats-hint">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
+      <div class="stats-hint insights-queue-preview-date">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
       <div class="insights-queue-list">
         ${queue.map((item, idx) => `
           <div class="insights-queue-item">
