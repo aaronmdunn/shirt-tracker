@@ -2589,6 +2589,8 @@ dialog {
 
 #stats-dialog .dialog-actions {
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   margin: 8px 20px 16px;
@@ -3333,11 +3335,26 @@ input[type="date"].stats-date-input {
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
   margin: 8px 20px 16px;
   padding: 8px 10px;
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls {
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls .btn {
+  padding: 10px 18px;
+}
+
+#no-buy-game-dialog .insights-queue-sim-controls .insights-queue-sim-date {
+  margin-bottom: 4px;
 }
 
 .advanced-stats-content {
