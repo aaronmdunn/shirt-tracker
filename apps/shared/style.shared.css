@@ -2807,16 +2807,44 @@ dialog {
 .stats-date-lookup {
   display: grid;
   gap: 8px;
+  justify-items: center;
+  text-align: center;
 }
 
 input[type="date"].stats-date-input {
   width: auto;
   max-width: 220px;
+  margin: 0 auto;
 }
 
 .stats-date-results {
   display: grid;
   gap: 2px;
+  justify-items: center;
+  width: 100%;
+}
+
+.stats-date-results .stats-row {
+  justify-content: center;
+  text-align: center;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.stats-date-results .stats-label,
+.stats-date-results .stats-value {
+  text-align: center;
+  white-space: normal;
+}
+
+.stats-date-results .stats-sub .stats-label {
+  padding-left: 0;
+}
+
+.stats-date-lookup .stats-link-button,
+#stats-unworn-six-months-link {
+  margin: 0 auto;
+  text-align: center;
 }
 
 .stats-link-button {
