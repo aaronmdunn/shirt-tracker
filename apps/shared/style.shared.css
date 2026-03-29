@@ -2909,8 +2909,16 @@ input[type="date"].stats-date-input {
   color: #1f8a4c;
 }
 
+.stats-label.tone-good {
+  color: #1f8a4c;
+}
+
 .insights-score-value.tone-bad,
 .stats-value.tone-bad {
+  color: #b13a3a;
+}
+
+.stats-label.tone-bad {
   color: #b13a3a;
 }
 

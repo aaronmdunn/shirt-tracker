@@ -10212,6 +10212,7 @@ const defaultNoBuyGamifyState = () => ({
   lastObservedStreak: 0,
   activeRecovery: null,
   buyLog: [],
+  actionLog: [],
   dailyCheckins: [],
 });
 
@@ -10255,6 +10256,15 @@ const normalizeNoBuyGamifyState = (value) => {
           .slice(-120)
           .map((entry) => ({
             dateKey: String(entry?.dateKey || ""),
+            reason: String(entry?.reason || ""),
+          }))
+      : [],
+    actionLog: Array.isArray(raw.actionLog)
+      ? raw.actionLog
+          .slice(-300)
+          .map((entry) => ({
+            at: String(entry?.at || ""),
+            type: String(entry?.type || ""),
             reason: String(entry?.reason || ""),
           }))
       : [],
@@ -10384,6 +10394,7 @@ const logNoBuyBuyEvent = (state, reason = "") => {
   const safe = normalizeNoBuyGamifyState(state);
   const todayKey = localDateKeyFromDate(new Date());
   const cleanReason = String(reason || "other").trim() || "other";
+  const nowIso = new Date().toISOString();
   if (safe.lastBuyDate !== todayKey) {
     safe.totalBuysLogged += 1;
     safe.lastBuyDate = todayKey;
@@ -10391,6 +10402,8 @@ const logNoBuyBuyEvent = (state, reason = "") => {
     safe.buyLog.push({ dateKey: todayKey, reason: cleanReason });
     safe.buyLog = safe.buyLog.slice(-120);
   }
+  safe.actionLog.push({ at: nowIso, type: "purchase", reason: cleanReason });
+  safe.actionLog = safe.actionLog.slice(-300);
   safe.currentStreak = 0;
   safe.lastObservedStreak = 0;
   safe.cooldownUntil = "";
@@ -10402,6 +10415,7 @@ const recordNoBuyCheckin = (state, tempted, trigger = "") => {
   const safe = normalizeNoBuyGamifyState(state);
   const todayKey = localDateKeyFromDate(new Date());
   const nextTrigger = tempted ? (String(trigger || "other").trim() || "other") : "";
+  const nowIso = new Date().toISOString();
   const existing = safe.dailyCheckins.find((entry) => entry.dateKey === todayKey);
   if (existing) {
     existing.tempted = Boolean(tempted);
@@ -10409,6 +10423,10 @@ const recordNoBuyCheckin = (state, tempted, trigger = "") => {
   } else {
     safe.dailyCheckins.push({ dateKey: todayKey, tempted: Boolean(tempted), trigger: nextTrigger });
     safe.dailyCheckins = safe.dailyCheckins.slice(-120);
+  }
+  if (tempted) {
+    safe.actionLog.push({ at: nowIso, type: "temptation", reason: nextTrigger || "other" });
+    safe.actionLog = safe.actionLog.slice(-300);
   }
   return safe;
 };
@@ -12647,6 +12665,12 @@ const openNoBuyGameDialog = (stats) => {
     : "inactive";
   const trends = getNoBuyTrendSummary(gamify, 30);
   const topTrend = trends.length ? `${trends[0].label} (${trends[0].count})` : "none";
+  const recentActions = Array.isArray(gamify.actionLog)
+    ? gamify.actionLog
+        .slice()
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+        .slice(0, 10)
+    : [];
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryLabel = recoveryActive
@@ -12726,6 +12750,20 @@ const openNoBuyGameDialog = (stats) => {
         </select>
       </div>
     </div>
+
+    <div class="stats-section-title" style="margin-top:8px">Recent button log</div>
+    <div class="stats-hint">Last 10 clicks for Tempted today and Log buy now, with timestamp and reason.</div>
+    ${recentActions.length
+      ? `<div class="insights-action-list">${recentActions.map((entry, idx) => {
+          const whenMs = new Date(entry.at).getTime();
+          const whenLabel = Number.isFinite(whenMs)
+            ? new Date(whenMs).toLocaleString()
+            : "Unknown date";
+          const typeLabel = entry.type === "purchase" ? "Buy logged" : "Tempted";
+          const toneClass = entry.type === "purchase" ? "tone-bad" : "tone-good";
+          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(entry.reason || "other")}</span></div>`;
+        }).join("")}</div>`
+      : `<div class="stats-hint">No button activity yet.</div>`}
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
