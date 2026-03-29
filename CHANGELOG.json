@@ -1,5 +1,19 @@
 [
   {
+    "version": "2.0.19",
+    "date": "2026-03-29",
+    "changes": [
+      "Added a dedicated No-Buy Game dialog launched from the Stats footer, separating no-buy gameplay from Insights",
+      "Implemented no-buy XP progression, levels, streak milestones, buy credits, cooldown controls, temptation check-ins, and recovery mission tracking in the standalone game window",
+      "Switched no-buy purchase logging to manual-only so adding gifted/traded shirts does not auto-log a buy event",
+      "Added buying-reason capture for manual buy logs and expanded reason options (Good deal, Rare find, Boredom, Got paid/Extra money, Marketed, Promo/Sale, Other)",
+      "Added Trends and Recent button log sections in No-Buy Game, including the last 10 actions with timestamp + reason and color-coded entries (temptation green, buy red)",
+      "Mapped internal reason keys to human-readable labels across trends, recent logs, and last-buy summary",
+      "Refined No-Buy Game controls layout and spacing: one-row action buttons, centered reason selectors, and smaller button sizing for cleaner density",
+      "Removed the Stats button from mobile-only header actions while keeping desktop web and Tauri desktop stats functionality intact"
+    ]
+  },
+  {
     "version": "2.0.18",
     "date": "2026-03-29",
     "changes": [
