@@ -3167,8 +3167,48 @@ input[type="date"].stats-date-input {
 
 .insights-queue-score {
   font-size: 0.72rem;
-  color: var(--muted);
+  color: #355340;
   white-space: nowrap;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #e9f4ec;
+  border: 1px solid #cfe4d5;
+}
+
+.insights-queue-score.lane-first-wear {
+  color: #7a4b08;
+  background: #fff1d6;
+  border-color: #f0d7a5;
+}
+
+.insights-queue-score.lane-seasonal-window {
+  color: #15507a;
+  background: #e2f1ff;
+  border-color: #bfdcf7;
+}
+
+.insights-queue-score.lane-safe-return {
+  color: #355340;
+  background: #e9f4ec;
+  border-color: #cfe4d5;
+}
+
+.insights-queue-score.lane-deep-cut {
+  color: #5b2e78;
+  background: #f1e6fb;
+  border-color: #dbc5f0;
+}
+
+.insights-queue-score.lane-value-wear {
+  color: #7a2434;
+  background: #fde8ee;
+  border-color: #f4c7d4;
+}
+
+.insights-queue-score.lane-rotation-pick {
+  color: #4a4a4a;
+  background: #ededed;
+  border-color: #d8d8d8;
 }
 
 .insights-queue-meta {
@@ -3178,6 +3218,10 @@ input[type="date"].stats-date-input {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.insights-queue-lane-hint {
+  margin-top: -2px;
 }
 
 .insights-queue-actions {
@@ -3260,6 +3304,16 @@ input[type="date"].stats-date-input {
   gap: 8px;
 }
 
+.insights-month-summary {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+
 .insights-heatmap-weekdays,
 .insights-month-grid {
   display: grid;
@@ -3283,6 +3337,19 @@ input[type="date"].stats-date-input {
   border: 1px solid #d8d8d8;
   color: #525252;
   background: #f2f2f2;
+}
+
+.insights-heat-cell.is-clickable {
+  cursor: pointer;
+  width: 100%;
+  padding: 0;
+}
+
+.insights-heat-cell.is-clickable:hover,
+.insights-heat-cell.is-clickable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .insights-heat-cell.level-1 {
