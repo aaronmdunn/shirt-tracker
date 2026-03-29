@@ -11117,9 +11117,71 @@ const openInsightsDialog = (stats, options = {}) => {
       : 0;
     const queueTop = queue.length ? queue[0] : null;
     const queueTopScore = queueTop ? Math.round(queueTop.score || 0) : 0;
-    const comebackAvgIdle = comeback.length
-      ? Math.round(comeback.reduce((sum, item) => sum + (Number(item.daysSince) || 0), 0) / comeback.length)
-      : 0;
+
+    const comebackByKey = {};
+    comeback.forEach((item) => {
+      if (!item?.key) return;
+      comebackByKey[item.key] = item;
+    });
+    const benchByKey = {};
+    bench.forEach((item) => {
+      if (!item?.key) return;
+      benchByKey[item.key] = item;
+    });
+    const coreTypes = new Set(Array.isArray(exploration.coreTypes) ? exploration.coreTypes : []);
+
+    const wildcard = queue
+      .map((item) => {
+        let score = Number(item.score || 0);
+        const reasons = [];
+        const comebackHit = comebackByKey[item.key] || null;
+        const benchHit = benchByKey[item.key] || null;
+        const isCoreType = coreTypes.has(String(item.type || ""));
+
+        if (comebackHit) {
+          score += Math.min(48, (Number(comebackHit.daysSince) || 0) * 0.35) + 10;
+          reasons.push(`${comebackHit.daysSince}d idle comeback candidate`);
+        }
+        if (benchHit) {
+          score += Math.round((1 - (benchHit.selectionRate || 0)) * 36) + Math.min(16, (benchHit.exposures || 0) * 2);
+          reasons.push(`high bench pressure (${benchHit.exposures}x seen)`);
+        }
+        if (monthDna?.topBrand?.label && item.tab === monthDna.topBrand.label) {
+          score += 12;
+          reasons.push("matches current top brand lane");
+        }
+        if (monthDna?.topType?.label && item.type === monthDna.topType.label) {
+          score += 10;
+          reasons.push("matches current top type lane");
+        }
+        if (exploration.pct < 22 && !isCoreType) {
+          score += 18;
+          reasons.push("pushes exploration beyond core types");
+        }
+        if (exploration.pct > 48 && isCoreType) {
+          score += 10;
+          reasons.push("stabilizes after high exploration");
+        }
+        if (volatility.label === "Volatile" && isCoreType) {
+          score += 14;
+          reasons.push("calms volatile rotation pattern");
+        }
+        if (volatility.label === "Stable" && !isCoreType) {
+          score += 12;
+          reasons.push("adds novelty to stable pattern");
+        }
+
+        return {
+          ...item,
+          wildcardScore: Math.round(score),
+          wildcardReasons: reasons,
+        };
+      })
+      .sort((a, b) => b.wildcardScore - a.wildcardScore || a.name.localeCompare(b.name))[0] || null;
+
+    const wildcardReasonText = wildcard
+      ? (wildcard.wildcardReasons.length ? wildcard.wildcardReasons.slice(0, 2).join(" · ") : "high combined queue priority signal")
+      : "n/a";
 
     return section(
       "Behavior & coaching",
@@ -11156,10 +11218,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Lower queue size usually means tighter rotation; larger queue means more recovery opportunities.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Comeback urgency</div>
-          <div class="insights-score-value">${comeback.length} reactivation targets</div>
-          <div class="insights-score-note">Average idle time: ${comebackAvgIdle} days</div>
-          <div class="insights-score-note">Use this as a revive signal: wear one comeback item this week before buying anything new.</div>
+          <div class="insights-score-title">Wildcard pick of the week</div>
+          <div class="insights-score-value">${wildcard ? esc(wildcard.name) : "n/a"}</div>
+          <div class="insights-score-note">${wildcard ? `${esc(wildcard.tab)} · ${esc(wildcard.type || "Unknown")} · score ${wildcard.wildcardScore}` : "No eligible item yet. Add wear data or queue signals to generate a wildcard."}</div>
+          <div class="insights-score-note">Why this pick: ${esc(wildcardReasonText)}.</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
