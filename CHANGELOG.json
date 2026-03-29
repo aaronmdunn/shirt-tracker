@@ -1,5 +1,17 @@
 [
   {
+    "version": "2.0.18",
+    "date": "2026-03-29",
+    "changes": [
+      "Recalibrated Insights behavior scoring for large low-frequency closets (collector-normal tuning) so health/risk signals better reflect 180+ item wardrobes with 1-2 wears per item/year",
+      "Added Annual Coverage Index and Collector-normal Rotation Model tiers (A/B/C windows) with expected monthly touch pacing",
+      "Added Opportunity-adjusted Backlog metric that excludes grace-window additions, protected items, and seasonal exemptions",
+      "Expanded seasonal fairness in coaching logic by excluding out-of-window holiday items and summer-offseason flannel cases from reactivation/sell pressure",
+      "Relaxed several Insights and Closet Audit thresholds/tones to avoid over-penalizing low-frequency rotation patterns",
+      "Added a 30-day grace rule to Suggested sell shortlist so newly added shirts are not recommended for selling"
+    ]
+  },
+  {
     "version": "2.0.17",
     "date": "2026-03-29",
     "changes": [
