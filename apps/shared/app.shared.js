@@ -10217,6 +10217,8 @@ const trackInsightsQueueSelection = (queueKey, dateKey) => {
 const defaultNoBuyGamifyState = () => ({
   xp: 0,
   level: 1,
+  revision: 0,
+  updatedAt: "",
   currentStreak: 0,
   longestStreak: 0,
   lastNoBuyDate: "",
@@ -10249,6 +10251,8 @@ const normalizeNoBuyGamifyState = (value) => {
     ...base,
     xp: Math.max(0, Number(raw.xp || 0)),
     level: Math.max(1, Number(raw.level || 1)),
+    revision: Math.max(0, Number(raw.revision || 0)),
+    updatedAt: String(raw.updatedAt || ""),
     currentStreak: Math.max(0, Number(raw.currentStreak || 0)),
     longestStreak: Math.max(0, Number(raw.longestStreak || 0)),
     lastNoBuyDate: String(raw.lastNoBuyDate || ""),
@@ -10318,8 +10322,18 @@ const normalizeNoBuyGamifyState = (value) => {
       : [],
   };
   out.level = computeNoBuyLevel(out.xp);
+  if (!out.updatedAt) {
+    out.updatedAt = String(out.lastSyncDate || out.lastXpDate || out.lastBuyDate || "");
+  }
   if (out.currentStreak > out.longestStreak) out.longestStreak = out.currentStreak;
   return out;
+};
+
+const markNoBuyStateUpdated = (state) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  safe.revision = Math.max(0, Number(safe.revision || 0)) + 1;
+  safe.updatedAt = new Date().toISOString();
+  return safe;
 };
 
 const mergeNoBuyGamifyState = (localValue, remoteValue) => {
@@ -10333,11 +10347,16 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
     return new Date(str).getTime();
   };
 
-  const localSyncMs = Math.max(toMs(local.lastSyncDate), toMs(local.lastXpDate), toMs(local.lastBuyDate));
-  const remoteSyncMs = Math.max(toMs(remote.lastSyncDate), toMs(remote.lastXpDate), toMs(remote.lastBuyDate));
-  const primary = Number.isFinite(remoteSyncMs) && (!Number.isFinite(localSyncMs) || remoteSyncMs >= localSyncMs)
-    ? remote
-    : local;
+  const compareByFreshness = (a, b) => {
+    if (a.revision !== b.revision) return a.revision - b.revision;
+    const aMs = toMs(a.updatedAt || a.lastSyncDate || a.lastXpDate || a.lastBuyDate);
+    const bMs = toMs(b.updatedAt || b.lastSyncDate || b.lastXpDate || b.lastBuyDate);
+    if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) return aMs - bMs;
+    if (Number.isFinite(aMs) && !Number.isFinite(bMs)) return 1;
+    if (!Number.isFinite(aMs) && Number.isFinite(bMs)) return -1;
+    return 0;
+  };
+  const primary = compareByFreshness(remote, local) >= 0 ? remote : local;
   const secondary = primary === remote ? local : remote;
 
   const merged = normalizeNoBuyGamifyState(primary);
@@ -10348,40 +10367,11 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
   merged.totalBuysLogged = Math.max(local.totalBuysLogged, remote.totalBuysLogged);
   merged.totalRecoveriesCompleted = Math.max(local.totalRecoveriesCompleted, remote.totalRecoveriesCompleted);
 
-  const mergeLogs = (a, b, keyFn, keep) => {
-    const out = [];
-    const seen = new Set();
-    [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].forEach((entry) => {
-      if (!entry || typeof entry !== "object") return;
-      const key = keyFn(entry);
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      out.push(entry);
-    });
-    out.sort((x, y) => toMs(x.at || x.dateKey) - toMs(y.at || y.dateKey));
-    return out.slice(-keep);
-  };
-
-  merged.actionLog = mergeLogs(local.actionLog, remote.actionLog, (entry) => `${entry.at || ""}|${entry.type || ""}|${entry.reason || ""}`, 300);
-  merged.buyLog = mergeLogs(local.buyLog, remote.buyLog, (entry) => `${entry.dateKey || ""}|${entry.reason || ""}`, 120);
-  merged.snapshots = mergeLogs(local.snapshots, remote.snapshots, (entry) => `${entry.at || ""}|${entry.source || ""}|${entry.actionLogCount || 0}|${entry.buyLogCount || 0}`, 60);
-
-  const dailyByDate = {};
-  [...local.dailyCheckins, ...remote.dailyCheckins].forEach((entry) => {
-    const dateKey = String(entry?.dateKey || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-    if (!dailyByDate[dateKey]) {
-      dailyByDate[dateKey] = { dateKey, tempted: Boolean(entry.tempted), trigger: String(entry.trigger || "") };
-      return;
-    }
-    const current = dailyByDate[dateKey];
-    if (!current.tempted && entry.tempted) {
-      dailyByDate[dateKey] = { dateKey, tempted: true, trigger: String(entry.trigger || "") };
-    }
-  });
-  merged.dailyCheckins = Object.values(dailyByDate)
-    .sort((a, b) => toMs(a.dateKey) - toMs(b.dateKey))
-    .slice(-120);
+  // Authoritative logs come from the freshest side so deletions propagate.
+  merged.actionLog = Array.isArray(primary.actionLog) ? primary.actionLog.slice(-300) : [];
+  merged.buyLog = Array.isArray(primary.buyLog) ? primary.buyLog.slice(-120) : [];
+  merged.dailyCheckins = Array.isArray(primary.dailyCheckins) ? primary.dailyCheckins.slice(-120) : [];
+  merged.snapshots = Array.isArray(primary.snapshots) ? primary.snapshots.slice(-60) : [];
 
   if (secondary.activeRecovery && !secondary.activeRecovery.completedAt && (!merged.activeRecovery || merged.activeRecovery.completedAt)) {
     merged.activeRecovery = { ...secondary.activeRecovery };
@@ -10533,7 +10523,7 @@ const startNoBuyCooldown = (state, hours = 24) => {
   const until = new Date();
   until.setHours(until.getHours() + Math.max(1, Number(hours) || 24));
   safe.cooldownUntil = until.toISOString();
-  return safe;
+  return markNoBuyStateUpdated(safe);
 };
 
 const logNoBuyBuyEvent = (state, reason = "") => {
@@ -10555,7 +10545,8 @@ const logNoBuyBuyEvent = (state, reason = "") => {
   safe.cooldownUntil = "";
   if (safe.buyCredits > 0) safe.buyCredits -= 1;
   const withRecovery = createNoBuyRecoveryMission(safe, new Date().toISOString());
-  return pushNoBuySnapshot(withRecovery, "buy");
+  const touched = markNoBuyStateUpdated(withRecovery);
+  return pushNoBuySnapshot(touched, "buy");
 };
 
 const recordNoBuyCheckin = (state, tempted, trigger = "") => {
@@ -10574,9 +10565,9 @@ const recordNoBuyCheckin = (state, tempted, trigger = "") => {
   if (tempted) {
     safe.actionLog.push({ at: nowIso, type: "temptation", reason: nextTrigger || "other" });
     safe.actionLog = safe.actionLog.slice(-300);
-    return pushNoBuySnapshot(safe, "tempted");
+    return pushNoBuySnapshot(markNoBuyStateUpdated(safe), "tempted");
   }
-  return pushNoBuySnapshot(safe, "clear-temptation");
+  return pushNoBuySnapshot(markNoBuyStateUpdated(safe), "clear-temptation");
 };
 
 const syncNoBuyGamifyStateFromStats = (stats) => {
@@ -10691,7 +10682,7 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
     });
   }
 
-  return pushNoBuySnapshot(safe, "delete-log");
+  return pushNoBuySnapshot(markNoBuyStateUpdated(safe), "delete-log");
 };
 
 const progressNoBuyRecoveryOnWear = () => {
@@ -10709,7 +10700,7 @@ const progressNoBuyRecoveryOnWear = () => {
     safe.xp += 50;
     safe.level = computeNoBuyLevel(safe.xp);
   }
-  saveNoBuyGamifyState(safe);
+  saveNoBuyGamifyState(markNoBuyStateUpdated(safe));
 };
 
 const safePercent = (numerator, denominator) => {
