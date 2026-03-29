@@ -11115,6 +11115,11 @@ const openInsightsDialog = (stats, options = {}) => {
     const benchAvgRate = bench.length
       ? Math.round(bench.reduce((sum, item) => sum + item.selectionRate, 0) * 100 / bench.length)
       : 0;
+    const queueTop = queue.length ? queue[0] : null;
+    const queueTopScore = queueTop ? Math.round(queueTop.score || 0) : 0;
+    const comebackAvgIdle = comeback.length
+      ? Math.round(comeback.reduce((sum, item) => sum + (Number(item.daysSince) || 0), 0) / comeback.length)
+      : 0;
 
     return section(
       "Behavior & coaching",
@@ -11143,6 +11148,18 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-value">${bench.length} queued-but-skipped items</div>
           <div class="insights-score-note">Average selection rate: ${benchAvgRate}%</div>
           <div class="insights-score-note">If pressure rises, wear one of the top skipped items or snooze it to reduce noise.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Queue readiness now</div>
+          <div class="insights-score-value">${queue.length} active suggestions</div>
+          <div class="insights-score-note">Top priority score: ${queueTopScore}${queueTop ? ` (${esc(queueTop.name)})` : ""}</div>
+          <div class="insights-score-note">Lower queue size usually means tighter rotation; larger queue means more recovery opportunities.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Comeback urgency</div>
+          <div class="insights-score-value">${comeback.length} reactivation targets</div>
+          <div class="insights-score-note">Average idle time: ${comebackAvgIdle} days</div>
+          <div class="insights-score-note">Use this as a revive signal: wear one comeback item this week before buying anything new.</div>
         </div>
       </div>
       <div class="stats-section-title" style="margin-top:8px">Comeback candidates</div>
