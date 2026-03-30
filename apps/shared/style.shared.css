@@ -2662,6 +2662,11 @@ dialog {
   word-break: break-word;
 }
 
+#stats-coaching-help-dialog .stats-sub .stats-label {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 70%, #435364);
+}
+
 .stats-sub .stats-value {
   font-weight: 400;
   font-size: 0.82rem;
@@ -3455,12 +3460,16 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog,
 #all-added-dialog,
 #advanced-stats-dialog,
-#stats-coaching-help-dialog,
 #first-wear-lag-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
   width: 92vw;
+}
+
+#stats-coaching-help-dialog {
+  max-width: 820px;
+  width: 95vw;
 }
 
 #wear-history-dialog .dialog-body,
