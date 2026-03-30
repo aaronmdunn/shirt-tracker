@@ -10052,6 +10052,10 @@ const collectAllStats = () => {
     if (!collection[periodKey]) collection[periodKey] = {};
     collection[periodKey][tag] = (collection[periodKey][tag] || 0) + 1;
   };
+  const isFoundationalCoTag = (tag) => {
+    const key = String(tag || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+    return key === "original" || key === "workappropriate";
+  };
   const ensureTagBucket = (tag) => {
     if (!tagRollup[tag]) {
       tagRollup[tag] = {
@@ -10291,9 +10295,23 @@ const collectAllStats = () => {
     weekly: buildTagDominanceStreaks(tagWeeklyCounts, (key) => addDaysToDateKey(key, 7)),
     monthly: buildTagDominanceStreaks(tagMonthlyCounts, (key) => addMonthsToKey(key, 1)),
   };
-  const tagPairings = Object.values(tagPairRollup)
-    .sort((a, b) => b.count - a.count || a.left.localeCompare(b.left) || a.right.localeCompare(b.right))
+  const allTagPairings = Object.values(tagPairRollup)
+    .sort((a, b) => b.count - a.count || a.left.localeCompare(b.left) || a.right.localeCompare(b.right));
+  const tagPairings = allTagPairings
+    .filter((pair) => !isFoundationalCoTag(pair.left) && !isFoundationalCoTag(pair.right))
     .slice(0, 10);
+  const foundationalTagPairings = {
+    original: allTagPairings
+      .filter((pair) => String(pair.left || "").trim() === "Original" || String(pair.right || "").trim() === "Original")
+      .slice(0, 8),
+    workAppropriate: allTagPairings
+      .filter((pair) => {
+        const leftKey = String(pair.left || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+        const rightKey = String(pair.right || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+        return leftKey === "workappropriate" || rightKey === "workappropriate";
+      })
+      .slice(0, 8),
+  };
 
   const wornLast365 = wearableUniverse.filter((item) => {
     if (!item.lastWorn) return false;
@@ -10323,6 +10341,7 @@ const collectAllStats = () => {
     seasonalityByMonth,
     tagPerformance,
     tagPairings,
+    foundationalTagPairings,
     tagTrending,
     tagRarityItems,
     tagSeasonalityByMonth,
@@ -11377,11 +11396,30 @@ const openAdvancedStatsDialog = (stats) => {
   }
 
   if (Array.isArray(adv.tagPairings) && adv.tagPairings.length) {
-    let body = hint("Co-occurrence shows which tag pairs most often travel together on the same item.");
+    let body = hint("Co-occurrence shows which tag pairs most often travel together on the same item, excluding Original and Work Appropriate so the rest of the tag system is easier to read.");
     adv.tagPairings.forEach((pair, index) => {
       body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
     });
     html += section("Tag co-occurrence", body);
+  }
+
+  if (adv.foundationalTagPairings && ((Array.isArray(adv.foundationalTagPairings.original) && adv.foundationalTagPairings.original.length) || (Array.isArray(adv.foundationalTagPairings.workAppropriate) && adv.foundationalTagPairings.workAppropriate.length))) {
+    let body = hint("Original and Work Appropriate are separated here because their volume can swamp the rest of the pairings table.");
+    const originalPairs = Array.isArray(adv.foundationalTagPairings.original) ? adv.foundationalTagPairings.original : [];
+    const workPairs = Array.isArray(adv.foundationalTagPairings.workAppropriate) ? adv.foundationalTagPairings.workAppropriate : [];
+    if (originalPairs.length) {
+      body += row("Original pairings", `${originalPairs.length} shown`);
+      originalPairs.forEach((pair, index) => {
+        body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
+      });
+    }
+    if (workPairs.length) {
+      body += row("Work Appropriate pairings", `${workPairs.length} shown`);
+      workPairs.forEach((pair, index) => {
+        body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
+      });
+    }
+    html += section("Foundational tag pairings", body);
   }
 
   if (Array.isArray(adv.tagTrending) && adv.tagTrending.length) {
@@ -11396,7 +11434,7 @@ const openAdvancedStatsDialog = (stats) => {
   if (Array.isArray(adv.tagRarityItems) && adv.tagRarityItems.length) {
     let body = hint("Rarity index looks for unusually specific tag combinations. One-of-one mixes are the real deep cuts.");
     adv.tagRarityItems.forEach((item, index) => {
-      body += `<div class="stats-row stats-sub stats-rarity-row"><span class="stats-label">${esc(`${index + 1}. ${item.name} (${item.tab}) - ${item.type}`)}</span><span class="stats-value">${esc(`${item.comboCount === 1 ? "One-of-one combo" : `Shared by ${item.comboCount} items`} | ${item.tags.join(", ")}`)}</span></div>`;
+      body += `<div class="stats-row stats-sub stats-rarity-row"><span class="stats-label"><span class="stats-rarity-name">${esc(`${index + 1}. ${item.name}`)}</span><span class="stats-rarity-meta">${esc(`${item.tab} - ${item.type}`)}</span></span><span class="stats-value">${esc(`${item.comboCount === 1 ? "One-of-one combo" : `Shared by ${item.comboCount} items`} | ${item.tags.join(", ")}`)}</span></div>`;
     });
     html += section("Rarity index", body);
   }
@@ -12697,7 +12735,8 @@ const buildAdvancedStatsHelpHtml = () => {
       { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak. Each expanded tag also includes a link to view all items carrying that tag." },
       { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
       { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
-      { label: "Tag co-occurrence", value: "Shows which tag pairs most often appear together on the same item." },
+      { label: "Tag co-occurrence", value: "Shows which tag pairs most often appear together on the same item, excluding Original and Work Appropriate so those high-volume defaults do not drown out the rest." },
+      { label: "Foundational tag pairings", value: "Breaks out Original and Work Appropriate into their own pairing section so their numbers stay visible without skewing the main co-occurrence table." },
       { label: "Trending tags", value: "Highlights tags whose add-plus-wear activity spiked over the last 30 days compared with the prior 30-day window." },
       { label: "Rarity index", value: "Calls out shirts whose exact tag combinations are unusually rare compared with the rest of the closet." },
       { label: "Time-series tagging", value: "Maps tag-linked wear usage month by month so seasonal swings are visible." },

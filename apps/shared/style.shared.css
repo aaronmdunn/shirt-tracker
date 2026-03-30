@@ -2786,11 +2786,24 @@ dialog {
 .stats-rarity-row .stats-label {
   flex: 0 0 clamp(230px, 38%, 360px);
   max-width: clamp(230px, 38%, 360px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  white-space: normal;
   word-break: normal;
   overflow-wrap: normal;
+}
+
+.stats-rarity-name {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 62%, #4f6071);
+  line-height: 1.25;
+}
+
+.stats-rarity-meta {
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--ink) 48%, #6b7a88);
+  line-height: 1.25;
 }
 
 .stats-rarity-row .stats-value {
