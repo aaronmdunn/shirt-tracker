@@ -10207,11 +10207,37 @@ const collectAllStats = () => {
       };
     })
     .sort((a, b) => b.samples - a.samples || b.avgWears - a.avgWears || a.tag.localeCompare(b.tag));
+  const untaggedItems = isInventory
+    ? allRows
+      .map((entry) => {
+        const tags = getRowTags(entry.row).filter((tag) => tag && tag !== "Original");
+        if (tags.length) return null;
+        return {
+          name: getCellValue(entry, "Name") || "Unnamed",
+          tab: entry.tabName || "",
+          type: getCellValue(entry, "Type") || "Unknown",
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.tab.localeCompare(b.tab) || a.name.localeCompare(b.name) || a.type.localeCompare(b.type))
+    : [];
   const collectorDnaTopTags = tagPerformance
     .slice()
     .sort((a, b) => b.samples - a.samples || b.totalValue - a.totalValue || a.tag.localeCompare(b.tag))
     .slice(0, 3);
   const totalTagAssignments = tagPerformance.reduce((sum, item) => sum + item.samples, 0);
+  const buildCollectorDnaArchetype = (topTags, avgTagsPerItem, coveragePct) => {
+    if (!topTags.length) return "The Untagged Enigma";
+    const leadTag = topTags[0].tag;
+    const suffix = avgTagsPerItem >= 2.7
+      ? "Lore Architect"
+      : avgTagsPerItem >= 2
+        ? "Signal Cartographer"
+        : coveragePct >= 80
+          ? "Closet Pathfinder"
+          : "Tag Scout";
+    return `${leadTag} ${suffix}`;
+  };
   const collectorDna = {
     taggedItems: taggedItems.length,
     knownTags: tagPerformance.length,
@@ -10223,8 +10249,9 @@ const collectAllStats = () => {
       sharePct: totalTagAssignments ? Math.round((item.samples / totalTagAssignments) * 100) : 0,
     })),
   };
+  collectorDna.archetype = buildCollectorDnaArchetype(collectorDna.topTags, collectorDna.avgTagsPerItem, collectorDna.coveragePct);
   collectorDna.summary = collectorDna.topTags.length
-    ? `Your Collector DNA: ${collectorDna.topTags.map((item) => `${item.sharePct}% ${item.tag}`).join(", ")}.`
+    ? `Archetype unlocked: ${collectorDna.archetype}. Core signals read ${collectorDna.topTags.map((item) => `${item.sharePct}% ${item.tag}`).join(", ")}.`
     : "Not enough tagged items yet to map your collector DNA.";
   const tagTrending = tagPerformance
     .filter((item) => item.recentActivity > 0 && (item.activityDelta > 0 || item.priorActivity === 0))
@@ -10290,6 +10317,7 @@ const collectAllStats = () => {
     tagSeasonalityByMonth,
     tagEras,
     collectorDna,
+    untaggedItems,
     closetHealth: {
       score: closetHealthScore,
       recencyPct,
@@ -11187,13 +11215,21 @@ const openAdvancedStatsDialog = (stats) => {
         <div class="insights-score-note">${esc(`${item.samples} tagged items`)}</div>
       </div>
     `)).join("");
-    html += section("Collector DNA",
+    html += section(`Collector DNA: ${adv.collectorDna.archetype || "Closet Cartographer"}`,
       hint(adv.collectorDna.summary || "Not enough tagged items yet to map your collector DNA.") +
       row("Tagged wearable items", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
       row("Known tags", String(adv.collectorDna.knownTags || 0)) +
       row("Avg tags per tagged item", `${(adv.collectorDna.avgTagsPerItem || 0).toFixed(1)}`) +
       (dnaCards ? `<div class="insights-score-grid">${dnaCards}</div>` : "")
     );
+  }
+
+  if (Array.isArray(adv.untaggedItems) && adv.untaggedItems.length) {
+    let body = hint(`These items are still flying under the radar with no tags yet. ${adv.untaggedItems.length} ${adv.untaggedItems.length === 1 ? "item needs a tag" : "items need tags"}.`);
+    adv.untaggedItems.forEach((item, index) => {
+      body += sub(`${index + 1}. ${item.name} (${item.tab}) - ${item.type}`, "No tags yet");
+    });
+    html += section("Untagged items", body);
   }
 
   if (Array.isArray(adv.tagPerformance) && adv.tagPerformance.length) {
@@ -11205,11 +11241,7 @@ const openAdvancedStatsDialog = (stats) => {
       const cpw = tag.avgCpw === null ? "n/a" : `${formatCurrency(tag.avgCpw)}/wear`;
       const recentWindow = (tag.recentAdds || 0) + (tag.recentWears || 0);
       const priorWindow = (tag.priorAdds || 0) + (tag.priorWears || 0);
-      body += row(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw} | ${formatCurrency(tag.totalValue || 0)} footprint`);
-      body += sub("Top co-tags", formatTagCountList(tag.coTags));
-      body += sub("30-day trend", `${tag.trendLabel || "steady"} | ${tag.recentAdds || 0} adds + ${tag.recentWears || 0} wears vs ${priorWindow} prior events`);
-      body += sub("Seasonal peak", tag.peakMonth ? `${tag.peakMonth} (${tag.peakMonthCount || 0} tag-linked wears)` : "No tagged wear history yet");
-      body += sub("Rare mix share", `${tag.rareMixPct || 0}% one-of-one combos | ${recentWindow} recent events | ${(tag.avgTagsPerItem || 0).toFixed(1)} avg tags/item`);
+      body += `<details class="stats-tab-details advanced-tag-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(`${tag.tag} (${tag.samples})`)}</span><span class="stats-value">${esc(`${tag.avgWears.toFixed(1)} avg wears | ${formatCurrency(tag.totalValue || 0)} footprint`)}</span></summary><div class="stats-tab-body">${row("Average performance", `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`)}${sub("Top co-tags", formatTagCountList(tag.coTags))}${sub("30-day trend", `${tag.trendLabel || "steady"} | ${tag.recentAdds || 0} adds + ${tag.recentWears || 0} wears vs ${priorWindow} prior events`)}${sub("Seasonal peak", tag.peakMonth ? `${tag.peakMonth} (${tag.peakMonthCount || 0} tag-linked wears)` : "No tagged wear history yet")}${sub("Rare mix share", `${tag.rareMixPct || 0}% one-of-one combos | ${recentWindow} recent events | ${(tag.avgTagsPerItem || 0).toFixed(1)} avg tags/item`)}</div></details>`;
     });
     html += section("Tag performance", body);
   }
@@ -12524,6 +12556,8 @@ const buildAdvancedStatsHelpHtml = () => {
     "These sections explain how labels and purpose lanes are performing.",
     [
       { label: "Collector DNA", value: "Summarizes tag coverage, known-tag count, average tags per item, and the top tag identities shaping the closet." },
+      { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
+      { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
       { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak." },
       { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
       { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
