@@ -2663,8 +2663,18 @@ dialog {
 }
 
 #stats-coaching-help-dialog .stats-sub .stats-label {
+  flex: 0 0 210px;
+  min-width: 210px;
   font-weight: 700;
   color: color-mix(in srgb, var(--ink) 70%, #435364);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+#stats-coaching-help-dialog .stats-sub .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .stats-sub .stats-value {
