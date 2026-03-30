@@ -9330,7 +9330,7 @@ const collectAllStats = () => {
         if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
       });
     });
-    return Object.entries(tagCounts).filter(([tag]) => tag !== "Original").sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
   };
 
   const buildStatsFor = (subset) => {
@@ -9777,12 +9777,21 @@ const collectAllStats = () => {
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   };
+  const inventoryTagItems = [];
   const wearableUniverse = [];
   if (isInventory) {
     perTabRows.forEach((tab) => {
       tab.entries.forEach((entry) => {
         const name = getCellValue(entry, "Name") || "Unnamed";
         const type = getCellValue(entry, "Type") || "Unknown";
+        inventoryTagItems.push({
+          rowId: entry.row.id,
+          tabId: tab.id,
+          name,
+          tab: tab.name,
+          type,
+          tags: getRowTags(entry.row),
+        });
         if (isWearExcludedType(type)) return;
         const price = parseCurrency(getCellValue(entry, "Price"));
         const analyticsWear = getAnalyticsWearData(entry.row);
@@ -10030,7 +10039,7 @@ const collectAllStats = () => {
   const priorTagWindowStartMs = recentTagWindowStartMs - TAG_TREND_WINDOW_MS;
   const normalizeWearableTags = (tags) => (Array.isArray(tags) ? tags : [])
     .map((tag) => canonicalizeTagLabel(tag))
-    .filter((tag) => tag && tag !== "Original")
+    .filter((tag) => tag)
     .sort((a, b) => a.localeCompare(b));
   const monthKeyFromDate = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
   const weekStartKeyFromDate = (dateObj) => {
@@ -10557,6 +10566,7 @@ const collectAllStats = () => {
     unwornOverSixMonths,
     last5Worn,
     wearEvents,
+    inventoryTagItems,
     wearableItems: wearableUniverse,
     brandByDayOfWeek,
     brandByMonth,
@@ -11117,10 +11127,10 @@ const openAdvancedStatsDialog = (stats) => {
   const formalLane = buildTaggedLaneStats(s.wearableItems || [], ["formal"]);
   const holidayLane = buildTaggedLaneStats(s.wearableItems || [], HOLIDAY_LANE_TAG_ALIASES);
   const tagItemLookup = new Map();
-  (s.wearableItems || []).forEach((item) => {
+  (s.inventoryTagItems || []).forEach((item) => {
     const tags = (Array.isArray(item?.tags) ? item.tags : [])
       .map((tag) => canonicalizeTagLabel(tag))
-      .filter((tag) => tag && tag !== "Original");
+      .filter((tag) => tag);
     tags.forEach((tag) => {
       if (!tagItemLookup.has(tag)) tagItemLookup.set(tag, []);
       tagItemLookup.get(tag).push({
@@ -12482,7 +12492,6 @@ const buildMainStatsHelpHtml = (stats) => {
       { label: "Top fandoms", value: "The most common fandom values currently shown." },
       { label: "Size breakdown", value: "How your sizes are distributed across the current set of items." },
       { label: "Condition breakdown", value: "Inventory only. Shows how many items are NWT, NWOT, worn, and other condition states." },
-      { label: "Top tags", value: "The tags you use most often. This helps reveal which themes dominate the closet." },
       { label: "Items tagged / tag coverage", value: "How many items have at least one tag, plus the percent of the closet that is tagged at all." },
     ]
   );
@@ -16064,7 +16073,6 @@ const openStatsDialog = () => {
   html += renderTallySection("Top types", s.typeTally, 5);
   html += renderTallySection("Top fandoms", s.fandomTally, 5);
   html += renderTallySection("Size breakdown", s.sizeTally);
-  if (s.topTags.length) html += renderTallySection("Top tags", s.topTags);
 
   // --- Tag coverage (inventory only) ---
   if (s.isInventory && s.totalItems > 0) {
