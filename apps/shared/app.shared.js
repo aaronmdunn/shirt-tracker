@@ -51,6 +51,7 @@ const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
+const INSIGHTS_SELL_DISMISS_KEY = "shirts-insights-sell-dismiss-v1";
 const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
 const NO_BUY_GAMIFY_KEY = "shirts-no-buy-gamify-v1";
 
@@ -10967,6 +10968,40 @@ const saveInsightsSnoozes = (value) => {
   }
 };
 
+const loadInsightsSellDismissals = () => {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(localStorage.getItem(INSIGHTS_SELL_DISMISS_KEY) || "{}");
+  } catch (error) {
+    parsed = {};
+  }
+  if (!parsed || typeof parsed !== "object") return {};
+  const todayKey = localDateKeyFromDate(new Date());
+  const next = {};
+  Object.entries(parsed).forEach(([key, dismissedOn]) => {
+    const normalized = String(dismissedOn || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized >= todayKey) {
+      next[key] = normalized;
+    }
+  });
+  if (Object.keys(next).length !== Object.keys(parsed).length) {
+    try {
+      localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(next));
+    } catch (error) {
+      // ignore
+    }
+  }
+  return next;
+};
+
+const saveInsightsSellDismissals = (value) => {
+  try {
+    localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(value || {}));
+  } catch (error) {
+    // ignore
+  }
+};
+
 const getInsightsQueueKey = (item) => `${String(item.name || "").trim().toLowerCase()}||${String(item.tab || "").trim().toLowerCase()}||${String(item.type || "").trim().toLowerCase()}`;
 
 const normalizeInsightsQueueActivity = (value) => {
@@ -11956,7 +11991,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
       { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
       { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
-      { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces." },
+      { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces. Use the dismiss action to hide an item for 30 days." },
       { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
       { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
     ]
@@ -12861,7 +12896,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     delete bucket.wearSamples;
   });
 
-  const sellSuggestions = wearableItems
+  const rawSellSuggestions = wearableItems
     .map((item) => {
       if (isProtectedTagged(item) || isSeasonalExempt(item)) return null;
       if (item?.createdAt) {
@@ -12927,6 +12962,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
     .filter(Boolean)
     .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
     .slice(0, 5);
+  const dismissedSellSuggestions = loadInsightsSellDismissals();
+  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]);
 
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
@@ -14454,13 +14491,13 @@ const openInsightsDialog = (stats, options = {}) => {
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
-      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces.</div>
+      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days.</div>
       ${sellSuggestions.length
-    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">No, I'm not selling this</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
-      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
+      <div class="insights-action-list insights-marketplace-details">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency. Use Not today when a pass is about timing, not rejection.</div>
       ${bench.length
@@ -14662,6 +14699,20 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
+      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+    });
+  });
+
+  const sellDismissButtons = content.querySelectorAll("[data-insights-sell-dismiss]");
+  sellDismissButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.getAttribute("data-insights-sell-dismiss");
+      if (!key) return;
+      const next = loadInsightsSellDismissals();
+      const until = new Date();
+      until.setDate(until.getDate() + 30);
+      next[key] = localDateKeyFromDate(until);
+      saveInsightsSellDismissals(next);
       openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
     });
   });

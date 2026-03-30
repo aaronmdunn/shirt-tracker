@@ -3175,6 +3175,35 @@ input[type="date"].stats-date-input {
   gap: 4px;
 }
 
+#insights-dialog .insights-sell-row {
+  align-items: center;
+}
+
+#insights-dialog .insights-sell-row .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#insights-dialog .insights-sell-dismiss {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#insights-dialog .insights-marketplace-details .stats-label {
+  flex: 0 0 190px;
+  min-width: 190px;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+#insights-dialog .insights-marketplace-details .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .insights-controls {
   display: flex;
   flex-wrap: wrap;
