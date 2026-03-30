@@ -6478,6 +6478,7 @@ const matchesTagFilter = (row, queryLower) => {
 const BASE_TAG_SUGGESTIONS = [
   "Floral",
   "Christmas",
+  "Cinco de Mayo",
   "Halloween",
   "Holiday",
   "Patriotic",
@@ -11762,7 +11763,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const isWhaleTagged = (item) => hasTag(item, "whale");
   const isProtectedTagged = (item) => hasAnyTag(item, ["whale", "sentimental", "archive"]);
 
-  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead"];
+  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead", "cincodemayo", "cinco"];
   const holidayMonths = new Set([1, 2, 3, 4, 6, 9, 10, 11]);
   const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
   const isSeasonalExempt = (item) => {
@@ -12544,6 +12545,8 @@ const isFlannelLikeText = (text) => {
   return normalized.includes("flannel") || normalized.includes("borlandflex");
 };
 
+const isHoodieLikeText = (text) => String(text || "").toLowerCase().includes("hoodie");
+
 const buildTaggedLaneStats = (items, aliases, options = {}) => {
   const allItems = Array.isArray(items) ? items : [];
   const aliasSet = new Set((Array.isArray(aliases) ? aliases : [])
@@ -12584,6 +12587,13 @@ const buildTaggedLaneStats = (items, aliases, options = {}) => {
 const getLastMondayOfMay = (year) => {
   const d = new Date(year, 4, 31);
   while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
+  return d;
+};
+
+const getNthWeekdayOfMonth = (year, monthIndex, weekday, occurrence) => {
+  const d = new Date(year, monthIndex, 1);
+  while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + ((Math.max(1, Number(occurrence) || 1) - 1) * 7));
   return d;
 };
 
@@ -12653,12 +12663,22 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const dayOfWeek = safeNow.getDay(); // Sun=0..Sat=6
   const year = safeNow.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
+  const isWarmMonth = !isColdMonth;
   const isSummerMonth = [5, 6, 7].includes(monthIndex); // Jun, Jul, Aug
   const isPeakHeatMonth = [6, 7].includes(monthIndex); // Jul, Aug
+  const isMayFlowersMonth = monthIndex === 4;
+  const isMickeyMonday = dayOfWeek === 1;
+  const isTagPopTuesday = dayOfWeek === 2;
+  const isWhaleWednesday = dayOfWeek === 3;
+  const isFloralFriday = dayOfWeek === 5;
+  const isNationalFlannelDay = monthIndex === 1 && dayOfMonth === 10;
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
+  const presidentsDay = getNthWeekdayOfMonth(year, 1, 1, 3);
   const memorialDay = getLastMondayOfMay(year);
+  const flagDay = new Date(year, 5, 14);
+  const cincoDeMayo = new Date(year, 4, 5);
   const thanksgivingDay = getThanksgivingDate(year);
   const easterDay = getEasterDate(year);
   const mardiGrasDay = getMardiGrasDate(year);
@@ -12668,7 +12688,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
     {
       id: "usa",
       label: "USA holiday",
-      dates: [memorialDay, new Date(year, 6, 4)],
+      dates: [presidentsDay, memorialDay, flagDay, new Date(year, 6, 4)],
       aliases: ["usa", "us", "america", "american", "patriotic"],
     },
     {
@@ -12688,6 +12708,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       label: "Valentine's Day",
       dates: [new Date(year, 1, 14)],
       aliases: ["valentinesday", "valentines", "valentine"],
+    },
+    {
+      id: "cincodemayo",
+      label: "Cinco de Mayo",
+      dates: [cincoDeMayo],
+      aliases: ["cincodemayo", "cinco", "5demayo"],
     },
     {
       id: "mardigras",
@@ -12749,7 +12775,20 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
-      const holidayTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
+      const normalizedTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
+      const fandomKey = normalizeHolidayTagKey(fandom);
+      const isFloralItem = tagSet.has("floral") || normalizedTagKeys.has("floral");
+      const isWhaleItem = tagSet.has("whale") || normalizedTagKeys.has("whale");
+      const isLongSleeveTagged = tagSet.has("long sleeve") || normalizedTagKeys.has("longsleeve");
+      const isMickeyDisneyItem = nameKey.includes("mickey")
+        || nameKey.includes("disney")
+        || fandomKey.includes("mickey")
+        || fandomKey.includes("disney")
+        || normalizedTagKeys.has("mickey")
+        || normalizedTagKeys.has("disney");
+      const isStarWarsItem = fandomKey === "starwars"
+        || normalizedTagKeys.has("starwars")
+        || nameKey.includes("starwars");
       const createdAt = item.createdAt || null;
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
@@ -12785,23 +12824,32 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         const rawValuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
         let valuePoints = rawValuePoints;
         // High-value Whale/Holiday items should be less aggressively prioritized.
-        if (tagSet.has("whale")) valuePoints = Math.round(valuePoints * 0.25);
-        if (tagSet.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
+        if (isWhaleItem) valuePoints = Math.round(valuePoints * 0.25);
+        if (tagSet.has("holiday") || normalizedTagKeys.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
         addScore("Item value signal", valuePoints);
         const valueDampener = valuePoints - rawValuePoints;
         addScore("Tag value dampener", valueDampener);
       }
 
-      if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
+      if (isWhaleItem) addScore("Whale baseline penalty", -28);
 
       if (isColdMonth && isFlannelLikeText(typeLower)) {
-        addScore("Flannel in cold-month season", 45);
+        addScore("Flannel in cold-month season", 34);
+      }
+      if (isColdMonth && isHoodieLikeText(typeLower)) {
+        addScore("Hoodie in cold-month season", 32);
       }
       if (isSummerMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel summer penalty", -170);
       }
       if (isPeakHeatMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel peak-heat penalty", -120);
+      }
+      if (isWarmMonth && isLongSleeveTagged) {
+        addScore("Warm-month long-sleeve penalty", -26);
+      }
+      if (isWarmMonth && isHoodieLikeText(typeLower) && isLongSleeveTagged) {
+        addScore("Warm-month hoodie long-sleeve penalty", -22);
       }
 
       const summerPriorityKeys = [
@@ -12814,7 +12862,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         "bottleblend",
       ];
       const hasSummerPriorityMatch = summerPriorityKeys.some((key) =>
-        typeKey.includes(key) || nameKey.includes(key) || holidayTagKeys.has(key)
+        typeKey.includes(key) || nameKey.includes(key) || normalizedTagKeys.has(key)
       );
       if (isSummerMonth && hasSummerPriorityMatch) {
         addScore("Summer fabric/style boost", 72);
@@ -12824,8 +12872,20 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       }
 
       // Date-aware thematic boosts (queue naturally changes day to day).
-      if (tagSet.has("floral") && dayOfWeek === 5) {
+      if (isMayFlowersMonth && isFloralItem) {
+        addScore("May Flowers daily floral boost", 60);
+      }
+      if (isFloralItem && isFloralFriday) {
         addScore("Floral Friday boost", 42);
+      }
+      if (isTagPopTuesday && wearCount === 0) {
+        addScore("Tag Pop Tuesday unworn boost", 46);
+      }
+      if (isTagPopTuesday && (condition === "nwt" || condition === "nwot")) {
+        addScore("Tag Pop Tuesday NWT boost", 34);
+      }
+      if (isNationalFlannelDay && isFlannelLikeText(typeLower)) {
+        addScore("National Flannel Day boost", 78);
       }
 
       const holidayDistances = holidayProfiles.map((profile) => {
@@ -12837,9 +12897,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       });
       const activeHolidayProfiles = holidayDistances.filter((entry) => entry.days <= holidayWindowDays);
       const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
-        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
+        profile.aliases.some((alias) => normalizedTagKeys.has(normalizeHolidayTagKey(alias)))
       );
-      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
+      const hasGenericHolidayTag = tagSet.has("holiday") || normalizedTagKeys.has("holiday");
       const matchedActiveHoliday = activeHolidayProfiles
         .filter((entry) => matchedHolidayProfiles.some((profile) => profile.id === entry.profile.id))
         .sort((a, b) => a.days - b.days)[0] || null;
@@ -12868,13 +12928,13 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         }
       }
 
-      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
+      if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) {
         addScore("Star Wars day boost (May 4)", 120);
       }
-      if (nameLower.includes("mickey") && dayOfWeek === 1) {
-        addScore("Monday Mickey boost", 44);
+      if (isMickeyMonday && isMickeyDisneyItem) {
+        addScore("Mickey Monday boost", 52);
       }
-      if (tagSet.has("whale") && dayOfWeek === 3) {
+      if (isWhaleWednesday && isWhaleItem) {
         addScore("Wednesday Whale boost", 58);
       }
 
@@ -12888,22 +12948,35 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel season boost");
+      if (isColdMonth && isHoodieLikeText(typeLower)) reasonParts.push("Hoodie season boost");
       if (isSummerMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel summer penalty");
+      if (isWarmMonth && isLongSleeveTagged) reasonParts.push("Warm-month long-sleeve penalty");
       if (isSummerMonth && hasSummerPriorityMatch) reasonParts.push("Summer fabric boost");
-      if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
+      if (isMayFlowersMonth && isFloralItem) reasonParts.push("May floral boost");
+      if (isFloralItem && isFloralFriday) reasonParts.push("Friday floral boost");
       if (matchedActiveHoliday) reasonParts.push(`${matchedActiveHoliday.profile.label} boost`);
       if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
       if (hasGenericHolidayTag && activeHolidayProfiles.length) reasonParts.push("Holiday window boost");
-      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
-      if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
-      if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
-      if (tagSet.has("whale")) reasonParts.push("Whale deprioritized");
+      if (isNationalFlannelDay && isFlannelLikeText(typeLower)) reasonParts.push("National Flannel Day boost");
+      if (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
+      if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
+      if (isMickeyMonday && isMickeyDisneyItem) reasonParts.push("Mickey Monday boost");
+      if (isWhaleWednesday && isWhaleItem) reasonParts.push("Wednesday Whale boost");
+      if (isWhaleItem) reasonParts.push("Whale deprioritized");
       if (hasGenericHolidayTag && !activeHolidayProfiles.length) reasonParts.push("Holiday deprioritized");
       if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
 
+      const hasThemeBoost = (isMayFlowersMonth && isFloralItem)
+        || (isFloralItem && isFloralFriday)
+        || (isMickeyMonday && isMickeyDisneyItem)
+        || (isWhaleWednesday && isWhaleItem)
+        || (isNationalFlannelDay && isFlannelLikeText(typeLower))
+        || (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4)
+        || (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot"));
+
       let lane = "Rotation pick";
       if (wearCount === 0) lane = "First wear";
-      else if (matchedActiveHoliday || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (tagSet.has("floral") && dayOfWeek === 5)) lane = "Seasonal window";
+      else if (matchedActiveHoliday || hasThemeBoost || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (isColdMonth && isHoodieLikeText(typeLower))) lane = "Seasonal window";
       else if (price !== null && price >= 120 && daysSince !== null && daysSince >= 180) lane = "Value wear";
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
       else if (wearCount >= 2 && daysSince !== null && daysSince >= 120) lane = "Safe return";
