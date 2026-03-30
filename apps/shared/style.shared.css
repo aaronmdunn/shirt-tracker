@@ -2772,6 +2772,25 @@ dialog {
   text-align: right;
 }
 
+.stats-rarity-row {
+  align-items: flex-start;
+}
+
+.stats-rarity-row .stats-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.stats-rarity-row .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+}
+
 /* --- CSS bar charts --- */
 .stats-bar-chart {
   display: flex;
