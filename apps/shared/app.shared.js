@@ -11670,14 +11670,44 @@ const buildNoBuyActionEntries = (state, limit = 10) => {
   return Number.isFinite(limit) ? sortedFallback.slice(0, limit) : sortedFallback;
 };
 
-const openNoBuyHistoryWindow = (entries) => {
+const openNoBuyHistoryDialog = (entries) => {
   const safeEntries = Array.isArray(entries) ? entries : [];
   const esc = (str) => String(str || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
-  const rows = safeEntries.length
+  let dialog = document.getElementById("no-buy-history-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "no-buy-history-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>No-Buy Full History</h3>
+        <div id="no-buy-history-summary" class="stats-hint"></div>
+        <div id="no-buy-history-list" class="insights-action-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="no-buy-history-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#no-buy-history-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#no-buy-history-summary");
+  const list = dialog.querySelector("#no-buy-history-list");
+  if (!list) return;
+  if (summary) {
+    summary.textContent = `${safeEntries.length} logged action${safeEntries.length === 1 ? "" : "s"} sorted newest first.`;
+  }
+
+  list.innerHTML = safeEntries.length
     ? safeEntries.map((entry, idx) => {
         const whenMs = new Date(entry.at).getTime();
         const whenLabel = Number.isFinite(whenMs) ? new Date(whenMs).toLocaleString() : "Unknown date";
@@ -11686,42 +11716,12 @@ const openNoBuyHistoryWindow = (entries) => {
           : entry.type === "cooldown"
             ? "Cooldown started"
             : "Temptation logged";
-        return `<tr><td>${idx + 1}</td><td>${esc(typeLabel)}</td><td>${esc(whenLabel)}</td><td>${esc(noBuyReasonLabel(entry.reason || "other"))}</td></tr>`;
+        return `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span></div>`;
       }).join("")
-    : `<tr><td colspan="4">No no-buy history logged yet.</td></tr>`;
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>No-Buy Full History</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #111; background: #fff; }
-    h1 { margin: 0 0 8px; font-size: 1.4rem; }
-    p { margin: 0 0 16px; color: #555; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #d7d7d7; padding: 8px 10px; text-align: left; vertical-align: top; }
-    th { background: #f5f5f5; }
-    tbody tr:nth-child(even) { background: #fafafa; }
-  </style>
-</head>
-<body>
-  <h1>No-Buy Full History</h1>
-  <p>${esc(`${safeEntries.length} logged action${safeEntries.length === 1 ? "" : "s"} sorted newest first.`)}</p>
-  <table>
-    <thead>
-      <tr><th>#</th><th>Action</th><th>When</th><th>Reason</th></tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>
-</body>
-</html>`;
+    : `<div class="stats-hint">No no-buy history logged yet.</div>`;
 
-  const historyWindow = window.open("", "_blank");
-  if (!historyWindow) return false;
-  historyWindow.document.open();
-  historyWindow.document.write(html);
-  historyWindow.document.close();
-  return true;
+  openDialog(dialog);
+  resetDialogScroll(dialog);
 };
 
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {
@@ -13556,50 +13556,52 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
 const buildWrappedPeriodOptions = (stats, now = new Date()) => {
   const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
   const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
-  const nowMs = now.getTime();
-  const candidateTimes = [];
+  const monthKeys = new Set();
+  const yearKeys = new Set();
+  const registerDate = (value) => {
+    const ms = new Date(value).getTime();
+    if (!Number.isFinite(ms)) return;
+    const d = new Date(ms);
+    monthKeys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    yearKeys.add(String(d.getFullYear()));
+  };
 
   wearEvents.forEach((event) => {
-    const wornMs = new Date(event?.wornAt).getTime();
-    if (Number.isFinite(wornMs)) candidateTimes.push(wornMs);
+    registerDate(event?.wornAt);
   });
   wearableItems.forEach((item) => {
-    const createdMs = new Date(item?.createdAt).getTime();
-    if (Number.isFinite(createdMs)) candidateTimes.push(createdMs);
+    registerDate(item?.createdAt);
   });
 
-  const earliestMs = candidateTimes.length ? Math.min(...candidateTimes) : nowMs;
-  const earliestDate = new Date(earliestMs);
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const earliestMonthStart = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
-  const monthOptions = [];
-  const yearOptions = [];
-
-  for (let cursor = new Date(currentMonthStart); cursor >= earliestMonthStart; cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1)) {
-    const startMs = cursor.getTime();
-    const nextMonthStartMs = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1).getTime();
-    monthOptions.push({
-      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
-      label: cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
-      startMs,
-      endMs: Math.min(nowMs, nextMonthStartMs - 1),
+  const monthOptions = Array.from(monthKeys)
+    .sort((a, b) => b.localeCompare(a))
+    .map((key) => {
+      const [yearPart, monthPart] = key.split("-");
+      const year = Number(yearPart);
+      const monthIndex = Number(monthPart) - 1;
+      return {
+        key,
+        label: new Date(year, monthIndex, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+        startMs: new Date(year, monthIndex, 1).getTime(),
+        endMs: new Date(year, monthIndex + 1, 1).getTime() - 1,
+      };
     });
-  }
 
-  for (let year = now.getFullYear(); year >= earliestDate.getFullYear(); year -= 1) {
-    const startMs = new Date(year, 0, 1).getTime();
-    const nextYearStartMs = new Date(year + 1, 0, 1).getTime();
-    yearOptions.push({
-      key: String(year),
-      label: String(year),
-      startMs,
-      endMs: Math.min(nowMs, nextYearStartMs - 1),
+  const yearOptions = Array.from(yearKeys)
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    .map((key) => {
+      const year = Number(key);
+      return {
+        key,
+        label: key,
+        startMs: new Date(year, 0, 1).getTime(),
+        endMs: new Date(year + 1, 0, 1).getTime() - 1,
+      };
     });
-  }
 
   return {
-    month: monthOptions.length ? monthOptions : [{ key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, label: now.toLocaleDateString(undefined, { month: "long", year: "numeric" }), startMs: currentMonthStart.getTime(), endMs: nowMs }],
-    year: yearOptions.length ? yearOptions : [{ key: String(now.getFullYear()), label: String(now.getFullYear()), startMs: new Date(now.getFullYear(), 0, 1).getTime(), endMs: nowMs }],
+    month: monthOptions,
+    year: yearOptions,
   };
 };
 
@@ -14354,10 +14356,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">Month Wrapped</button>
           <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">Year Wrapped</button>
         </div>
-        <div class="insights-controls">
+        ${periodOptions.length ? `<div class="insights-controls">
           <label class="insights-sim-label" for="insights-story-history-select">${storyPeriod === "month" ? "Choose month" : "Choose year"}</label>
           <select id="insights-story-history-select" class="insights-queue-sim-date">${periodOptions.map((option) => `<option value="${esc(option.key)}" ${option.key === storySelection[storyPeriod] ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select>
-        </div>
+        </div>` : ""}
         <div class="insights-story-shell" tabindex="0">
           <div class="insights-story-track">
             ${slides.map((slide, idx) => `<article class="insights-story-slide ${idx === storyIndex ? "is-active" : ""}" data-insights-story-slide="${idx}">
@@ -14692,9 +14694,6 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Recent button log</div>
     <div class="stats-hint">Last 10 logged no-buy actions, including cooldown starts, temptations, and purchases.</div>
-    <div class="insights-controls" style="justify-content:flex-start; margin-top:6px">
-      <button type="button" class="btn secondary" id="nobuy-open-full-history">Open full history</button>
-    </div>
     ${recentActions.length
       ? `<div class="insights-action-list">${recentActions.map((entry, idx) => {
           const whenMs = new Date(entry.at).getTime();
@@ -14730,6 +14729,9 @@ const openNoBuyGameDialog = (stats) => {
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recovery state</span><span class="stats-value">${esc(recoveryLabel)}</span></div>
+    </div>
+    <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
+      <button type="button" class="btn secondary no-buy-history-open" id="nobuy-open-full-history">Open full history</button>
     </div>
   `;
 
@@ -14784,7 +14786,7 @@ const openNoBuyGameDialog = (stats) => {
   }
   if (fullHistoryBtn) {
     fullHistoryBtn.addEventListener("click", () => {
-      openNoBuyHistoryWindow(fullActionHistory);
+      openNoBuyHistoryDialog(fullActionHistory);
     });
   }
 
