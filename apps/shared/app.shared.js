@@ -470,6 +470,7 @@ const syncDiagnosticsContent = document.getElementById("sync-diagnostics-content
 const publicShareLinkInput = document.getElementById("public-share-link");
 const copyShareLinkButton = document.getElementById("copy-share-link");
 const bulkTagsButton = document.getElementById("bulk-tags");
+const selectAllRowsButton = document.getElementById("select-all-rows");
 const shareColumnsButton = document.getElementById("share-columns-button");
 let copyShareSizingObserver = null;
 const shareColumnsSummary = document.getElementById("share-columns-summary");
@@ -5423,7 +5424,9 @@ const deleteRow = (id) => {
 };
 
 const updateDeleteSelectedState = () => {
+  const selectableRows = Array.from(sheetBody.querySelectorAll(".row-select"));
   const anyChecked = sheetBody.querySelector(".row-select:checked");
+  const allChecked = selectableRows.length > 0 && selectableRows.every((input) => input.checked);
   if (deleteSelectedButton) {
     deleteSelectedButton.disabled = !anyChecked;
   }
@@ -5433,6 +5436,10 @@ const updateDeleteSelectedState = () => {
   if (bulkTagsButton) {
     bulkTagsButton.disabled = !anyChecked;
     bulkTagsButton.style.display = appMode === "wishlist" ? "none" : "";
+  }
+  if (selectAllRowsButton) {
+    selectAllRowsButton.disabled = !selectableRows.length || allChecked;
+    selectAllRowsButton.style.display = appMode === "wishlist" ? "none" : "";
   }
 };
 
@@ -5458,6 +5465,15 @@ const deleteSelectedRows = () => {
 const clearRowSelections = () => {
   sheetBody.querySelectorAll(".row-select:checked").forEach((input) => {
     input.checked = false;
+  });
+  updateDeleteSelectedState();
+};
+
+const selectAllVisibleRows = () => {
+  const selectableRows = Array.from(sheetBody.querySelectorAll(".row-select"));
+  if (!selectableRows.length) return;
+  selectableRows.forEach((input) => {
+    input.checked = true;
   });
   updateDeleteSelectedState();
 };
@@ -8371,6 +8387,12 @@ if (tagsAddButton) {
 if (bulkTagsButton) {
   bulkTagsButton.addEventListener("click", () => {
     openBulkTagsDialog();
+  });
+}
+
+if (selectAllRowsButton) {
+  selectAllRowsButton.addEventListener("click", () => {
+    selectAllVisibleRows();
   });
 }
 
@@ -11594,6 +11616,112 @@ const exportNoBuyLogJson = (state) => {
   window.setTimeout(() => URL.revokeObjectURL(href), 0);
 };
 
+const buildNoBuyActionEntries = (state, limit = 10) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const fromActionLog = Array.isArray(safe.actionLog)
+    ? safe.actionLog
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry, idx) => ({
+          at: String(entry.at || ""),
+          type: String(entry.type || ""),
+          reason: String(entry.reason || "other"),
+          source: "actionLog",
+          sourceIndex: idx,
+        }))
+    : [];
+  const sortedActionLog = fromActionLog
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  if (sortedActionLog.length) {
+    return Number.isFinite(limit) ? sortedActionLog.slice(0, limit) : sortedActionLog;
+  }
+
+  const fallback = [];
+  if (Array.isArray(safe.buyLog)) {
+    safe.buyLog.forEach((entry) => {
+      const dateKey = String(entry?.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+      fallback.push({
+        at: `${dateKey}T12:00:00`,
+        type: "purchase",
+        reason: String(entry?.reason || "other"),
+        source: "buyLog",
+        dateKey,
+      });
+    });
+  }
+  if (Array.isArray(safe.dailyCheckins)) {
+    safe.dailyCheckins.forEach((entry) => {
+      if (!entry?.tempted) return;
+      const dateKey = String(entry?.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+      fallback.push({
+        at: `${dateKey}T12:00:00`,
+        type: "temptation",
+        reason: String(entry?.trigger || "other"),
+        source: "dailyCheckins",
+        dateKey,
+      });
+    });
+  }
+  const sortedFallback = fallback
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return Number.isFinite(limit) ? sortedFallback.slice(0, limit) : sortedFallback;
+};
+
+const openNoBuyHistoryWindow = (entries) => {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const rows = safeEntries.length
+    ? safeEntries.map((entry, idx) => {
+        const whenMs = new Date(entry.at).getTime();
+        const whenLabel = Number.isFinite(whenMs) ? new Date(whenMs).toLocaleString() : "Unknown date";
+        const typeLabel = entry.type === "purchase"
+          ? "Buy logged"
+          : entry.type === "cooldown"
+            ? "Cooldown started"
+            : "Temptation logged";
+        return `<tr><td>${idx + 1}</td><td>${esc(typeLabel)}</td><td>${esc(whenLabel)}</td><td>${esc(noBuyReasonLabel(entry.reason || "other"))}</td></tr>`;
+      }).join("")
+    : `<tr><td colspan="4">No no-buy history logged yet.</td></tr>`;
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>No-Buy Full History</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #111; background: #fff; }
+    h1 { margin: 0 0 8px; font-size: 1.4rem; }
+    p { margin: 0 0 16px; color: #555; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d7d7d7; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f5f5f5; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+  </style>
+</head>
+<body>
+  <h1>No-Buy Full History</h1>
+  <p>${esc(`${safeEntries.length} logged action${safeEntries.length === 1 ? "" : "s"} sorted newest first.`)}</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Action</th><th>When</th><th>Reason</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`;
+
+  const historyWindow = window.open("", "_blank");
+  if (!historyWindow) return false;
+  historyWindow.document.open();
+  historyWindow.document.write(html);
+  historyWindow.document.close();
+  return true;
+};
+
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   const safe = normalizeNoBuyGamifyState(state || {});
   const source = String(descriptor.source || "");
@@ -13423,6 +13551,56 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
   ];
 };
 
+const buildWrappedPeriodOptions = (stats, now = new Date()) => {
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const nowMs = now.getTime();
+  const candidateTimes = [];
+
+  wearEvents.forEach((event) => {
+    const wornMs = new Date(event?.wornAt).getTime();
+    if (Number.isFinite(wornMs)) candidateTimes.push(wornMs);
+  });
+  wearableItems.forEach((item) => {
+    const createdMs = new Date(item?.createdAt).getTime();
+    if (Number.isFinite(createdMs)) candidateTimes.push(createdMs);
+  });
+
+  const earliestMs = candidateTimes.length ? Math.min(...candidateTimes) : nowMs;
+  const earliestDate = new Date(earliestMs);
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const earliestMonthStart = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+  const monthOptions = [];
+  const yearOptions = [];
+
+  for (let cursor = new Date(currentMonthStart); cursor >= earliestMonthStart; cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1)) {
+    const startMs = cursor.getTime();
+    const nextMonthStartMs = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1).getTime();
+    monthOptions.push({
+      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
+      label: cursor.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+      startMs,
+      endMs: Math.min(nowMs, nextMonthStartMs - 1),
+    });
+  }
+
+  for (let year = now.getFullYear(); year >= earliestDate.getFullYear(); year -= 1) {
+    const startMs = new Date(year, 0, 1).getTime();
+    const nextYearStartMs = new Date(year + 1, 0, 1).getTime();
+    yearOptions.push({
+      key: String(year),
+      label: String(year),
+      startMs,
+      endMs: Math.min(nowMs, nextYearStartMs - 1),
+    });
+  }
+
+  return {
+    month: monthOptions.length ? monthOptions : [{ key: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`, label: now.toLocaleDateString(undefined, { month: "long", year: "numeric" }), startMs: currentMonthStart.getTime(), endMs: nowMs }],
+    year: yearOptions.length ? yearOptions : [{ key: String(now.getFullYear()), label: String(now.getFullYear()), startMs: new Date(now.getFullYear(), 0, 1).getTime(), endMs: nowMs }],
+  };
+};
+
 const openInsightsDialog = (stats, options = {}) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
@@ -13488,6 +13666,7 @@ const openInsightsDialog = (stats, options = {}) => {
   const nowMs = now.getTime();
   const monthLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const yearLabel = String(now.getFullYear());
+  const wrappedPeriodOptions = buildWrappedPeriodOptions(stats, now);
   const monthDna = buildStyleDnaPeriod(stats, monthStartMs, nowMs);
   const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
   const workLane = buildTaggedLaneStats(stats?.wearableItems || [], ["workappropriate", "work appropriate"], { nowMs });
@@ -14127,9 +14306,28 @@ const openInsightsDialog = (stats, options = {}) => {
     let storyOpen = false;
     let storyPeriod = "month";
     let storyIndex = 0;
-    const periodData = {
-      month: { label: monthLabel, dna: monthDna },
-      year: { label: yearLabel, dna: yearDna },
+    const storySelection = {
+      month: wrappedPeriodOptions.month[0]?.key || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+      year: wrappedPeriodOptions.year[0]?.key || String(now.getFullYear()),
+    };
+    const dnaCache = {
+      [`month:${storySelection.month}`]: monthDna,
+      [`year:${storySelection.year}`]: yearDna,
+    };
+
+    const getActiveStoryOption = () => {
+      const optionsForPeriod = wrappedPeriodOptions[storyPeriod] || [];
+      const selectedKey = storySelection[storyPeriod];
+      return optionsForPeriod.find((option) => option.key === selectedKey) || optionsForPeriod[0] || null;
+    };
+
+    const getStoryDna = (period, option) => {
+      if (!option) return buildStyleDnaPeriod(stats, nowMs, nowMs);
+      const cacheKey = `${period}:${option.key}`;
+      if (!dnaCache[cacheKey]) {
+        dnaCache[cacheKey] = buildStyleDnaPeriod(stats, option.startMs, option.endMs);
+      }
+      return dnaCache[cacheKey];
     };
 
     const renderStory = () => {
@@ -14140,8 +14338,10 @@ const openInsightsDialog = (stats, options = {}) => {
         return;
       }
 
-      const active = periodData[storyPeriod] || periodData.month;
-      const slides = buildWrappedStorySlides(active.label, active.dna);
+      const activeOption = getActiveStoryOption();
+      const activeLabel = activeOption?.label || (storyPeriod === "year" ? yearLabel : monthLabel);
+      const slides = buildWrappedStorySlides(activeLabel, getStoryDna(storyPeriod, activeOption));
+      const periodOptions = wrappedPeriodOptions[storyPeriod] || [];
       if (storyIndex < 0) storyIndex = 0;
       if (storyIndex >= slides.length) storyIndex = slides.length - 1;
 
@@ -14149,8 +14349,12 @@ const openInsightsDialog = (stats, options = {}) => {
       storyRoot.classList.add("is-open");
       storyRoot.innerHTML = `
         <div class="insights-story-periods" role="tablist" aria-label="Story period">
-          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">${esc(`${monthLabel} Wrapped`)}</button>
-          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">${esc(`${yearLabel} Wrapped`)}</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">Month Wrapped</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">Year Wrapped</button>
+        </div>
+        <div class="insights-controls">
+          <label class="insights-sim-label" for="insights-story-history-select">${storyPeriod === "month" ? "Choose month" : "Choose year"}</label>
+          <select id="insights-story-history-select" class="insights-queue-sim-date">${periodOptions.map((option) => `<option value="${esc(option.key)}" ${option.key === storySelection[storyPeriod] ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select>
         </div>
         <div class="insights-story-shell" tabindex="0">
           <div class="insights-story-track">
@@ -14201,6 +14405,15 @@ const openInsightsDialog = (stats, options = {}) => {
           renderStory();
         });
       });
+
+      const historySelect = storyRoot.querySelector("#insights-story-history-select");
+      if (historySelect) {
+        historySelect.addEventListener("change", () => {
+          storySelection[storyPeriod] = String(historySelect.value || storySelection[storyPeriod] || "");
+          storyIndex = 0;
+          renderStory();
+        });
+      }
 
       const dotButtons = storyRoot.querySelectorAll("[data-insights-story-dot]");
       dotButtons.forEach((button) => {
@@ -14292,57 +14505,8 @@ const openNoBuyGameDialog = (stats) => {
   const pressureSummary = getNoBuyPressureSummary(gamify, 30);
   const topTriggerSummary = getNoBuyTriggerSummary(gamify, 14);
   const topTrigger = topTriggerSummary[0] || null;
-  const recentActions = (() => {
-    const fromActionLog = Array.isArray(gamify.actionLog)
-      ? gamify.actionLog
-          .filter((entry) => entry && typeof entry === "object")
-          .map((entry, idx) => ({
-            at: String(entry.at || ""),
-            type: String(entry.type || ""),
-            reason: String(entry.reason || "other"),
-            source: "actionLog",
-            sourceIndex: idx,
-          }))
-      : [];
-    if (fromActionLog.length) {
-      return fromActionLog
-        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-        .slice(0, 10);
-    }
-
-    // Fallback for older synced payloads that predate actionLog.
-    const fallback = [];
-    if (Array.isArray(gamify.buyLog)) {
-      gamify.buyLog.forEach((entry) => {
-        const dateKey = String(entry?.dateKey || "");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-        fallback.push({
-          at: `${dateKey}T12:00:00`,
-          type: "purchase",
-          reason: String(entry?.reason || "other"),
-          source: "buyLog",
-          dateKey,
-        });
-      });
-    }
-    if (Array.isArray(gamify.dailyCheckins)) {
-      gamify.dailyCheckins.forEach((entry) => {
-        if (!entry?.tempted) return;
-        const dateKey = String(entry?.dateKey || "");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-        fallback.push({
-          at: `${dateKey}T12:00:00`,
-          type: "temptation",
-          reason: String(entry?.trigger || "other"),
-          source: "dailyCheckins",
-          dateKey,
-        });
-      });
-    }
-    return fallback
-      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .slice(0, 10);
-  })();
+  const recentActions = buildNoBuyActionEntries(gamify, 10);
+  const fullActionHistory = buildNoBuyActionEntries(gamify, Number.POSITIVE_INFINITY);
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryDaysLeft = recoveryActive
@@ -14526,6 +14690,9 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Recent button log</div>
     <div class="stats-hint">Last 10 logged no-buy actions, including cooldown starts, temptations, and purchases.</div>
+    <div class="insights-controls" style="justify-content:flex-start; margin-top:6px">
+      <button type="button" class="btn secondary" id="nobuy-open-full-history">Open full history</button>
+    </div>
     ${recentActions.length
       ? `<div class="insights-action-list">${recentActions.map((entry, idx) => {
           const whenMs = new Date(entry.at).getTime();
@@ -14570,6 +14737,7 @@ const openNoBuyGameDialog = (stats) => {
   const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
   const clearBtn = content.querySelector("#nobuy-checkin-clear");
   const exportBtn = content.querySelector("#nobuy-export-log");
+  const fullHistoryBtn = content.querySelector("#nobuy-open-full-history");
   const triggerSelect = content.querySelector("#nobuy-trigger");
   const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
 
@@ -14610,6 +14778,11 @@ const openNoBuyGameDialog = (stats) => {
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
       exportNoBuyLogJson(loadNoBuyGamifyState());
+    });
+  }
+  if (fullHistoryBtn) {
+    fullHistoryBtn.addEventListener("click", () => {
+      openNoBuyHistoryWindow(fullActionHistory);
     });
   }
 
