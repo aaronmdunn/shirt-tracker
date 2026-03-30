@@ -2772,6 +2772,49 @@ dialog {
   text-align: right;
 }
 
+.stats-rarity-row {
+  align-items: flex-start;
+  gap: 22px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f7f7;
+}
+
+.stats-rarity-row .stats-label {
+  flex: 0 0 clamp(230px, 38%, 360px);
+  max-width: clamp(230px, 38%, 360px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.stats-rarity-name {
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 62%, #4f6071);
+  line-height: 1.25;
+}
+
+.stats-rarity-meta {
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--ink) 48%, #6b7a88);
+  line-height: 1.25;
+}
+
+.stats-rarity-row .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
 /* --- CSS bar charts --- */
 .stats-bar-chart {
   display: flex;
