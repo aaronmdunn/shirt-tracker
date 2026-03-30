@@ -2774,10 +2774,20 @@ dialog {
 
 .stats-rarity-row {
   align-items: flex-start;
+  gap: 22px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f7f7;
 }
 
 .stats-rarity-row .stats-label {
-  flex: 0 0 auto;
+  flex: 0 0 clamp(230px, 38%, 360px);
+  max-width: clamp(230px, 38%, 360px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   word-break: normal;
   overflow-wrap: normal;
@@ -2789,6 +2799,7 @@ dialog {
   text-align: left;
   white-space: normal;
   word-break: break-word;
+  line-height: 1.45;
 }
 
 /* --- CSS bar charts --- */
