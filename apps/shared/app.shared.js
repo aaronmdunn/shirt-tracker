@@ -54,6 +54,21 @@ const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
 const INSIGHTS_SELL_DISMISS_KEY = "shirts-insights-sell-dismiss-v1";
 const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
 const NO_BUY_GAMIFY_KEY = "shirts-no-buy-gamify-v1";
+const COLLECTOR_STATS_TYPE_RULES_KEY = "shirts-collector-stats-type-rules-v1";
+
+const DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST = [
+  "Boxer Briefs",
+  "Socks",
+  "Hat",
+  "Outerwear",
+  "Misc",
+  "Joggers",
+];
+
+const DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST = [
+  "shorts",
+  "chinos",
+];
 
 const CHANGELOG = /* __CHANGELOG_INJECT__ */ [];
 
@@ -681,6 +696,71 @@ const canUseLocalStorage = () => {
     storageStatus.ok = false;
   }
   return storageStatus.ok;
+};
+
+const normalizeCollectorTypeRuleToken = (value) => String(value || "")
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "");
+
+const loadCollectorStatsTypeRulesRaw = () => {
+  if (!canUseLocalStorage()) return "";
+  try {
+    return String(localStorage.getItem(COLLECTOR_STATS_TYPE_RULES_KEY) || "");
+  } catch (error) {
+    return "";
+  }
+};
+
+const saveCollectorStatsTypeRulesRaw = (rawValue) => {
+  if (!canUseLocalStorage()) return;
+  try {
+    const value = String(rawValue || "").trim();
+    if (value) localStorage.setItem(COLLECTOR_STATS_TYPE_RULES_KEY, value);
+    else localStorage.removeItem(COLLECTOR_STATS_TYPE_RULES_KEY);
+  } catch (error) {
+    // ignore
+  }
+};
+
+const parseCollectorStatsTypeRules = (rawValue) => {
+  const exact = new Set(DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
+  const contains = new Set(DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
+  const customLines = [];
+  String(rawValue || "")
+    .split(/[\n,]+/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .forEach((line) => {
+      const lower = line.toLowerCase();
+      let mode = "exact";
+      let value = line;
+      if (lower.startsWith("contains:")) {
+        mode = "contains";
+        value = line.slice(9).trim();
+      } else if (lower.startsWith("exact:")) {
+        value = line.slice(6).trim();
+      }
+      const normalized = normalizeCollectorTypeRuleToken(value);
+      if (!normalized) return;
+      if (mode === "contains") contains.add(normalized);
+      else exact.add(normalized);
+      customLines.push(mode === "contains" ? `contains:${value}` : value);
+    });
+  return { exact, contains, customLines };
+};
+
+const getCollectorStatsTypeRuleSet = () => parseCollectorStatsTypeRules(loadCollectorStatsTypeRulesRaw());
+
+const isCollectorStatsExcludedType = (typeValue, ruleSet = null) => {
+  const normalizedType = normalizeCollectorTypeRuleToken(typeValue);
+  if (!normalizedType) return false;
+  const rules = ruleSet || getCollectorStatsTypeRuleSet();
+  if (rules.exact.has(normalizedType)) return true;
+  for (const token of rules.contains) {
+    if (token && normalizedType.includes(token)) return true;
+  }
+  return false;
 };
 
 const isShirtNameColumn = (column) => {
@@ -9345,17 +9425,31 @@ const collectAllStats = () => {
     };
   };
 
+  const collectorStatsRuleSet = getCollectorStatsTypeRuleSet();
+  const isCollectorStatsEntry = (entry) => !isCollectorStatsExcludedType(getCellValue(entry, "Type"), collectorStatsRuleSet);
+  const collectorStatsRows = allRows.filter(isCollectorStatsEntry);
+  const collectorPerTabRows = perTabRows
+    .map((tab) => ({
+      ...tab,
+      entries: tab.entries.filter(isCollectorStatsEntry),
+    }))
+    .filter((tab) => tab.entries.length > 0)
+    .map((tab) => ({
+      ...tab,
+      count: tab.entries.length,
+    }));
+
   // --- Cross-tab aggregate stats ---
   const globalStats = {
-    ...buildStatsFor(allRows),
-    fandomTally: tallyFrom(allRows, "Fandom", { respectHiddenColumns: true }).slice(0, 5),
+    ...buildStatsFor(collectorStatsRows),
+    fandomTally: tallyFrom(collectorStatsRows, "Fandom", { respectHiddenColumns: true }).slice(0, 5),
   };
-  const totalItems = allRows.length;
+  const totalItems = collectorStatsRows.length;
 
   // --- Name stats ---
   let longestName = { name: "", length: 0 };
   let shortestName = { name: "", length: Infinity };
-  allRows.forEach((entry) => {
+  collectorStatsRows.forEach((entry) => {
     const name = getCellValue(entry, "Name");
     if (!name) return;
     if (name.length > longestName.length) longestName = { name, length: name.length };
@@ -9364,7 +9458,7 @@ const collectAllStats = () => {
   if (shortestName.length === Infinity) shortestName = { name: "", length: 0 };
 
   // --- Per-tab stats (with value ranking, excluding hidden columns) ---
-  const perTab = perTabRows
+  const perTab = collectorPerTabRows
     .sort((a, b) => b.count - a.count)
     .map((tab) => {
       const hiddenIds = columnOverrides.hiddenColumnsByTab[tab.id];
@@ -9378,7 +9472,7 @@ const collectAllStats = () => {
   // --- Value per tab (Inventory only — sorted by value descending) ---
   const valuePerTab = [];
   if (isInventory) {
-    perTabRows.forEach((tab) => {
+    collectorPerTabRows.forEach((tab) => {
       let tabTotal = 0;
       tab.entries.forEach((entry) => {
         const parsed = parseCurrency(getCellValue(entry, "Price"));
@@ -9391,7 +9485,7 @@ const collectAllStats = () => {
 
   // --- Tag coverage ---
   let taggedCount = 0;
-  allRows.forEach((entry) => {
+  collectorStatsRows.forEach((entry) => {
     const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
     if (tags.some((t) => String(t || "").trim())) taggedCount++;
   });
@@ -9407,7 +9501,7 @@ const collectAllStats = () => {
   ];
   const allPrices = [];
   if (isInventory) {
-    allRows.forEach((entry) => {
+    collectorStatsRows.forEach((entry) => {
       const parsed = parseCurrency(getCellValue(entry, "Price"));
       if (parsed !== null && parsed > 0) {
         allPrices.push(parsed);
@@ -9432,7 +9526,7 @@ const collectAllStats = () => {
   // --- Items added per month (createdAt-based) ---
   const monthlyAdds = {};
   const allDatedItems = [];
-  perTabRows.forEach((tab) => {
+  collectorPerTabRows.forEach((tab) => {
     tab.entries.forEach((entry) => {
       if (entry.row.createdAt) {
         const d = new Date(entry.row.createdAt);
@@ -9529,8 +9623,8 @@ const collectAllStats = () => {
     });
     return entropy;
   };
-  const fullTypeTally = tallyFrom(allRows, "Type");
-  const fullFandomTally = tallyFrom(allRows, "Fandom");
+  const fullTypeTally = tallyFrom(collectorStatsRows, "Type");
+  const fullFandomTally = tallyFrom(collectorStatsRows, "Fandom");
   const typeEntropy = shannonEntropy(fullTypeTally);
   const fandomEntropy = shannonEntropy(fullFandomTally);
   const maxTypeEntropy = fullTypeTally.length > 1 ? Math.log2(fullTypeTally.length) : 1;
@@ -9543,7 +9637,7 @@ const collectAllStats = () => {
   const rareFandoms = fullFandomTally.filter(([, c]) => c === 1).map(([name]) => name);
   // --- Whale-tagged items ---
   const whaleItems = [];
-  perTabRows.forEach((tab) => {
+  collectorPerTabRows.forEach((tab) => {
     tab.entries.forEach((entry) => {
       const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
       if (tags.some((t) => String(t || "").trim().toLowerCase() === "whale")) {
@@ -9564,7 +9658,7 @@ const collectAllStats = () => {
   // --- Name word frequency ---
   const wordCounts = {};
   const stopWords = new Set(["the", "a", "an", "and", "or", "of", "in", "on", "for", "to", "with", "is", "at", "by", "from", "it", "its", "no", "not", "but", "be", "as", "do", "my", "so"]);
-  allRows.forEach((entry) => {
+  collectorStatsRows.forEach((entry) => {
     const name = getCellValue(entry, "Name");
     if (!name) return;
     name.split(/[\s\-\/\(\)\[\]:,]+/).forEach((word) => {
@@ -9606,63 +9700,51 @@ const collectAllStats = () => {
 
   // --- Recently deleted ---
   const deletedEntries = loadDeletedRows();
-  const recentlyDeleted = deletedEntries.slice(0, 5).map((entry) => {
-    const name = getRowNameFromEntry(entry);
-    const date = entry.deletedAt ? new Date(entry.deletedAt).toLocaleDateString() : "";
-    const tab = entry.fromTabName || "";
-    const cols = Array.isArray(entry.columns) ? entry.columns : [];
-    const typeCol = cols.find((c) => c.name === "Type");
-    const type = (typeCol && entry.row && entry.row.cells) ? String(entry.row.cells[typeCol.id] || "").trim() : "";
-    return { name, date, tab, type };
-  });
+  const recentlyDeleted = deletedEntries
+    .map((entry) => {
+      const cols = Array.isArray(entry.columns) ? entry.columns : [];
+      const typeCol = cols.find((c) => c.name === "Type");
+      const type = (typeCol && entry.row && entry.row.cells) ? String(entry.row.cells[typeCol.id] || "").trim() : "";
+      if (isCollectorStatsExcludedType(type, collectorStatsRuleSet)) return null;
+      const name = getRowNameFromEntry(entry);
+      const date = entry.deletedAt ? new Date(entry.deletedAt).toLocaleDateString() : "";
+      const tab = entry.fromTabName || "";
+      return { name, date, tab, type };
+    })
+    .filter(Boolean)
+    .slice(0, 5);
 
   // --- Wear-based stats (Inventory only) ---
-  const excludedWearTypes = new Set([
-    "chinos",
-    "boxer briefs",
-    "socks",
-    "hat",
-    "shorts",
-    "hybrid shorts",
-    "joggers",
-    "misc",
-    "outerwear",
-    "bamboo shorts",
-  ]);
-  const isWearExcludedType = (typeVal) => excludedWearTypes.has(String(typeVal || "").trim().toLowerCase());
   const wornItems = [];
   const unwornOverSixMonths = [];
   if (isInventory) {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - 6);
     const cutoffMs = cutoffDate.getTime();
-    perTabRows.forEach((tab) => {
+    collectorPerTabRows.forEach((tab) => {
       tab.entries.forEach((entry) => {
         const analyticsWear = getAnalyticsWearData(entry.row);
         const wc = analyticsWear.wearCount;
         const lw = analyticsWear.lastWorn || null;
         const name = getCellValue(entry, "Name") || "Unnamed";
         const typeVal = getCellValue(entry, "Type");
-        const isWearable = !isWearExcludedType(typeVal);
         const priceRaw = getCellValue(entry, "Price");
         const price = parseCurrency(priceRaw);
         if (wc >= 1) {
           const item = { name, tab: tab.name, wearCount: wc, lastWorn: lw, type: typeVal, price, wearLog: analyticsWear.wearLog };
           wornItems.push(item);
         }
-        if (isWearable) {
-          const lwDate = lw ? new Date(lw) : null;
-          const lwMs = lwDate ? lwDate.getTime() : NaN;
-          if (!lw || Number.isNaN(lwMs) || lwMs < cutoffMs) {
-            const daysSince = !lw || Number.isNaN(lwMs) ? null : Math.floor((Date.now() - lwMs) / 86400000);
-            unwornOverSixMonths.push({
-              name,
-              tab: tab.name,
-              type: typeVal,
-              lastWorn: lw,
-              daysSince,
-            });
-          }
+        const lwDate = lw ? new Date(lw) : null;
+        const lwMs = lwDate ? lwDate.getTime() : NaN;
+        if (!lw || Number.isNaN(lwMs) || lwMs < cutoffMs) {
+          const daysSince = !lw || Number.isNaN(lwMs) ? null : Math.floor((Date.now() - lwMs) / 86400000);
+          unwornOverSixMonths.push({
+            name,
+            tab: tab.name,
+            type: typeVal,
+            lastWorn: lw,
+            daysSince,
+          });
         }
       });
     });
@@ -9780,7 +9862,7 @@ const collectAllStats = () => {
   const inventoryTagItems = [];
   const wearableUniverse = [];
   if (isInventory) {
-    perTabRows.forEach((tab) => {
+    collectorPerTabRows.forEach((tab) => {
       tab.entries.forEach((entry) => {
         const name = getCellValue(entry, "Name") || "Unnamed";
         const type = getCellValue(entry, "Type") || "Unknown";
@@ -9792,7 +9874,6 @@ const collectAllStats = () => {
           type,
           tags: getRowTags(entry.row),
         });
-        if (isWearExcludedType(type)) return;
         const price = parseCurrency(getCellValue(entry, "Price"));
         const analyticsWear = getAnalyticsWearData(entry.row);
         const wearCount = analyticsWear.wearCount;
@@ -10221,7 +10302,7 @@ const collectAllStats = () => {
     })
     .sort((a, b) => b.samples - a.samples || b.avgWears - a.avgWears || a.tag.localeCompare(b.tag));
   const untaggedItems = isInventory
-    ? allRows
+    ? collectorStatsRows
       .map((entry) => {
         const tags = getRowTags(entry.row).filter(Boolean);
         if (tags.length) return null;
@@ -10399,6 +10480,9 @@ const collectAllStats = () => {
           if (!parsedState || !Array.isArray(parsedState.rows) || !Array.isArray(parsedState.columns)) return;
           parsedState.rows.forEach((row) => {
             if (!row || !row.id) return;
+            const typeColumn = parsedState.columns.find((column) => String(column?.name || "").trim().toLowerCase() === "type");
+            const typeValue = (typeColumn && row.cells) ? String(row.cells[typeColumn.id] || "").trim() : "";
+            if (isCollectorStatsExcludedType(typeValue, collectorStatsRuleSet)) return;
             inventoryEntriesById.set(String(row.id), {
               row,
               columns: parsedState.columns,
@@ -11031,6 +11115,77 @@ const openTaggedItemsDialog = (items, tagLabel) => {
   resetDialogScroll(dialog);
 };
 
+const openCollectorTypeRulesDialog = async (options = {}) => {
+  let dialog = document.getElementById("collector-type-rules-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "collector-type-rules-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Collector Stats Type Rules</h3>
+        <div class="stats-hint">Built-in denylist already excludes Boxer Briefs, Socks, Hat, Outerwear, Misc, Joggers, and anything containing Shorts or Chinos. Add custom exclusions below without touching code.</div>
+        <label for="collector-type-rules-input">Custom denylist additions</label>
+        <textarea id="collector-type-rules-input" placeholder="Examples:&#10;Thermal Pants&#10;contains:beanie"></textarea>
+        <div class="stats-hint">Use one rule per line or commas. Matching is case- and punctuation-insensitive. Use <code>contains:</code> for whole families; plain entries are exact-match rules.</div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="collector-type-rules-reset" class="btn secondary">Clear custom rules</button>
+        <button type="button" id="collector-type-rules-cancel" class="btn secondary">Cancel</button>
+        <button type="button" id="collector-type-rules-save" class="btn">Save</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+  }
+
+  const input = dialog.querySelector("#collector-type-rules-input");
+  const saveButton = dialog.querySelector("#collector-type-rules-save");
+  const cancelButton = dialog.querySelector("#collector-type-rules-cancel");
+  const resetButton = dialog.querySelector("#collector-type-rules-reset");
+  if (!input || !saveButton || !cancelButton || !resetButton) return false;
+
+  input.value = loadCollectorStatsTypeRulesRaw();
+
+  const didSave = await new Promise((resolve) => {
+    let settled = false;
+    const cleanup = () => {
+      if (settled) return;
+      settled = true;
+      saveButton.removeEventListener("click", onSave);
+      cancelButton.removeEventListener("click", onCancel);
+      resetButton.removeEventListener("click", onReset);
+      dialog.removeEventListener("cancel", onCancelEvent);
+    };
+    const onSave = () => {
+      saveCollectorStatsTypeRulesRaw(input.value);
+      cleanup();
+      closeDialog(dialog);
+      resolve(true);
+    };
+    const onCancel = () => {
+      cleanup();
+      closeDialog(dialog);
+      resolve(false);
+    };
+    const onReset = () => {
+      input.value = "";
+    };
+    const onCancelEvent = (event) => {
+      event.preventDefault();
+      onCancel();
+    };
+    saveButton.addEventListener("click", onSave);
+    cancelButton.addEventListener("click", onCancel);
+    resetButton.addEventListener("click", onReset);
+    dialog.addEventListener("cancel", onCancelEvent);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    input.focus();
+  });
+
+  if (didSave && typeof options.onSaved === "function") options.onSaved();
+  return didSave;
+};
+
 const openAdvancedStatsDialog = (stats) => {
   let dialog = document.getElementById("advanced-stats-dialog");
   if (!dialog) {
@@ -11042,14 +11197,28 @@ const openAdvancedStatsDialog = (stats) => {
         <div id="advanced-stats-content" class="advanced-stats-content"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="advanced-stats-type-rules" class="btn secondary">Type Rules</button>
         <button type="button" id="advanced-stats-help" class="btn secondary">Help</button>
         <button type="button" id="advanced-stats-close" class="btn">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
 
+    const typeRulesButton = dialog.querySelector("#advanced-stats-type-rules");
     const helpButton = dialog.querySelector("#advanced-stats-help");
     const closeButton = dialog.querySelector("#advanced-stats-close");
+    if (typeRulesButton) {
+      typeRulesButton.addEventListener("click", () => {
+        openCollectorTypeRulesDialog({
+          onSaved: () => {
+            const refreshed = collectAllStats();
+            latestStatsSnapshot = refreshed;
+            openAdvancedStatsDialog(refreshed);
+            if (PLATFORM === "mobile") showToast("Collector type rules updated");
+          },
+        });
+      });
+    }
     if (helpButton) {
       helpButton.addEventListener("click", () => {
         openAdvancedStatsHelpDialog();
@@ -11365,7 +11534,7 @@ const openAdvancedStatsDialog = (stats) => {
     `)).join("");
     html += section(`Collector DNA: ${leftDnaEmojis} ${adv.collectorDna.archetype || "Closet Cartographer"} ${rightDnaEmojis}`,
       hint(adv.collectorDna.summary || "Not enough tagged items yet to map your collector DNA.") +
-      row("Wearables with any tag", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
+      row("Collector items with any tag", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
       row("Analyzed tagged items", String(adv.collectorDna.analyzedTaggedItems || 0)) +
       row("Known tags", String(adv.collectorDna.knownTags || 0)) +
       row("Avg tags per tagged item", `${(adv.collectorDna.avgTagsPerItem || 0).toFixed(1)}`) +
@@ -12537,7 +12706,7 @@ const buildMainStatsHelpHtml = (stats) => {
         { label: "Median price", value: "The middle price when all item prices are sorted from lowest to highest. Median is useful because one very expensive item will not distort it as much as the mean." },
         { label: "Standard deviation", value: "How spread out your prices are. Low means prices cluster together. High means there is a wide gap between cheaper and more expensive pieces." },
         { label: "Top 10 most expensive", value: "The highest-priced pieces in the closet." },
-        { label: "Top 10 cheapest", value: "The least expensive eligible pieces, excluding low-cost categories that would dominate the list." },
+        { label: "Top 10 cheapest", value: "The least expensive eligible pieces in the current stats universe." },
         { label: "Value by tab", value: "How much total dollar value sits inside each brand tab." },
         { label: "Price distribution", value: "A histogram showing how many items fall into each price bucket." },
       ]
@@ -12724,6 +12893,7 @@ const buildAdvancedStatsHelpHtml = () => {
     "These sections explain how labels and purpose lanes are performing.",
     [
       { label: "Collector DNA", value: "Separates broad tag coverage from the non-default tags used for analytics, then summarizes known-tag count, average tags per analyzed item, and the top tag identities shaping the closet." },
+      { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
       { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak. Each expanded tag also includes a link to view all items carrying that tag." },
@@ -16020,7 +16190,7 @@ const openStatsDialog = () => {
       block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
-      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest (excluding Socks, Boxer Briefs, Hat, Misc)</div>`;
+      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest</div>`;
       stats.top5Cheapest.forEach((item, i) => {
         const brand = item.tab || "Unknown";
         const type = item.type || "Unknown";
