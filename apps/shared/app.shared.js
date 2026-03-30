@@ -10221,6 +10221,7 @@ const collectAllStats = () => {
       .filter(Boolean)
       .sort((a, b) => a.tab.localeCompare(b.tab) || a.name.localeCompare(b.name) || a.type.localeCompare(b.type))
     : [];
+  const taggedCoverageItems = wearableUniverse.filter((item) => Array.isArray(item.tags) && item.tags.some(Boolean));
   const collectorDnaTopTags = tagPerformance
     .slice()
     .sort((a, b) => b.samples - a.samples || b.totalValue - a.totalValue || a.tag.localeCompare(b.tag))
@@ -10239,9 +10240,10 @@ const collectAllStats = () => {
     return `${leadTag} ${suffix}`;
   };
   const collectorDna = {
-    taggedItems: taggedItems.length,
+    taggedItems: taggedCoverageItems.length,
     knownTags: tagPerformance.length,
-    coveragePct: wearableUniverse.length ? Math.round((taggedItems.length / wearableUniverse.length) * 100) : 0,
+    coveragePct: wearableUniverse.length ? Math.round((taggedCoverageItems.length / wearableUniverse.length) * 100) : 0,
+    analyzedTaggedItems: taggedItems.length,
     avgTagsPerItem: taggedItems.length ? totalTagAssignments / taggedItems.length : 0,
     topTags: collectorDnaTopTags.map((item) => ({
       tag: item.tag,
@@ -10934,6 +10936,72 @@ const openFirstWearLagDialog = (items) => {
   resetDialogScroll(dialog);
 };
 
+const openTaggedItemsDialog = (items, tagLabel) => {
+  const listItems = Array.isArray(items) ? items.slice() : [];
+  const safeTagLabel = String(tagLabel || "Tag").trim() || "Tag";
+
+  let dialog = document.getElementById("tagged-items-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "tagged-items-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Tagged Items</h3>
+        <div id="tagged-items-summary" class="stats-hint"></div>
+        <div id="tagged-items-list" class="wear-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="tagged-items-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#tagged-items-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const titleEl = dialog.querySelector("h3");
+  const summary = dialog.querySelector("#tagged-items-summary");
+  const list = dialog.querySelector("#tagged-items-list");
+  if (!list) return;
+  if (titleEl) titleEl.textContent = `${safeTagLabel} Tagged Items`;
+  list.textContent = "";
+
+  if (listItems.length === 0) {
+    if (summary) summary.textContent = `No items are currently tagged \"${safeTagLabel}\".`;
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No shirts to show.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) {
+    summary.textContent = `${listItems.length} ${listItems.length === 1 ? "item" : "items"} tagged \"${safeTagLabel}\"`;
+  }
+
+  listItems.forEach((item, index) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "wear-history-item";
+
+    const left = document.createElement("span");
+    left.className = "wear-history-name";
+    left.textContent = `${index + 1}. ${item.name} (${item.tab})${item.type ? ` - ${item.type}` : ""}`;
+
+    rowEl.appendChild(left);
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const openAdvancedStatsDialog = (stats) => {
   let dialog = document.getElementById("advanced-stats-dialog");
   if (!dialog) {
@@ -11003,6 +11071,37 @@ const openAdvancedStatsDialog = (stats) => {
       ? formatDateKeyLabel(item.startKey)
       : `${formatDateKeyLabel(item.startKey)} to ${formatDateKeyLabel(item.endKey)}`;
   };
+  const pickCollectorDnaEmojis = (collectorDna) => {
+    const source = [
+      String(collectorDna?.archetype || ""),
+      ...((collectorDna?.topTags || []).map((item) => String(item?.tag || ""))),
+    ].join(" ").toLowerCase();
+    const matches = [];
+    const groups = [
+      { keywords: ["floral", "flower", "bloom", "rose", "garden", "petal"], emojis: ["🌸", "🌺"] },
+      { keywords: ["holiday", "christmas", "xmas", "hanukkah"], emojis: ["🎄", "✨"] },
+      { keywords: ["halloween", "spooky"], emojis: ["🎃", "🦇"] },
+      { keywords: ["valentine", "love", "heart"], emojis: ["💘", "🌹"] },
+      { keywords: ["whale"], emojis: ["🐋", "🌊"] },
+      { keywords: ["disney", "mickey", "park", "theme park"], emojis: ["🏰", "✨"] },
+      { keywords: ["summer", "beach", "tropical", "hawaii", "aloha"], emojis: ["🌴", "☀️"] },
+      { keywords: ["work", "formal", "office", "business"], emojis: ["👔", "🎩"] },
+      { keywords: ["cozy", "flannel", "autumn", "fall"], emojis: ["🍂", "🧣"] },
+      { keywords: ["space", "sci fi", "scifi", "galaxy", "star"], emojis: ["🚀", "✨"] },
+      { keywords: ["usa", "patriotic", "america", "fourth of july", "4th of july"], emojis: ["🇺🇸", "⭐"] },
+      { keywords: ["sport", "baseball", "football", "basketball"], emojis: ["⚾", "🏈"] },
+    ];
+    groups.forEach((group) => {
+      if (!group.keywords.some((keyword) => source.includes(keyword))) return;
+      group.emojis.forEach((emoji) => {
+        if (!matches.includes(emoji) && matches.length < 4) matches.push(emoji);
+      });
+    });
+    ["👕", "🌸", "👕", "🌸"].forEach((emoji) => {
+      if (matches.length < 4) matches.push(emoji);
+    });
+    return matches.slice(0, 4);
+  };
 
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Advanced stats are currently available in Inventory mode.</div>`;
@@ -11017,6 +11116,23 @@ const openAdvancedStatsDialog = (stats) => {
   const workLane = buildTaggedLaneStats(s.wearableItems || [], ["workappropriate", "work appropriate"]);
   const formalLane = buildTaggedLaneStats(s.wearableItems || [], ["formal"]);
   const holidayLane = buildTaggedLaneStats(s.wearableItems || [], HOLIDAY_LANE_TAG_ALIASES);
+  const tagItemLookup = new Map();
+  (s.wearableItems || []).forEach((item) => {
+    const tags = (Array.isArray(item?.tags) ? item.tags : [])
+      .map((tag) => canonicalizeTagLabel(tag))
+      .filter((tag) => tag && tag !== "Original");
+    tags.forEach((tag) => {
+      if (!tagItemLookup.has(tag)) tagItemLookup.set(tag, []);
+      tagItemLookup.get(tag).push({
+        name: item.name || "Unnamed",
+        tab: item.tab || "",
+        type: item.type || "",
+      });
+    });
+  });
+  tagItemLookup.forEach((items) => {
+    items.sort((a, b) => a.tab.localeCompare(b.tab) || a.name.localeCompare(b.name) || a.type.localeCompare(b.type));
+  });
   let html = "";
 
   if (s.isInventory) {
@@ -11208,6 +11324,9 @@ const openAdvancedStatsDialog = (stats) => {
   }
 
   if (adv.collectorDna && adv.collectorDna.knownTags) {
+    const dnaEmojis = pickCollectorDnaEmojis(adv.collectorDna);
+    const leftDnaEmojis = dnaEmojis.slice(0, 2).join(" ");
+    const rightDnaEmojis = dnaEmojis.slice(2).join(" ");
     const dnaCards = (adv.collectorDna.topTags || []).map((item) => (`
       <div class="insights-score-card">
         <div class="insights-score-title">${esc(item.tag)}</div>
@@ -11215,9 +11334,10 @@ const openAdvancedStatsDialog = (stats) => {
         <div class="insights-score-note">${esc(`${item.samples} tagged items`)}</div>
       </div>
     `)).join("");
-    html += section(`Collector DNA: ${adv.collectorDna.archetype || "Closet Cartographer"}`,
+    html += section(`Collector DNA: ${leftDnaEmojis} ${adv.collectorDna.archetype || "Closet Cartographer"} ${rightDnaEmojis}`,
       hint(adv.collectorDna.summary || "Not enough tagged items yet to map your collector DNA.") +
-      row("Tagged wearable items", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
+      row("Wearables with any tag", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
+      row("Analyzed tagged items", String(adv.collectorDna.analyzedTaggedItems || 0)) +
       row("Known tags", String(adv.collectorDna.knownTags || 0)) +
       row("Avg tags per tagged item", `${(adv.collectorDna.avgTagsPerItem || 0).toFixed(1)}`) +
       (dnaCards ? `<div class="insights-score-grid">${dnaCards}</div>` : "")
@@ -11241,7 +11361,7 @@ const openAdvancedStatsDialog = (stats) => {
       const cpw = tag.avgCpw === null ? "n/a" : `${formatCurrency(tag.avgCpw)}/wear`;
       const recentWindow = (tag.recentAdds || 0) + (tag.recentWears || 0);
       const priorWindow = (tag.priorAdds || 0) + (tag.priorWears || 0);
-      body += `<details class="stats-tab-details advanced-tag-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(`${tag.tag} (${tag.samples})`)}</span><span class="stats-value">${esc(`${tag.avgWears.toFixed(1)} avg wears | ${formatCurrency(tag.totalValue || 0)} footprint`)}</span></summary><div class="stats-tab-body">${row("Average performance", `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`)}${sub("Top co-tags", formatTagCountList(tag.coTags))}${sub("30-day trend", `${tag.trendLabel || "steady"} | ${tag.recentAdds || 0} adds + ${tag.recentWears || 0} wears vs ${priorWindow} prior events`)}${sub("Seasonal peak", tag.peakMonth ? `${tag.peakMonth} (${tag.peakMonthCount || 0} tag-linked wears)` : "No tagged wear history yet")}${sub("Rare mix share", `${tag.rareMixPct || 0}% one-of-one combos | ${recentWindow} recent events | ${(tag.avgTagsPerItem || 0).toFixed(1)} avg tags/item`)}</div></details>`;
+      body += `<details class="stats-tab-details advanced-tag-details"><summary class="stats-tab-summary"><span class="stats-label">${esc(`${tag.tag} (${tag.samples})`)}</span><span class="stats-value">${esc(`${tag.avgWears.toFixed(1)} avg wears | ${formatCurrency(tag.totalValue || 0)} footprint`)}</span></summary><div class="stats-tab-body">${row("Average performance", `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`)}${sub("Top co-tags", formatTagCountList(tag.coTags))}${sub("30-day trend", `${tag.trendLabel || "steady"} | ${tag.recentAdds || 0} adds + ${tag.recentWears || 0} wears vs ${priorWindow} prior events`)}${sub("Seasonal peak", tag.peakMonth ? `${tag.peakMonth} (${tag.peakMonthCount || 0} tag-linked wears)` : "No tagged wear history yet")}${sub("Rare mix share", `${tag.rareMixPct || 0}% one-of-one combos | ${recentWindow} recent events | ${(tag.avgTagsPerItem || 0).toFixed(1)} avg tags/item`)}<button type="button" class="stats-link-button advanced-tag-items-link" data-tag="${esc(tag.tag)}">View all items with this tag</button></div></details>`;
     });
     html += section("Tag performance", body);
   }
@@ -11266,7 +11386,7 @@ const openAdvancedStatsDialog = (stats) => {
   if (Array.isArray(adv.tagRarityItems) && adv.tagRarityItems.length) {
     let body = hint("Rarity index looks for unusually specific tag combinations. One-of-one mixes are the real deep cuts.");
     adv.tagRarityItems.forEach((item, index) => {
-      body += sub(`${index + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${item.comboCount === 1 ? "One-of-one combo" : `Shared by ${item.comboCount} items`} | ${item.tags.join(", ")}`);
+      body += `<div class="stats-row stats-sub stats-rarity-row"><span class="stats-label">${esc(`${index + 1}. ${item.name} (${item.tab}) - ${item.type}`)}</span><span class="stats-value">${esc(`${item.comboCount === 1 ? "One-of-one combo" : `Shared by ${item.comboCount} items`} | ${item.tags.join(", ")}`)}</span></div>`;
     });
     html += section("Rarity index", body);
   }
@@ -11324,6 +11444,13 @@ const openAdvancedStatsDialog = (stats) => {
       openFirstWearLagDialog(adv.firstWearLagAll || adv.firstWearLag || []);
     });
   }
+  content.querySelectorAll(".advanced-tag-items-link").forEach((link) => {
+    link.addEventListener("click", () => {
+      const tag = String(link.getAttribute("data-tag") || "").trim();
+      if (!tag) return;
+      openTaggedItemsDialog(tagItemLookup.get(tag) || [], tag);
+    });
+  });
 
   openDialog(dialog);
   resetDialogScroll(dialog);
@@ -12555,10 +12682,10 @@ const buildAdvancedStatsHelpHtml = () => {
     "Tags and occasions",
     "These sections explain how labels and purpose lanes are performing.",
     [
-      { label: "Collector DNA", value: "Summarizes tag coverage, known-tag count, average tags per item, and the top tag identities shaping the closet." },
+      { label: "Collector DNA", value: "Separates broad tag coverage from the non-default tags used for analytics, then summarizes known-tag count, average tags per analyzed item, and the top tag identities shaping the closet." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
-      { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak." },
+      { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak. Each expanded tag also includes a link to view all items carrying that tag." },
       { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
       { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
       { label: "Tag co-occurrence", value: "Shows which tag pairs most often appear together on the same item." },
