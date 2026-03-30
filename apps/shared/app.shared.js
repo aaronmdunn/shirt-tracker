@@ -7624,6 +7624,7 @@ const exportStatsPdf = (stats, options = {}) => {
     String(item.samples || 0),
     (item.avgWears || 0).toFixed(1),
     item.avgCpw === null || item.avgCpw === undefined ? "n/a" : formatCurrency(item.avgCpw),
+    formatCurrency(item.totalValue || 0),
   ]);
 
   const topBrandStreakRows = ((adv.repeatWearStreaks && adv.repeatWearStreaks.topBrandStreaks) || []).map((item, index) => [
@@ -7684,7 +7685,7 @@ const exportStatsPdf = (stats, options = {}) => {
   ${stats.isInventory ? section(`Monthly Spend vs Wear (${isFullExport ? "All" : "Latest 24"})`, renderSimpleTable(["Month", "Added", "Spend", "Wears", "Spend/Wear"], spendWearRows)) : ""}
   ${stats.isInventory ? section(`Type Rotation Balance (${isFullExport ? "All" : "Top 30 by delta"})`, renderSimpleTable(["Type", "Inventory", "Wears", "Inv %", "Wear %", "Delta"], typeRotationRows)) : ""}
   ${stats.isInventory ? section("Seasonality by Month", renderSimpleTable(["Month", "Top Type", "Count"], seasonalityRows)) : ""}
-  ${stats.isInventory ? section(`Tag Performance (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Tag", "Samples", "Avg Wears", "Avg CPW"], tagPerformanceRows)) : ""}
+  ${stats.isInventory ? section(`Tag Performance (${isFullExport ? "All" : "Top 40"})`, renderSimpleTable(["Tag", "Samples", "Avg Wears", "Avg CPW", "Footprint"], tagPerformanceRows)) : ""}
   ${stats.isInventory ? section("Repeat Wear Streaks (Brands)", renderSimpleTable(["#", "Brand", "Streak"], topBrandStreakRows)) : ""}
   ${stats.isInventory ? section("Repeat Wear Streaks (Types)", renderSimpleTable(["#", "Type", "Streak"], topTypeStreakRows)) : ""}
   ${section(`Recently Added (${isFullExport ? "All" : "Latest 25"})`, renderSimpleTable(["Name", "Brand", "Type", "Date Added", "Price"], recentRows))}
@@ -10016,30 +10017,245 @@ const collectAllStats = () => {
   });
 
   const tagRollup = {};
+  const tagPairRollup = {};
+  const tagComboCounts = {};
+  const tagSeasonalityCounts = Array.from({ length: 12 }, () => ({}));
+  const tagDailyCounts = {};
+  const tagWeeklyCounts = {};
+  const tagMonthlyCounts = {};
+  const taggedItems = [];
+  const TAG_TREND_WINDOW_DAYS = 30;
+  const TAG_TREND_WINDOW_MS = TAG_TREND_WINDOW_DAYS * 86400000;
+  const recentTagWindowStartMs = nowMs - TAG_TREND_WINDOW_MS;
+  const priorTagWindowStartMs = recentTagWindowStartMs - TAG_TREND_WINDOW_MS;
+  const normalizeWearableTags = (tags) => (Array.isArray(tags) ? tags : [])
+    .map((tag) => canonicalizeTagLabel(tag))
+    .filter((tag) => tag && tag !== "Original")
+    .sort((a, b) => a.localeCompare(b));
+  const monthKeyFromDate = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}`;
+  const weekStartKeyFromDate = (dateObj) => {
+    const d = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    const offset = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - offset);
+    return toLocalDateKey(d);
+  };
+  const addTagPeriodCount = (collection, periodKey, tag) => {
+    if (!collection[periodKey]) collection[periodKey] = {};
+    collection[periodKey][tag] = (collection[periodKey][tag] || 0) + 1;
+  };
+  const ensureTagBucket = (tag) => {
+    if (!tagRollup[tag]) {
+      tagRollup[tag] = {
+        tag,
+        samples: 0,
+        wearSum: 0,
+        totalValue: 0,
+        cpwSum: 0,
+        cpwCount: 0,
+        coTags: {},
+        recentAdds: 0,
+        priorAdds: 0,
+        recentWears: 0,
+        priorWears: 0,
+        uniqueMixCount: 0,
+        comboSizeSum: 0,
+        monthlyWearCounts: Array.from({ length: 12 }, () => 0),
+      };
+    }
+    return tagRollup[tag];
+  };
+  const addDaysToDateKey = (key, days) => {
+    const d = new Date(`${key}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return key;
+    d.setDate(d.getDate() + days);
+    return toLocalDateKey(d);
+  };
+  const addMonthsToKey = (key, months) => {
+    const [year, month] = String(key || "").split("-").map((value) => Number(value));
+    if (!year || !month) return key;
+    const d = new Date(year, month - 1 + months, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const getUniqueLeader = (counts) => {
+    const entries = Object.entries(counts || {}).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    if (!entries.length) return null;
+    if (entries[1] && entries[1][1] === entries[0][1]) return null;
+    return entries[0][0];
+  };
+  const buildTagDominanceStreaks = (collection, getNextKey) => {
+    const keys = Object.keys(collection).sort();
+    const streaks = [];
+    let current = null;
+    keys.forEach((key) => {
+      const leader = getUniqueLeader(collection[key]);
+      if (!leader) {
+        current = null;
+        return;
+      }
+      const expectedKey = current ? getNextKey(current.endKey) : null;
+      if (current && current.tag === leader && key === expectedKey) {
+        current.length += 1;
+        current.endKey = key;
+        return;
+      }
+      current = { tag: leader, length: 1, startKey: key, endKey: key };
+      streaks.push(current);
+    });
+    return streaks
+      .filter((item) => item.length >= 2)
+      .sort((a, b) => b.length - a.length || a.startKey.localeCompare(b.startKey))
+      .slice(0, 5);
+  };
+
   wearableUniverse.forEach((item) => {
-    item.tags.forEach((rawTag) => {
-      const tag = canonicalizeTagLabel(rawTag);
-      if (!tag || tag === "Original") return;
-      if (!tagRollup[tag]) tagRollup[tag] = { tag, samples: 0, wearSum: 0, cpwSum: 0, cpwCount: 0 };
-      const bucket = tagRollup[tag];
+    const tags = normalizeWearableTags(item.tags);
+    if (!tags.length) return;
+    const comboKey = tags.join("||");
+    taggedItems.push({ ...item, tags, comboKey });
+    tagComboCounts[comboKey] = (tagComboCounts[comboKey] || 0) + 1;
+  });
+
+  taggedItems.forEach((item) => {
+    const comboCount = tagComboCounts[item.comboKey] || 0;
+    const createdMs = item.createdAt ? new Date(item.createdAt).getTime() : NaN;
+    item.tags.forEach((tag, index) => {
+      const bucket = ensureTagBucket(tag);
       bucket.samples += 1;
       bucket.wearSum += item.wearCount;
+      bucket.comboSizeSum += item.tags.length;
+      if (comboCount === 1) bucket.uniqueMixCount += 1;
+      if (item.price !== null && item.price > 0) bucket.totalValue += item.price;
       if (item.price !== null && item.price > 0 && item.wearCount > 0) {
         bucket.cpwSum += item.price / item.wearCount;
         bucket.cpwCount += 1;
       }
+      if (Number.isFinite(createdMs)) {
+        if (createdMs >= recentTagWindowStartMs && createdMs <= nowMs) bucket.recentAdds += 1;
+        else if (createdMs >= priorTagWindowStartMs && createdMs < recentTagWindowStartMs) bucket.priorAdds += 1;
+      }
+      item.tags.forEach((otherTag, otherIndex) => {
+        if (otherIndex === index) return;
+        bucket.coTags[otherTag] = (bucket.coTags[otherTag] || 0) + 1;
+      });
+    });
+    for (let i = 0; i < item.tags.length; i++) {
+      for (let j = i + 1; j < item.tags.length; j++) {
+        const left = item.tags[i];
+        const right = item.tags[j];
+        const pairKey = `${left}||${right}`;
+        if (!tagPairRollup[pairKey]) tagPairRollup[pairKey] = { left, right, count: 0 };
+        tagPairRollup[pairKey].count += 1;
+      }
+    }
+    item.wearLog.forEach((stamp) => {
+      const d = new Date(stamp);
+      const wearMs = d.getTime();
+      if (Number.isNaN(wearMs)) return;
+      const dayKey = toLocalDateKey(d);
+      const weekKey = weekStartKeyFromDate(d);
+      const monthKey = monthKeyFromDate(d);
+      const monthIndex = d.getMonth();
+      item.tags.forEach((tag) => {
+        const bucket = ensureTagBucket(tag);
+        if (wearMs >= recentTagWindowStartMs && wearMs <= nowMs) bucket.recentWears += 1;
+        else if (wearMs >= priorTagWindowStartMs && wearMs < recentTagWindowStartMs) bucket.priorWears += 1;
+        bucket.monthlyWearCounts[monthIndex] += 1;
+        tagSeasonalityCounts[monthIndex][tag] = (tagSeasonalityCounts[monthIndex][tag] || 0) + 1;
+        addTagPeriodCount(tagDailyCounts, dayKey, tag);
+        addTagPeriodCount(tagWeeklyCounts, weekKey, tag);
+        addTagPeriodCount(tagMonthlyCounts, monthKey, tag);
+      });
     });
   });
+
   const tagPerformance = Object.values(tagRollup)
-    .filter((t) => t.samples >= 2)
-    .map((t) => ({
-      tag: t.tag,
-      samples: t.samples,
-      avgWears: t.samples ? t.wearSum / t.samples : 0,
-      avgCpw: t.cpwCount ? t.cpwSum / t.cpwCount : null,
+    .map((bucket) => {
+      const monthlyEntries = bucket.monthlyWearCounts
+        .map((count, index) => ({ month: monthNames[index], count }))
+        .sort((a, b) => b.count - a.count || a.month.localeCompare(b.month));
+      const peakMonth = monthlyEntries.find((entry) => entry.count > 0) || null;
+      const recentActivity = bucket.recentAdds + bucket.recentWears;
+      const priorActivity = bucket.priorAdds + bucket.priorWears;
+      let trendLabel = "steady";
+      if (recentActivity > priorActivity) {
+        trendLabel = priorActivity === 0 ? "new surge" : (recentActivity >= (priorActivity * 2) ? "spiking" : "up");
+      } else if (recentActivity < priorActivity) {
+        trendLabel = "cooling";
+      }
+      return {
+        tag: bucket.tag,
+        samples: bucket.samples,
+        avgWears: bucket.samples ? bucket.wearSum / bucket.samples : 0,
+        avgCpw: bucket.cpwCount ? bucket.cpwSum / bucket.cpwCount : null,
+        totalValue: bucket.totalValue,
+        coTags: Object.entries(bucket.coTags)
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .slice(0, 3)
+          .map(([tag, count]) => ({ tag, count })),
+        recentAdds: bucket.recentAdds,
+        priorAdds: bucket.priorAdds,
+        recentWears: bucket.recentWears,
+        priorWears: bucket.priorWears,
+        recentActivity,
+        priorActivity,
+        activityDelta: recentActivity - priorActivity,
+        trendLabel,
+        rareMixPct: bucket.samples ? Math.round((bucket.uniqueMixCount / bucket.samples) * 100) : 0,
+        avgTagsPerItem: bucket.samples ? bucket.comboSizeSum / bucket.samples : 0,
+        peakMonth: peakMonth ? peakMonth.month : null,
+        peakMonthCount: peakMonth ? peakMonth.count : 0,
+      };
+    })
+    .sort((a, b) => b.samples - a.samples || b.avgWears - a.avgWears || a.tag.localeCompare(b.tag));
+  const collectorDnaTopTags = tagPerformance
+    .slice()
+    .sort((a, b) => b.samples - a.samples || b.totalValue - a.totalValue || a.tag.localeCompare(b.tag))
+    .slice(0, 3);
+  const totalTagAssignments = tagPerformance.reduce((sum, item) => sum + item.samples, 0);
+  const collectorDna = {
+    taggedItems: taggedItems.length,
+    knownTags: tagPerformance.length,
+    coveragePct: wearableUniverse.length ? Math.round((taggedItems.length / wearableUniverse.length) * 100) : 0,
+    avgTagsPerItem: taggedItems.length ? totalTagAssignments / taggedItems.length : 0,
+    topTags: collectorDnaTopTags.map((item) => ({
+      tag: item.tag,
+      samples: item.samples,
+      sharePct: totalTagAssignments ? Math.round((item.samples / totalTagAssignments) * 100) : 0,
+    })),
+  };
+  collectorDna.summary = collectorDna.topTags.length
+    ? `Your Collector DNA: ${collectorDna.topTags.map((item) => `${item.sharePct}% ${item.tag}`).join(", ")}.`
+    : "Not enough tagged items yet to map your collector DNA.";
+  const tagTrending = tagPerformance
+    .filter((item) => item.recentActivity > 0 && (item.activityDelta > 0 || item.priorActivity === 0))
+    .sort((a, b) => b.activityDelta - a.activityDelta || b.recentActivity - a.recentActivity || a.tag.localeCompare(b.tag))
+    .slice(0, 8);
+  const tagRarityItems = taggedItems
+    .filter((item) => item.tags.length >= 2)
+    .map((item) => ({
+      name: item.name,
+      tab: item.tab,
+      type: item.type,
+      tags: item.tags,
+      comboCount: tagComboCounts[item.comboKey] || 0,
     }))
-    .sort((a, b) => b.avgWears - a.avgWears || b.samples - a.samples)
-    .slice(0, 12);
+    .sort((a, b) => a.comboCount - b.comboCount || b.tags.length - a.tags.length || a.name.localeCompare(b.name))
+    .slice(0, 10);
+  const tagSeasonalityByMonth = monthNames.map((month, index) => ({
+    month,
+    topTags: Object.entries(tagSeasonalityCounts[index])
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([tag, count]) => ({ tag, count })),
+  }));
+  const tagEras = {
+    daily: buildTagDominanceStreaks(tagDailyCounts, (key) => addDaysToDateKey(key, 1)),
+    weekly: buildTagDominanceStreaks(tagWeeklyCounts, (key) => addDaysToDateKey(key, 7)),
+    monthly: buildTagDominanceStreaks(tagMonthlyCounts, (key) => addMonthsToKey(key, 1)),
+  };
+  const tagPairings = Object.values(tagPairRollup)
+    .sort((a, b) => b.count - a.count || a.left.localeCompare(b.left) || a.right.localeCompare(b.right))
+    .slice(0, 10);
 
   const wornLast365 = wearableUniverse.filter((item) => {
     if (!item.lastWorn) return false;
@@ -10068,6 +10284,12 @@ const collectAllStats = () => {
     repeatWearStreaks,
     seasonalityByMonth,
     tagPerformance,
+    tagPairings,
+    tagTrending,
+    tagRarityItems,
+    tagSeasonalityByMonth,
+    tagEras,
+    collectorDna,
     closetHealth: {
       score: closetHealthScore,
       recencyPct,
@@ -10729,6 +10951,30 @@ const openAdvancedStatsDialog = (stats) => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const hint = (text) => `<div class="stats-hint">${esc(text)}</div>`;
+  const formatDateKeyLabel = (key) => {
+    const d = new Date(`${key}T00:00:00`);
+    return Number.isNaN(d.getTime()) ? key : d.toLocaleDateString();
+  };
+  const formatMonthKeyLabel = (key) => {
+    const [year, month] = String(key || "").split("-").map((value) => Number(value));
+    if (!year || !month) return key;
+    const d = new Date(year, month - 1, 1);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+  };
+  const formatTagCountList = (items) => Array.isArray(items) && items.length
+    ? items.map((item) => `${item.tag} (${item.count})`).join(", ")
+    : "n/a";
+  const formatTagPeriodRange = (granularity, item) => {
+    if (!item) return "n/a";
+    if (granularity === "monthly") {
+      return item.startKey === item.endKey
+        ? formatMonthKeyLabel(item.startKey)
+        : `${formatMonthKeyLabel(item.startKey)} to ${formatMonthKeyLabel(item.endKey)}`;
+    }
+    return item.startKey === item.endKey
+      ? formatDateKeyLabel(item.startKey)
+      : `${formatDateKeyLabel(item.startKey)} to ${formatDateKeyLabel(item.endKey)}`;
+  };
 
   if (!stats || !stats.isInventory) {
     content.innerHTML = `<div class="stats-hint">Advanced stats are currently available in Inventory mode.</div>`;
@@ -10933,16 +11179,92 @@ const openAdvancedStatsDialog = (stats) => {
     html += section("Seasonality snapshot (top type by month)", body);
   }
 
+  if (adv.collectorDna && adv.collectorDna.knownTags) {
+    const dnaCards = (adv.collectorDna.topTags || []).map((item) => (`
+      <div class="insights-score-card">
+        <div class="insights-score-title">${esc(item.tag)}</div>
+        <div class="insights-score-value">${esc(`${item.sharePct}%`)}</div>
+        <div class="insights-score-note">${esc(`${item.samples} tagged items`)}</div>
+      </div>
+    `)).join("");
+    html += section("Collector DNA",
+      hint(adv.collectorDna.summary || "Not enough tagged items yet to map your collector DNA.") +
+      row("Tagged wearable items", `${adv.collectorDna.taggedItems || 0} (${adv.collectorDna.coveragePct || 0}% coverage)`) +
+      row("Known tags", String(adv.collectorDna.knownTags || 0)) +
+      row("Avg tags per tagged item", `${(adv.collectorDna.avgTagsPerItem || 0).toFixed(1)}`) +
+      (dnaCards ? `<div class="insights-score-grid">${dnaCards}</div>` : "")
+    );
+  }
+
   if (Array.isArray(adv.tagPerformance) && adv.tagPerformance.length) {
     let body = "";
     const sleeperTag = adv.tagPerformance.slice().sort((a, b) => ((b.avgWears / Math.max(1, b.samples)) - (a.avgWears / Math.max(1, a.samples))) || a.tag.localeCompare(b.tag))[0] || null;
     const overloadedTag = adv.tagPerformance.slice().sort((a, b) => ((b.samples - b.avgWears) - (a.samples - a.avgWears)) || b.samples - a.samples)[0] || null;
-    body += hint(`Sleeper tag: ${sleeperTag ? sleeperTag.tag : "n/a"}. Most overloaded tag: ${overloadedTag ? overloadedTag.tag : "n/a"}.`);
+    body += hint(`Sleeper tag: ${sleeperTag ? sleeperTag.tag : "n/a"}. Most overloaded tag: ${overloadedTag ? overloadedTag.tag : "n/a"}. All known tags are listed below with footprint, co-tags, trends, rarity, and seasonality reads.`);
     adv.tagPerformance.forEach((tag) => {
       const cpw = tag.avgCpw === null ? "n/a" : `${formatCurrency(tag.avgCpw)}/wear`;
-      body += sub(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw}`);
+      const recentWindow = (tag.recentAdds || 0) + (tag.recentWears || 0);
+      const priorWindow = (tag.priorAdds || 0) + (tag.priorWears || 0);
+      body += row(`${tag.tag} (${tag.samples})`, `${tag.avgWears.toFixed(1)} avg wears | ${cpw} | ${formatCurrency(tag.totalValue || 0)} footprint`);
+      body += sub("Top co-tags", formatTagCountList(tag.coTags));
+      body += sub("30-day trend", `${tag.trendLabel || "steady"} | ${tag.recentAdds || 0} adds + ${tag.recentWears || 0} wears vs ${priorWindow} prior events`);
+      body += sub("Seasonal peak", tag.peakMonth ? `${tag.peakMonth} (${tag.peakMonthCount || 0} tag-linked wears)` : "No tagged wear history yet");
+      body += sub("Rare mix share", `${tag.rareMixPct || 0}% one-of-one combos | ${recentWindow} recent events | ${(tag.avgTagsPerItem || 0).toFixed(1)} avg tags/item`);
     });
     html += section("Tag performance", body);
+  }
+
+  if (Array.isArray(adv.tagPairings) && adv.tagPairings.length) {
+    let body = hint("Co-occurrence shows which tag pairs most often travel together on the same item.");
+    adv.tagPairings.forEach((pair, index) => {
+      body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
+    });
+    html += section("Tag co-occurrence", body);
+  }
+
+  if (Array.isArray(adv.tagTrending) && adv.tagTrending.length) {
+    let body = hint("Trending tags compare the last rolling 30 days of tag-linked adds and wears against the 30 days before that.");
+    adv.tagTrending.forEach((tag, index) => {
+      const priorWindow = (tag.priorAdds || 0) + (tag.priorWears || 0);
+      body += sub(`${index + 1}. ${tag.tag}`, `${tag.trendLabel} | ${(tag.recentAdds || 0) + (tag.recentWears || 0)} recent vs ${priorWindow} prior | delta ${tag.activityDelta >= 0 ? "+" : ""}${tag.activityDelta || 0}`);
+    });
+    html += section("Trending tags (30-day spike watch)", body);
+  }
+
+  if (Array.isArray(adv.tagRarityItems) && adv.tagRarityItems.length) {
+    let body = hint("Rarity index looks for unusually specific tag combinations. One-of-one mixes are the real deep cuts.");
+    adv.tagRarityItems.forEach((item, index) => {
+      body += sub(`${index + 1}. ${item.name} (${item.tab}) - ${item.type}`, `${item.comboCount === 1 ? "One-of-one combo" : `Shared by ${item.comboCount} items`} | ${item.tags.join(", ")}`);
+    });
+    html += section("Rarity index", body);
+  }
+
+  if (Array.isArray(adv.tagSeasonalityByMonth) && adv.tagSeasonalityByMonth.length) {
+    let body = hint("Time-series tagging maps tag-linked wear usage across the calendar year so seasonal shifts are easy to spot.");
+    adv.tagSeasonalityByMonth.forEach((item) => {
+      body += sub(item.month, item.topTags.length ? formatTagCountList(item.topTags) : "—");
+    });
+    html += section("Time-series tagging", body);
+  }
+
+  if (adv.tagEras && (Array.isArray(adv.tagEras.daily) || Array.isArray(adv.tagEras.weekly) || Array.isArray(adv.tagEras.monthly))) {
+    let body = hint("Tag eras capture consecutive day, week, or month runs where one tag clearly dominated wear activity without tying another tag.");
+    const eraGroups = [
+      { label: "Daily", items: Array.isArray(adv.tagEras.daily) ? adv.tagEras.daily : [], granularity: "daily" },
+      { label: "Weekly", items: Array.isArray(adv.tagEras.weekly) ? adv.tagEras.weekly : [], granularity: "weekly" },
+      { label: "Monthly", items: Array.isArray(adv.tagEras.monthly) ? adv.tagEras.monthly : [], granularity: "monthly" },
+    ];
+    eraGroups.forEach((group) => {
+      if (!group.items.length) {
+        body += sub(`${group.label} eras`, "No clear streaks yet");
+        return;
+      }
+      group.items.forEach((item, index) => {
+        const unit = group.granularity === "daily" ? "days" : group.granularity === "weekly" ? "weeks" : "months";
+        body += sub(`${group.label} ${index + 1}. ${item.tag}`, `${item.length} ${unit} | ${formatTagPeriodRange(group.granularity, item)}`);
+      });
+    });
+    html += section("Tag eras", body);
   }
 
   if (workLane.total || formalLane.total || holidayLane.total) {
@@ -12201,9 +12523,15 @@ const buildAdvancedStatsHelpHtml = () => {
     "Tags and occasions",
     "These sections explain how labels and purpose lanes are performing.",
     [
-      { label: "Tag performance", value: "Shows which tags are punching above or below expectation using average wears and average cost-per-wear signals." },
+      { label: "Collector DNA", value: "Summarizes tag coverage, known-tag count, average tags per item, and the top tag identities shaping the closet." },
+      { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak." },
       { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
       { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
+      { label: "Tag co-occurrence", value: "Shows which tag pairs most often appear together on the same item." },
+      { label: "Trending tags", value: "Highlights tags whose add-plus-wear activity spiked over the last 30 days compared with the prior 30-day window." },
+      { label: "Rarity index", value: "Calls out shirts whose exact tag combinations are unusually rare compared with the rest of the closet." },
+      { label: "Time-series tagging", value: "Maps tag-linked wear usage month by month so seasonal swings are visible." },
+      { label: "Tag eras", value: "Tracks consecutive day, week, and month runs where one tag clearly dominated wear activity." },
       { label: "Occasion lanes", value: "Shows depth and activity for special-purpose tagged lanes like Work Appropriate, Formal, and other occasion-focused categories." },
     ]
   );
