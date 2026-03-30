@@ -11408,16 +11408,10 @@ const openAdvancedStatsDialog = (stats) => {
     const originalPairs = Array.isArray(adv.foundationalTagPairings.original) ? adv.foundationalTagPairings.original : [];
     const workPairs = Array.isArray(adv.foundationalTagPairings.workAppropriate) ? adv.foundationalTagPairings.workAppropriate : [];
     if (originalPairs.length) {
-      body += row("Original pairings", `${originalPairs.length} shown`);
-      originalPairs.forEach((pair, index) => {
-        body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
-      });
+      body += `<details class="stats-tab-details advanced-tag-details"><summary class="stats-tab-summary"><span class="stats-label">Original pairings</span><span class="stats-value">${esc(`${originalPairs.length} shown`)}</span></summary><div class="stats-tab-body">${originalPairs.map((pair, index) => sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`)).join("")}</div></details>`;
     }
     if (workPairs.length) {
-      body += row("Work Appropriate pairings", `${workPairs.length} shown`);
-      workPairs.forEach((pair, index) => {
-        body += sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`);
-      });
+      body += `<details class="stats-tab-details advanced-tag-details"><summary class="stats-tab-summary"><span class="stats-label">Work Appropriate pairings</span><span class="stats-value">${esc(`${workPairs.length} shown`)}</span></summary><div class="stats-tab-body">${workPairs.map((pair, index) => sub(`${index + 1}. ${pair.left} + ${pair.right}`, `${pair.count} shared item${pair.count === 1 ? "" : "s"}`)).join("")}</div></details>`;
     }
     html += section("Foundational tag pairings", body);
   }
@@ -11461,7 +11455,7 @@ const openAdvancedStatsDialog = (stats) => {
       }
       group.items.forEach((item, index) => {
         const unit = group.granularity === "daily" ? "days" : group.granularity === "weekly" ? "weeks" : "months";
-        body += sub(`${group.label} ${index + 1}. ${item.tag}`, `${item.length} ${unit} | ${formatTagPeriodRange(group.granularity, item)}`);
+        body += sub(`${index === 0 ? `Top ${group.granularity} era` : `${group.label} era ${index + 1}`}: ${item.tag}`, `${item.length} ${unit} | ${formatTagPeriodRange(group.granularity, item)}`);
       });
     });
     html += section("Tag eras", body);
