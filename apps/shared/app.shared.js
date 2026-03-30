@@ -3223,6 +3223,14 @@ const buildCloudPayload = () => {
     const gotItTrimmed = localStorage.getItem(GOT_IT_LOG_KEY + ":trimmed");
     if (gotItTrimmed) result.gotItLogTrimmed = parseInt(gotItTrimmed, 10);
   } catch (e) { /* ignore */ }
+  try {
+    const queueActivityRaw = localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY);
+    if (queueActivityRaw) result.insightsQueueActivity = normalizeInsightsQueueActivity(JSON.parse(queueActivityRaw));
+    const insightsSnoozesRaw = localStorage.getItem(INSIGHTS_SNOOZE_KEY);
+    if (insightsSnoozesRaw) result.insightsSnoozes = normalizeExpiringInsightsMap(JSON.parse(insightsSnoozesRaw));
+    const insightsSellDismissalsRaw = localStorage.getItem(INSIGHTS_SELL_DISMISS_KEY);
+    if (insightsSellDismissalsRaw) result.insightsSellDismissals = normalizeExpiringInsightsMap(JSON.parse(insightsSellDismissalsRaw));
+  } catch (e) { /* ignore */ }
   // Include no-buy game state in cloud payload for cross-device parity.
   try {
     const noBuyRaw = localStorage.getItem(NO_BUY_GAMIFY_KEY);
@@ -3323,6 +3331,31 @@ const applyCloudPayload = (payload) => {
     } catch (error) {
       // fallback: cloud snapshot wins if merge fails
       try { localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(payload.noBuyGamify)); } catch (e) { /* ignore */ }
+    }
+  }
+  if (payload.insightsQueueActivity && typeof payload.insightsQueueActivity === "object" && !Array.isArray(payload.insightsQueueActivity)) {
+    try {
+      const localQueueActivity = JSON.parse(localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY) || "{}");
+      const mergedQueueActivity = mergeInsightsQueueActivity(localQueueActivity, payload.insightsQueueActivity);
+      localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(mergedQueueActivity));
+    } catch (error) {
+      try { localStorage.setItem(INSIGHTS_QUEUE_ACTIVITY_KEY, JSON.stringify(normalizeInsightsQueueActivity(payload.insightsQueueActivity))); } catch (e) { /* ignore */ }
+    }
+  }
+  if (payload.insightsSnoozes && typeof payload.insightsSnoozes === "object" && !Array.isArray(payload.insightsSnoozes)) {
+    try {
+      const localSnoozes = JSON.parse(localStorage.getItem(INSIGHTS_SNOOZE_KEY) || "{}");
+      localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(mergeExpiringInsightsMap(localSnoozes, payload.insightsSnoozes)));
+    } catch (error) {
+      try { localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(normalizeExpiringInsightsMap(payload.insightsSnoozes))); } catch (e) { /* ignore */ }
+    }
+  }
+  if (payload.insightsSellDismissals && typeof payload.insightsSellDismissals === "object" && !Array.isArray(payload.insightsSellDismissals)) {
+    try {
+      const localDismissals = JSON.parse(localStorage.getItem(INSIGHTS_SELL_DISMISS_KEY) || "{}");
+      localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(mergeExpiringInsightsMap(localDismissals, payload.insightsSellDismissals)));
+    } catch (error) {
+      try { localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(normalizeExpiringInsightsMap(payload.insightsSellDismissals))); } catch (e) { /* ignore */ }
     }
   }
   if (payload.publicShareVisibility) {
@@ -7120,6 +7153,9 @@ const renderRows = () => {
           // Undo: restore previous state
           clearTimeout(undoTimer);
           clearTimeout(selectionTimer);
+          if (logBtn._trackedQueueSelection && appMode === "inventory" && logBtn._queueKey) {
+            untrackInsightsQueueSelection(logBtn._queueKey, logBtn._queueSelectionDateKey || localDateKeyFromDate(new Date()));
+          }
           targetRow.wearCount = logBtn._prevCount;
           targetRow.lastWorn = logBtn._prevLastWorn;
           targetRow.wearLog = logBtn._prevWearLog;
@@ -7151,15 +7187,17 @@ const renderRows = () => {
         dateStat.querySelector(".wear-stat-value").textContent = new Date(wornDate).toLocaleDateString();
         logBtn.textContent = "Undo";
         logBtn.classList.add("undo");
+        logBtn._queueKey = queueKey;
+        logBtn._queueSelectionDateKey = todayKey;
+        logBtn._trackedQueueSelection = false;
         clearTimeout(selectionTimer);
         if (appMode === "inventory" && queueKey) {
-          selectionTimer = setTimeout(() => {
-            trackInsightsQueueSelection(queueKey, todayKey);
-          }, 5000);
+          logBtn._trackedQueueSelection = trackInsightsQueueSelection(queueKey, todayKey);
         }
         undoTimer = setTimeout(() => {
           logBtn.textContent = "Log Wear";
           logBtn.classList.remove("undo");
+          logBtn._trackedQueueSelection = false;
         }, 5000);
       });
       inner.appendChild(logBtn);
@@ -10939,6 +10977,30 @@ const openAdvancedStatsDialog = (stats) => {
 
 const localDateKeyFromDate = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 
+const isValidDateKey = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
+const normalizeExpiringInsightsMap = (value) => {
+  const parsed = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : value;
+  const todayKey = localDateKeyFromDate(new Date());
+  const next = {};
+  Object.entries(parsed).forEach(([key, until]) => {
+    const normalized = String(until || "");
+    if (isValidDateKey(normalized) && normalized >= todayKey) {
+      next[key] = normalized;
+    }
+  });
+  return next;
+};
+
+const mergeExpiringInsightsMap = (localValue, remoteValue) => {
+  const next = { ...normalizeExpiringInsightsMap(localValue) };
+  const remote = normalizeExpiringInsightsMap(remoteValue);
+  Object.entries(remote).forEach(([key, until]) => {
+    if (!next[key] || until > next[key]) next[key] = until;
+  });
+  return next;
+};
+
 const loadInsightsSnoozes = () => {
   let parsed = {};
   try {
@@ -10946,15 +11008,7 @@ const loadInsightsSnoozes = () => {
   } catch (error) {
     parsed = {};
   }
-  if (!parsed || typeof parsed !== "object") return {};
-  const todayKey = localDateKeyFromDate(new Date());
-  const next = {};
-  Object.entries(parsed).forEach(([key, until]) => {
-    const normalized = String(until || "");
-    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized >= todayKey) {
-      next[key] = normalized;
-    }
-  });
+  const next = normalizeExpiringInsightsMap(parsed);
   if (Object.keys(next).length !== Object.keys(parsed).length) {
     try {
       localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(next));
@@ -10980,15 +11034,7 @@ const loadInsightsSellDismissals = () => {
   } catch (error) {
     parsed = {};
   }
-  if (!parsed || typeof parsed !== "object") return {};
-  const todayKey = localDateKeyFromDate(new Date());
-  const next = {};
-  Object.entries(parsed).forEach(([key, dismissedOn]) => {
-    const normalized = String(dismissedOn || "");
-    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized >= todayKey) {
-      next[key] = normalized;
-    }
-  });
+  const next = normalizeExpiringInsightsMap(parsed);
   if (Object.keys(next).length !== Object.keys(parsed).length) {
     try {
       localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(next));
@@ -11037,6 +11083,53 @@ const normalizeInsightsQueueActivity = (value) => {
   return next;
 };
 
+const laterDateKey = (a, b) => {
+  const left = isValidDateKey(a) ? String(a) : "";
+  const right = isValidDateKey(b) ? String(b) : "";
+  return left >= right ? left : right;
+};
+
+const mergeInsightsQueueActivity = (localValue, remoteValue) => {
+  const local = pruneInsightsQueueDailyActivity(normalizeInsightsQueueActivity(localValue));
+  const remote = pruneInsightsQueueDailyActivity(normalizeInsightsQueueActivity(remoteValue));
+  const next = { __daily: {} };
+
+  const allDailyKeys = new Set([...Object.keys(local.__daily || {}), ...Object.keys(remote.__daily || {})]);
+  allDailyKeys.forEach((dateKey) => {
+    const localDaily = local.__daily?.[dateKey] || {};
+    const remoteDaily = remote.__daily?.[dateKey] || {};
+    next.__daily[dateKey] = {
+      exposures: Math.max(0, Number(localDaily.exposures || 0), Number(remoteDaily.exposures || 0)),
+      selections: Math.max(0, Number(localDaily.selections || 0), Number(remoteDaily.selections || 0)),
+    };
+  });
+
+  const allKeys = new Set([
+    ...Object.keys(local).filter((key) => key !== "__daily"),
+    ...Object.keys(remote).filter((key) => key !== "__daily"),
+  ]);
+  allKeys.forEach((key) => {
+    const left = local[key] || {};
+    const right = remote[key] || {};
+    next[key] = {
+      exposures: Math.max(0, Number(left.exposures || 0), Number(right.exposures || 0)),
+      selections: Math.max(0, Number(left.selections || 0), Number(right.selections || 0)),
+      snoozes: Math.max(0, Number(left.snoozes || 0), Number(right.snoozes || 0)),
+      softPasses: Math.max(0, Number(left.softPasses || 0), Number(right.softPasses || 0)),
+      exposureDays: Math.max(0, Number(left.exposureDays || 0), Number(right.exposureDays || 0)),
+      selectionDays: Math.max(0, Number(left.selectionDays || 0), Number(right.selectionDays || 0)),
+      snoozeDays: Math.max(0, Number(left.snoozeDays || 0), Number(right.snoozeDays || 0)),
+      softPassDays: Math.max(0, Number(left.softPassDays || 0), Number(right.softPassDays || 0)),
+      lastExposureDate: laterDateKey(left.lastExposureDate, right.lastExposureDate),
+      lastSelectedDate: laterDateKey(left.lastSelectedDate, right.lastSelectedDate),
+      lastSnoozeDate: laterDateKey(left.lastSnoozeDate, right.lastSnoozeDate),
+      lastSoftPassDate: laterDateKey(left.lastSoftPassDate, right.lastSoftPassDate),
+    };
+  });
+
+  return normalizeInsightsQueueActivity(next);
+};
+
 const loadInsightsQueueActivity = () => {
   try {
     const parsed = JSON.parse(localStorage.getItem(INSIGHTS_QUEUE_ACTIVITY_KEY) || "{}");
@@ -11073,6 +11166,7 @@ const trackInsightsQueueExposure = (queueItems, dateKey) => {
   const todayKey = localDateKeyFromDate(new Date());
   if (dateKey !== todayKey) return;
   const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  let changed = false;
   if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
   }
@@ -11087,15 +11181,18 @@ const trackInsightsQueueExposure = (queueItems, dateKey) => {
     next[key].exposureDays = (next[key].exposureDays || 0) + 1;
     next[key].lastExposureDate = todayKey;
     next.__daily[todayKey].exposures = (next.__daily[todayKey].exposures || 0) + 1;
+    changed = true;
   });
+  if (!changed) return;
   saveInsightsQueueActivity(next);
+  scheduleSync();
 };
 
 const trackInsightsQueueSelection = (queueKey, dateKey) => {
   const key = String(queueKey || "");
-  if (!key) return;
+  if (!key) return false;
   const todayKey = localDateKeyFromDate(new Date());
-  if (dateKey !== todayKey) return;
+  if (dateKey !== todayKey) return false;
   const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
   if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
@@ -11104,21 +11201,41 @@ const trackInsightsQueueSelection = (queueKey, dateKey) => {
     next[key] = { exposures: 0, selections: 0, snoozes: 0, softPasses: 0, exposureDays: 0, selectionDays: 0, snoozeDays: 0, softPassDays: 0, lastExposureDate: "", lastSelectedDate: "", lastSnoozeDate: "", lastSoftPassDate: "" };
   }
   if (next[key].lastSelectedDate === todayKey) {
-    saveInsightsQueueActivity(next);
-    return;
+    return false;
   }
   next[key].selections = (next[key].selections || 0) + 1;
   next[key].selectionDays = (next[key].selectionDays || 0) + 1;
   next[key].lastSelectedDate = todayKey;
   next.__daily[todayKey].selections = (next.__daily[todayKey].selections || 0) + 1;
   saveInsightsQueueActivity(next);
+  scheduleSync();
+  return true;
+};
+
+const untrackInsightsQueueSelection = (queueKey, dateKey) => {
+  const key = String(queueKey || "");
+  if (!key) return false;
+  const todayKey = localDateKeyFromDate(new Date());
+  if (dateKey !== todayKey) return false;
+  const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
+  const entry = next[key];
+  if (!entry || typeof entry !== "object" || entry.lastSelectedDate !== todayKey) return false;
+  entry.selections = Math.max(0, Number(entry.selections || 0) - 1);
+  entry.selectionDays = Math.max(0, Number(entry.selectionDays || 0) - 1);
+  entry.lastSelectedDate = "";
+  if (next.__daily[todayKey] && typeof next.__daily[todayKey] === "object") {
+    next.__daily[todayKey].selections = Math.max(0, Number(next.__daily[todayKey].selections || 0) - 1);
+  }
+  saveInsightsQueueActivity(next);
+  scheduleSync();
+  return true;
 };
 
 const trackInsightsQueueSnooze = (queueKey, dateKey) => {
   const key = String(queueKey || "");
-  if (!key) return;
+  if (!key) return false;
   const todayKey = localDateKeyFromDate(new Date());
-  if (dateKey !== todayKey) return;
+  if (dateKey !== todayKey) return false;
   const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
   if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
@@ -11132,13 +11249,15 @@ const trackInsightsQueueSnooze = (queueKey, dateKey) => {
     next[key].lastSnoozeDate = todayKey;
   }
   saveInsightsQueueActivity(next);
+  scheduleSync();
+  return true;
 };
 
 const trackInsightsQueueSoftPass = (queueKey, dateKey) => {
   const key = String(queueKey || "");
-  if (!key) return;
+  if (!key) return false;
   const todayKey = localDateKeyFromDate(new Date());
-  if (dateKey !== todayKey) return;
+  if (dateKey !== todayKey) return false;
   const next = pruneInsightsQueueDailyActivity(loadInsightsQueueActivity());
   if (!next.__daily[todayKey] || typeof next.__daily[todayKey] !== "object") {
     next.__daily[todayKey] = { exposures: 0, selections: 0 };
@@ -11152,6 +11271,8 @@ const trackInsightsQueueSoftPass = (queueKey, dateKey) => {
     next[key].lastSoftPassDate = todayKey;
   }
   saveInsightsQueueActivity(next);
+  scheduleSync();
+  return true;
 };
 
 const defaultNoBuyGamifyState = () => ({
@@ -14718,6 +14839,7 @@ const openInsightsDialog = (stats, options = {}) => {
       until.setDate(until.getDate() + 30);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSellDismissals(next);
+      scheduleSync();
       rerenderInsightsDialog(activeSimDateKey);
     });
   });
