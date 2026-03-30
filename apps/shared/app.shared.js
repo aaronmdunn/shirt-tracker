@@ -12706,7 +12706,7 @@ const buildMainStatsHelpHtml = (stats) => {
         { label: "Median price", value: "The middle price when all item prices are sorted from lowest to highest. Median is useful because one very expensive item will not distort it as much as the mean." },
         { label: "Standard deviation", value: "How spread out your prices are. Low means prices cluster together. High means there is a wide gap between cheaper and more expensive pieces." },
         { label: "Top 10 most expensive", value: "The highest-priced pieces in the closet." },
-        { label: "Top 10 cheapest", value: "The least expensive eligible pieces, excluding low-cost categories that would dominate the list." },
+        { label: "Top 10 cheapest", value: "The least expensive eligible pieces in the current stats universe." },
         { label: "Value by tab", value: "How much total dollar value sits inside each brand tab." },
         { label: "Price distribution", value: "A histogram showing how many items fall into each price bucket." },
       ]
@@ -16190,7 +16190,7 @@ const openStatsDialog = () => {
       block += sub(label, formatCurrency(item.price));
     });
     if (stats.top5Cheapest.length) {
-      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest (excluding Socks, Boxer Briefs, Hat, Misc)</div>`;
+      block += `<div class="stats-section-title" style="margin-top:8px">Top 10 cheapest</div>`;
       stats.top5Cheapest.forEach((item, i) => {
         const brand = item.tab || "Unknown";
         const type = item.type || "Unknown";
