@@ -51,6 +51,7 @@ const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
+const INSIGHTS_SELL_DISMISS_KEY = "shirts-insights-sell-dismiss-v1";
 const INSIGHTS_QUEUE_ACTIVITY_KEY = "shirts-insights-queue-activity-v1";
 const NO_BUY_GAMIFY_KEY = "shirts-no-buy-gamify-v1";
 
@@ -470,6 +471,7 @@ const syncDiagnosticsContent = document.getElementById("sync-diagnostics-content
 const publicShareLinkInput = document.getElementById("public-share-link");
 const copyShareLinkButton = document.getElementById("copy-share-link");
 const bulkTagsButton = document.getElementById("bulk-tags");
+const selectAllRowsButton = document.getElementById("select-all-rows");
 const shareColumnsButton = document.getElementById("share-columns-button");
 let copyShareSizingObserver = null;
 const shareColumnsSummary = document.getElementById("share-columns-summary");
@@ -638,6 +640,7 @@ const statsContent = document.getElementById("stats-content");
 const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
 const statsAdvancedButton = document.getElementById("stats-advanced");
+const statsHelpButton = document.getElementById("stats-help");
 const statsExportButton = document.getElementById("stats-export");
 const statsInsightsButton = document.getElementById("stats-insights");
 const statsNoBuyButton = document.getElementById("stats-no-buy");
@@ -999,7 +1002,7 @@ const snapshotRow = (row) => {
     const val = row.cells[col.id];
     if (val) snap[label] = String(val);
   });
-  const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+  const tags = getRowTags(row);
   if (tags.length) snap["Tags"] = tags.join(", ");
   return snap;
 };
@@ -2158,7 +2161,7 @@ const renderRecycleBin = () => {
         details.appendChild(line);
       }
     });
-    const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+    const tags = getRowTags(row);
     if (tags.length) {
       const tagLine = document.createElement("div");
       tagLine.textContent = "Tags: " + tags.join(", ");
@@ -3445,15 +3448,20 @@ const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
 let insightsRefreshTimer = null;
+const rerenderInsightsDialog = (simDateKey) => {
+  const dialog = document.getElementById("insights-dialog");
+  const body = dialog ? dialog.querySelector(".dialog-body") : null;
+  const previousScrollTop = body ? body.scrollTop : 0;
+  openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+};
+
 const requestInsightsRefreshIfOpen = () => {
   window.clearTimeout(insightsRefreshTimer);
   insightsRefreshTimer = window.setTimeout(() => {
     const dialog = document.getElementById("insights-dialog");
     if (!dialog || !dialog.open) return;
     const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
-    const body = dialog.querySelector(".dialog-body");
-    const previousScrollTop = body ? body.scrollTop : 0;
-    openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+    rerenderInsightsDialog(simDateKey);
   }, 120);
 };
 
@@ -5423,7 +5431,9 @@ const deleteRow = (id) => {
 };
 
 const updateDeleteSelectedState = () => {
+  const selectableRows = Array.from(sheetBody.querySelectorAll(".row-select"));
   const anyChecked = sheetBody.querySelector(".row-select:checked");
+  const allChecked = selectableRows.length > 0 && selectableRows.every((input) => input.checked);
   if (deleteSelectedButton) {
     deleteSelectedButton.disabled = !anyChecked;
   }
@@ -5433,6 +5443,11 @@ const updateDeleteSelectedState = () => {
   if (bulkTagsButton) {
     bulkTagsButton.disabled = !anyChecked;
     bulkTagsButton.style.display = appMode === "wishlist" ? "none" : "";
+  }
+  if (selectAllRowsButton) {
+    selectAllRowsButton.disabled = !selectableRows.length;
+    selectAllRowsButton.style.display = appMode === "wishlist" ? "none" : "";
+    selectAllRowsButton.textContent = allChecked ? "Unselect All" : "Select All";
   }
 };
 
@@ -5458,6 +5473,16 @@ const deleteSelectedRows = () => {
 const clearRowSelections = () => {
   sheetBody.querySelectorAll(".row-select:checked").forEach((input) => {
     input.checked = false;
+  });
+  updateDeleteSelectedState();
+};
+
+const selectAllVisibleRows = () => {
+  const selectableRows = Array.from(sheetBody.querySelectorAll(".row-select"));
+  if (!selectableRows.length) return;
+  const allChecked = selectableRows.every((input) => input.checked);
+  selectableRows.forEach((input) => {
+    input.checked = !allChecked;
   });
   updateDeleteSelectedState();
 };
@@ -6453,7 +6478,7 @@ const matchesFilter = (row, column, queryLower) => {
 
 const getRowTags = (row) => {
   if (!row || !Array.isArray(row.tags)) return [];
-  return row.tags.filter((tag) => String(tag || "").trim() !== "");
+  return canonicalizeTagList(row.tags);
 };
 
 const isForSale = (row) => getRowTags(row).some((tag) => tag.toLowerCase() === FOR_SALE_TAG.toLowerCase());
@@ -6475,14 +6500,34 @@ const matchesTagFilter = (row, queryLower) => {
   return tags.some((tag) => String(tag).toLowerCase().includes(queryLower));
 };
 
+const canonicalizeTagLabel = (tag) => {
+  const trimmed = String(tag || "").trim();
+  if (!trimmed) return "";
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (key === "xxchange" || key === "dixxonxxchange") return "Dixxon XXChange";
+  return trimmed;
+};
+
+const canonicalizeTagList = (tags) => {
+  const merged = new Map();
+  (Array.isArray(tags) ? tags : []).forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (key && !merged.has(key)) merged.set(key, canonical);
+  });
+  return Array.from(merged.values());
+};
+
 const BASE_TAG_SUGGESTIONS = [
   "Floral",
   "Christmas",
+  "Cinco de Mayo",
   "Halloween",
   "Holiday",
   "Patriotic",
   "Movie",
   "Animation",
+  "Dixxon XXChange",
   "Original",
   "Dropzone",
 ];
@@ -6492,7 +6537,7 @@ const loadCustomTags = () => {
   try {
     const stored = localStorage.getItem(CUSTOM_TAGS_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    return Array.isArray(parsed) ? canonicalizeTagList(parsed) : [];
   } catch (error) {
     return [];
   }
@@ -6501,7 +6546,7 @@ const loadCustomTags = () => {
 const saveCustomTags = (tags) => {
   if (!canUseLocalStorage()) return;
   try {
-    localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
+    localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(canonicalizeTagList(tags)));
   } catch (error) {
     // ignore
   }
@@ -6529,16 +6574,16 @@ const persistNewTags = (incoming) => {
 
 const normalizeTagsInput = (value) => String(value || "")
   .split(",")
-  .map((tag) => String(tag || "").trim())
+  .map((tag) => canonicalizeTagLabel(tag))
   .filter((tag) => tag.length > 0);
 
 const mergeTags = (currentTags, incomingTags) => {
   const merged = new Map();
-  currentTags.forEach((tag) => {
+  canonicalizeTagList(currentTags).forEach((tag) => {
     const key = String(tag || "").toLowerCase();
     if (key) merged.set(key, String(tag));
   });
-  incomingTags.forEach((tag) => {
+  canonicalizeTagList(incomingTags).forEach((tag) => {
     const key = String(tag || "").toLowerCase();
     if (key && !merged.has(key)) merged.set(key, String(tag));
   });
@@ -6685,8 +6730,8 @@ const renderBulkTagSuggestions = (query) => {
 const setRowTags = (rowId, nextTags, logContext = null) => {
   const row = state.rows.find((item) => item.id === rowId);
   if (!row) return;
-  const previousTags = Array.isArray(row.tags) ? row.tags : [];
-  const next = Array.isArray(nextTags) ? nextTags : [];
+  const previousTags = getRowTags(row);
+  const next = canonicalizeTagList(nextTags);
   row.tags = next;
   updateShirtUpdateDate();
   saveState();
@@ -8373,6 +8418,12 @@ if (bulkTagsButton) {
   });
 }
 
+if (selectAllRowsButton) {
+  selectAllRowsButton.addEventListener("click", () => {
+    selectAllVisibleRows();
+  });
+}
+
 if (bulkTagsAddButton) {
   bulkTagsAddButton.addEventListener("click", () => {
     if (!bulkTagsInput) return;
@@ -9141,7 +9192,7 @@ const collectAllStats = () => {
         return;
       }
     }
-    const entries = rows.map((row) => ({ row, columns: cols, tabName: tab.name }));
+    const entries = rows.map((row) => ({ row, columns: cols, tabName: tab.name, tabId: tab.id }));
     perTabRows.push({ name: tab.name, id: tab.id, count: rows.length, entries });
     entries.forEach((e) => allRows.push(e));
   });
@@ -9154,6 +9205,16 @@ const collectAllStats = () => {
   const getCellValue = (entry, colName) => {
     const col = findColumn(entry.columns, colName);
     return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
+  };
+
+  const applyHiddenColumnsToEntry = (entry) => {
+    const hiddenIds = columnOverrides.hiddenColumnsByTab[entry?.tabId];
+    const hidden = new Set(Array.isArray(hiddenIds) ? hiddenIds : []);
+    if (!hidden.size) return entry;
+    return {
+      ...entry,
+      columns: Array.isArray(entry.columns) ? entry.columns.filter((column) => !hidden.has(column.id)) : [],
+    };
   };
 
   const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
@@ -9175,9 +9236,10 @@ const collectAllStats = () => {
   };
 
   // --- Reusable stat helpers (work on any row subset) ---
-  const tallyFrom = (subset, colName) => {
+  const tallyFrom = (subset, colName, options = {}) => {
     const counts = {};
-    subset.forEach((entry) => {
+    const source = options.respectHiddenColumns ? subset.map(applyHiddenColumnsToEntry) : subset;
+    source.forEach((entry) => {
       const val = getCellValue(entry, colName);
       if (val) counts[val] = (counts[val] || 0) + 1;
     });
@@ -9223,7 +9285,7 @@ const collectAllStats = () => {
   const tagsFrom = (subset) => {
     const tagCounts = {};
     subset.forEach((entry) => {
-      const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+      const tags = getRowTags(entry.row);
       tags.forEach((tag) => {
         const t = String(tag || "").trim();
         if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
@@ -9245,7 +9307,10 @@ const collectAllStats = () => {
   };
 
   // --- Cross-tab aggregate stats ---
-  const globalStats = buildStatsFor(allRows);
+  const globalStats = {
+    ...buildStatsFor(allRows),
+    fandomTally: tallyFrom(allRows, "Fandom", { respectHiddenColumns: true }).slice(0, 5),
+  };
   const totalItems = allRows.length;
 
   // --- Name stats ---
@@ -9698,7 +9763,7 @@ const collectAllStats = () => {
           lastWorn,
           wearLog,
           createdAt: entry.row.createdAt || null,
-          tags: Array.isArray(entry.row.tags) ? entry.row.tags : [],
+          tags: getRowTags(entry.row),
         });
       });
     });
@@ -9915,7 +9980,7 @@ const collectAllStats = () => {
   const tagRollup = {};
   wearableUniverse.forEach((item) => {
     item.tags.forEach((rawTag) => {
-      const tag = String(rawTag || "").trim();
+      const tag = canonicalizeTagLabel(rawTag);
       if (!tag || tag === "Original") return;
       if (!tagRollup[tag]) tagRollup[tag] = { tag, samples: 0, wearSum: 0, cpwSum: 0, cpwCount: 0 };
       const bucket = tagRollup[tag];
@@ -10592,12 +10657,19 @@ const openAdvancedStatsDialog = (stats) => {
         <div id="advanced-stats-content" class="advanced-stats-content"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="advanced-stats-help" class="btn secondary">Help</button>
         <button type="button" id="advanced-stats-close" class="btn">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
 
+    const helpButton = dialog.querySelector("#advanced-stats-help");
     const closeButton = dialog.querySelector("#advanced-stats-close");
+    if (helpButton) {
+      helpButton.addEventListener("click", () => {
+        openAdvancedStatsHelpDialog();
+      });
+    }
     if (closeButton) {
       closeButton.addEventListener("click", () => {
         closeDialog(dialog);
@@ -10632,6 +10704,7 @@ const openAdvancedStatsDialog = (stats) => {
   const rotationModel = behavior?.rotationModel || { graceCount: 0, adjustedBacklogPct: 0, topBrandDominance: null, parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } } };
   const workLane = buildTaggedLaneStats(s.wearableItems || [], ["workappropriate", "work appropriate"]);
   const formalLane = buildTaggedLaneStats(s.wearableItems || [], ["formal"]);
+  const holidayLane = buildTaggedLaneStats(s.wearableItems || [], HOLIDAY_LANE_TAG_ALIASES);
   let html = "";
 
   if (s.isInventory) {
@@ -10834,7 +10907,7 @@ const openAdvancedStatsDialog = (stats) => {
     html += section("Tag performance", body);
   }
 
-  if (workLane.total || formalLane.total) {
+  if (workLane.total || formalLane.total || holidayLane.total) {
     let body = hint("Special-purpose coverage tracks how deep these tagged lanes are and how alive they still are in real wear activity.");
     if (workLane.total) {
       body += row("Work-ready lane", `${workLane.total} items | ${workLane.active365} active in 365d | ${workLane.neverWorn} never worn`);
@@ -10843,6 +10916,10 @@ const openAdvancedStatsDialog = (stats) => {
     if (formalLane.total) {
       body += row("Formal lane", `${formalLane.total} items | ${formalLane.active365} active in 365d | ${formalLane.neverWorn} never worn`);
       body += sub("Formal leaders", `${formalLane.topBrand} brand | ${formalLane.topType} type`);
+    }
+    if (holidayLane.total) {
+      body += row("Holiday lane", `${holidayLane.total} items | ${holidayLane.active365} active in 365d | ${holidayLane.neverWorn} never worn`);
+      body += sub("Holiday leaders", `${holidayLane.topBrand} brand | ${holidayLane.topType} type`);
     }
     html += section("Occasion lanes", body);
   }
@@ -10891,6 +10968,40 @@ const loadInsightsSnoozes = () => {
 const saveInsightsSnoozes = (value) => {
   try {
     localStorage.setItem(INSIGHTS_SNOOZE_KEY, JSON.stringify(value || {}));
+  } catch (error) {
+    // ignore
+  }
+};
+
+const loadInsightsSellDismissals = () => {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(localStorage.getItem(INSIGHTS_SELL_DISMISS_KEY) || "{}");
+  } catch (error) {
+    parsed = {};
+  }
+  if (!parsed || typeof parsed !== "object") return {};
+  const todayKey = localDateKeyFromDate(new Date());
+  const next = {};
+  Object.entries(parsed).forEach(([key, dismissedOn]) => {
+    const normalized = String(dismissedOn || "");
+    if (/^\d{4}-\d{2}-\d{2}$/.test(normalized) && normalized >= todayKey) {
+      next[key] = normalized;
+    }
+  });
+  if (Object.keys(next).length !== Object.keys(parsed).length) {
+    try {
+      localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(next));
+    } catch (error) {
+      // ignore
+    }
+  }
+  return next;
+};
+
+const saveInsightsSellDismissals = (value) => {
+  try {
+    localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(value || {}));
   } catch (error) {
     // ignore
   }
@@ -11593,6 +11704,455 @@ const exportNoBuyLogJson = (state) => {
   window.setTimeout(() => URL.revokeObjectURL(href), 0);
 };
 
+const buildNoBuyActionEntries = (state, limit = 10) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const fromActionLog = Array.isArray(safe.actionLog)
+    ? safe.actionLog
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry, idx) => ({
+          at: String(entry.at || ""),
+          type: String(entry.type || ""),
+          reason: String(entry.reason || "other"),
+          source: "actionLog",
+          sourceIndex: idx,
+        }))
+    : [];
+  const sortedActionLog = fromActionLog
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  if (sortedActionLog.length) {
+    return Number.isFinite(limit) ? sortedActionLog.slice(0, limit) : sortedActionLog;
+  }
+
+  const fallback = [];
+  if (Array.isArray(safe.buyLog)) {
+    safe.buyLog.forEach((entry) => {
+      const dateKey = String(entry?.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+      fallback.push({
+        at: `${dateKey}T12:00:00`,
+        type: "purchase",
+        reason: String(entry?.reason || "other"),
+        source: "buyLog",
+        dateKey,
+      });
+    });
+  }
+  if (Array.isArray(safe.dailyCheckins)) {
+    safe.dailyCheckins.forEach((entry) => {
+      if (!entry?.tempted) return;
+      const dateKey = String(entry?.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
+      fallback.push({
+        at: `${dateKey}T12:00:00`,
+        type: "temptation",
+        reason: String(entry?.trigger || "other"),
+        source: "dailyCheckins",
+        dateKey,
+      });
+    });
+  }
+  const sortedFallback = fallback
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return Number.isFinite(limit) ? sortedFallback.slice(0, limit) : sortedFallback;
+};
+
+const openNoBuyHistoryDialog = (entries) => {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  let dialog = document.getElementById("no-buy-history-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "no-buy-history-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>No-Buy Full History</h3>
+        <div id="no-buy-history-summary" class="stats-hint"></div>
+        <div id="no-buy-history-list" class="insights-action-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="no-buy-history-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#no-buy-history-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#no-buy-history-summary");
+  const list = dialog.querySelector("#no-buy-history-list");
+  if (!list) return;
+  if (summary) {
+    summary.textContent = `${safeEntries.length} logged action${safeEntries.length === 1 ? "" : "s"} sorted newest first.`;
+  }
+
+  list.innerHTML = safeEntries.length
+    ? safeEntries.map((entry, idx) => {
+        const whenMs = new Date(entry.at).getTime();
+        const whenLabel = Number.isFinite(whenMs) ? new Date(whenMs).toLocaleString() : "Unknown date";
+        const typeLabel = entry.type === "purchase"
+          ? "Buy logged"
+          : entry.type === "cooldown"
+            ? "Cooldown started"
+            : "Temptation logged";
+        return `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span></div>`;
+      }).join("")
+    : `<div class="stats-hint">No no-buy history logged yet.</div>`;
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const escapeHelpHtml = (str) => String(str || "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/\"/g, "&quot;");
+
+const buildHelpSection = (title, intro = "", items = []) => `
+  <div class="stats-section">
+    <div class="stats-section-title">${escapeHelpHtml(title)}</div>
+    ${intro ? `<div class="stats-hint">${escapeHelpHtml(intro)}</div>` : ""}
+    ${(Array.isArray(items) ? items : []).map((item) => `<div class="stats-row stats-sub"><span class="stats-label">${escapeHelpHtml(item.label)}</span><span class="stats-value">${escapeHelpHtml(item.value)}</span></div>`).join("")}
+  </div>
+`;
+
+const openHelpDialog = (title, bodyHtml) => {
+  let dialog = document.getElementById("stats-coaching-help-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "stats-coaching-help-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3 id="stats-coaching-help-title">Help</h3>
+        <div id="stats-coaching-help-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="stats-coaching-help-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#stats-coaching-help-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const titleEl = dialog.querySelector("#stats-coaching-help-title");
+  const content = dialog.querySelector("#stats-coaching-help-content");
+  if (!content) return;
+  if (titleEl) titleEl.textContent = title;
+  content.innerHTML = bodyHtml;
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const buildMainStatsHelpHtml = (stats) => {
+  const isInventory = Boolean(stats?.isInventory);
+  let html = "";
+  html += buildHelpSection(
+    "How to read Main Stats",
+    isInventory
+      ? "Main Stats is your fast dashboard. It answers three simple questions: how big the closet is, where the value is, and how active the rotation looks right now."
+      : "Main Stats is your quick wishlist dashboard. It shows what kinds of items you want, how balanced the wishlist is, and how often wishlist items turn into real purchases and wears.",
+    [
+      { label: "Top summary rows", value: "Quick facts, not grades. Use them to spot patterns, not to judge the closet." },
+      { label: "Bar charts", value: "Longer bars mean a category appears more often. They help you see what is dominant at a glance." },
+      { label: "Lists", value: "Ranked lists surface the strongest examples first, like the most expensive pieces, highest rotation scores, or most recent additions." },
+    ]
+  );
+  html += buildHelpSection(
+    "Counts and breakdowns",
+    "These stats explain what the closet is made of.",
+    [
+      { label: "Total items", value: "How many rows currently exist in this mode." },
+      { label: "Per-tab counts", value: "How many items each brand tab holds. On desktop, each tab can expand into its own type, fandom, size, condition, and tag breakdown." },
+      { label: "Top types", value: "The most common shirt types in the current mode." },
+      { label: "Top fandoms", value: "The most common fandom values currently shown." },
+      { label: "Size breakdown", value: "How your sizes are distributed across the current set of items." },
+      { label: "Condition breakdown", value: "Inventory only. Shows how many items are NWT, NWOT, worn, and other condition states." },
+      { label: "Top tags", value: "The tags you use most often. This helps reveal which themes dominate the closet." },
+      { label: "Items tagged / tag coverage", value: "How many items have at least one tag, plus the percent of the closet that is tagged at all." },
+    ]
+  );
+  if (isInventory) {
+    html += buildHelpSection(
+      "Pricing and value",
+      "These stats explain how money is spread across the closet.",
+      [
+        { label: "Total value", value: "The sum of all item prices in inventory." },
+        { label: "Mean price", value: "The simple average price. Add every price together, then divide by the number of items." },
+        { label: "Median price", value: "The middle price when all item prices are sorted from lowest to highest. Median is useful because one very expensive item will not distort it as much as the mean." },
+        { label: "Standard deviation", value: "How spread out your prices are. Low means prices cluster together. High means there is a wide gap between cheaper and more expensive pieces." },
+        { label: "Top 10 most expensive", value: "The highest-priced pieces in the closet." },
+        { label: "Top 10 cheapest", value: "The least expensive eligible pieces, excluding low-cost categories that would dominate the list." },
+        { label: "Value by tab", value: "How much total dollar value sits inside each brand tab." },
+        { label: "Price distribution", value: "A histogram showing how many items fall into each price bucket." },
+      ]
+    );
+  }
+  html += buildHelpSection(
+    "Identity and variety",
+    "These stats explain whether the closet is concentrated in a few lanes or spread more evenly.",
+    [
+      { label: isInventory ? "Collection diversity" : "Wishlist diversity", value: "A balance score for how evenly your items are spread across types and fandoms. Low means a strong favorite lane. High means more variety." },
+      { label: "Specialist / Balanced / Generalist", value: "These labels summarize whether the closet leans hard into a few lanes, sits in the middle, or spreads broadly across many lanes." },
+      { label: "Common words in names", value: "Desktop only. Surfaces repeated naming patterns so you can see when a few themes or product lines dominate the closet." },
+      { label: "Whales", value: "High-value or special collector-anchor items tagged Whale. The section shows how many exist and whether they are active or intentionally parked." },
+    ]
+  );
+  if (isInventory) {
+    html += buildHelpSection(
+      "Purchase pace and wear tracking",
+      "These sections explain how quickly items enter the closet and how actively they are being worn.",
+      [
+        { label: "Items added per month", value: "How many items were added in each month." },
+        { label: "Purchase streaks", value: "Current streak and longest streak based on consecutive days with purchases or additions." },
+        { label: "No-buy streak", value: "How long it has been since a logged buy reset the no-buy run." },
+        { label: "Longest unworn", value: "The wearable item with the biggest current gap since its last logged wear." },
+        { label: "Top rotation score", value: "A blended ranking based on wears, recency, and price. It highlights items carrying real rotation weight." },
+        { label: "Last 5 worn", value: "The five most recently worn items." },
+        { label: "Worn on date", value: "Looks up what was worn on a specific day using wear-log history." },
+        { label: "Shirts not worn in past 6 months", value: "A focused idle list for wearable items that have gone quiet recently." },
+        { label: "Best cost per wear", value: "Shows which items are delivering the strongest value based on price divided by wear count." },
+        { label: "Top brand by day of week / month", value: "Shows which brands most often win each weekday and month using wear-log history." },
+      ]
+    );
+    html += buildHelpSection(
+      "Recent change sections",
+      "These sections explain what has changed in the closet lately.",
+      [
+        { label: "Recently added", value: "Recent additions, plus whether each one already entered rotation or is still unworn." },
+        { label: "Recently deleted", value: "A compact list of items recently removed from inventory." },
+      ]
+    );
+  } else {
+    html += buildHelpSection(
+      "Wishlist conversion",
+      "Wishlist mode focuses on what eventually gets obtained and whether those wins become real wears.",
+      [
+        { label: "Items obtained", value: "How many wishlist items eventually became purchases or acquisitions." },
+        { label: "Most recent 'Got it!'", value: "The newest wishlist item marked as obtained." },
+        { label: "Tracked conversions", value: "How many obtained items are detailed enough to analyze properly." },
+        { label: "Legacy obtained items", value: "Older obtained history that still counts in totals but may not have full modern metadata." },
+        { label: "Worn at least once / Worn 2+ times", value: "Shows how often obtained wishlist items actually made it into rotation." },
+        { label: "Median add -> got it", value: "Typical number of days between adding an item to the wishlist and obtaining it." },
+        { label: "Median got it -> first wear", value: "Typical number of days between obtaining an item and wearing it for the first time." },
+        { label: "Top converting brand / type", value: "The strongest brand or type lane for turning wishlist interest into real ownership and wear." },
+        { label: "Buy gate reviewed / duplicate-flagged buys", value: "How often the buy-gate system was involved and how often duplicate-risk warnings appeared." },
+      ]
+    );
+  }
+  return html;
+};
+
+const buildInsightsHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What Insights is for",
+    "Insights is the coaching layer. It is less about raw counts and more about behavior, momentum, backlog, and which next action makes the most sense.",
+    [
+      { label: "Use it for", value: "Finding patterns, spotting neglected value, and understanding why the queue recommends what it recommends." },
+      { label: "Do not use it as", value: "A guilt machine. Most cards are signals, not failures." },
+    ]
+  );
+  html += buildHelpSection(
+    "Personal Style DNA (Wrapped)",
+    "Wrapped summarizes how your style behaved over the current month and year, with story mode for past periods that actually have data.",
+    [
+      { label: "Wears / items", value: "How many total wears happened in that period and how many unique items those wears covered." },
+      { label: "Top brand / top type", value: "The brand and type that showed up most often in logged wears." },
+      { label: "Spotlight wear", value: "A single wear event that stands out because of dormancy gap, value, condition, or date-theme signal." },
+      { label: "Peak day / best streak", value: "Your strongest wear day and longest consecutive wear run in that period." },
+      { label: "Adds / spend", value: "How many items were added during that period and how much money that intake represented." },
+      { label: "Top fandom / top tag", value: "The strongest identity signals attached to what you actually wore." },
+      { label: "Play story", value: "Turns the Wrapped data into slide-style narration you can browse by month or year." },
+    ]
+  );
+  html += buildHelpSection(
+    "Behavior and coaching cards",
+    "These cards explain how the closet is behaving right now and what move would balance it best.",
+    [
+      { label: "Rotation volatility", value: "How sharply your wear choices swing week to week." },
+      { label: "Weekday vs weekend persona", value: "How similar weekday wear behavior is to weekend wear behavior." },
+      { label: "Style exploration ratio", value: "How often you stepped outside your core types recently." },
+      { label: "Bench pressure", value: "Items the queue keeps showing that do not get selected." },
+      { label: "Annual coverage index", value: "How much of the wearable closet has been touched at least once in the last year, adjusted for collector-scale closets." },
+      { label: "Wildcard pick of the week", value: "A deliberate recommendation that nudges the rotation in a useful direction." },
+      { label: "Opportunity-adjusted backlog", value: "Never-worn backlog after excluding items that should not be penalized yet." },
+      { label: "Theme fatigue detector", value: "Flags fandom or tag themes that used to carry more of the rotation but have cooled off recently." },
+      { label: "Decision friction", value: "Measures how often the queue and your actual choices disagree." },
+      { label: "Value recovery forecast", value: "Estimates how many additional wears expensive underused items need to reach healthier value." },
+      { label: "Outfit confidence curve", value: "A repeat-confidence signal based on actual behavior and long-gap evidence." },
+      { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
+      { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
+      { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
+      { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces. Use the dismiss action to hide an item for 30 days." },
+      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
+      { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
+    ]
+  );
+  html += buildHelpSection(
+    "Behavior detail sections",
+    "These lists turn the cards above into concrete item-level coaching.",
+    [
+      { label: "Collector-normal rotation model", value: "Splits the closet into active, cooling, and dormant tiers so collector spacing is judged fairly." },
+      { label: "Comeback candidates", value: "Historically strong items that look ready for a safe return." },
+      { label: "Theme fatigue watchlist", value: "Specific themes whose share of wear has faded noticeably." },
+      { label: "Decision friction heatmap", value: "Weekday hotspots where queue acceptance is weakest." },
+      { label: "Value recovery targets", value: "Specific expensive items that still need more wears to justify their cost." },
+      { label: "Outfit confidence low-signal items", value: "Items whose repeat-wear confidence currently looks weak." },
+      { label: "Adaptive queue recommendations", value: "Type-level boost or cool suggestions learned from real queue behavior." },
+      { label: "7-day reactivation playbook", value: "An ordered short plan for waking dormant value back up." },
+      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength." },
+      { label: "Bench pressure watchlist", value: "Specific queued items that repeatedly get skipped, snoozed, or soft-passed." },
+    ]
+  );
+  html += buildHelpSection(
+    "Closet audit scorecard and queue",
+    "These sections turn behavior into a practical next move.",
+    [
+      { label: "Health score", value: "A broad health check built from coverage, backlog, idle value, and rotation efficiency." },
+      { label: "Parked value", value: "How much closet value is sitting idle for a long time." },
+      { label: "Adoption lag", value: "Typical delay between adding an item and wearing it for the first time." },
+      { label: "Backlog risk", value: "How many items are still waiting for a first wear." },
+      { label: "365-day rotation", value: "How much of the wearable closet has been touched within the last year." },
+      { label: "No-buy streak", value: "Current and longest no-buy run, shown because buying pressure changes closet health too." },
+      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate date previews another day, lane labels explain the reason family, Why this ranked shows score math, Worn today logs the pick, Not today is a soft pass, and Snooze hides the item longer." },
+      { label: "Wear calendar heatmap", value: "A calendar view of wear intensity. The year and brand filters change the view, and clicking dates or months drills into history." },
+    ]
+  );
+  return html;
+};
+
+const buildAdvancedStatsHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What Advanced Stats is for",
+    "Advanced Stats is the deeper diagnostic layer. It is meant for trend-reading, not quick checking. If Main Stats answers what the closet looks like, Advanced Stats answers how it is behaving over time.",
+    [
+      { label: "Best use", value: "Use this window when you want to understand adoption lag, parked value, tag performance, and whether the closet is actually rotating in a healthy way." },
+      { label: "Mindset", value: "These numbers are coaching signals. They are not moral judgments and they are not based on fast-rotation closet assumptions." },
+    ]
+  );
+  html += buildHelpSection(
+    "Collector snapshot and health",
+    "These sections describe the overall state of the collection at a higher level.",
+    [
+      { label: "Collector snapshot", value: "A broad summary of total size, current yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
+      { label: "Closet health score", value: "A 0-100 summary based on yearly reach, never-worn share, parked value, and cost-per-wear efficiency. Higher is healthier." },
+      { label: "Worn in last 365 days", value: "The percent of wearable items touched in the last year." },
+      { label: "Items <= $20 CPW", value: "The share of items that have already delivered relatively efficient value based on cost per wear." },
+    ]
+  );
+  html += buildHelpSection(
+    "Adoption and intake",
+    "These sections explain how quickly new pieces move from purchase into real use.",
+    [
+      { label: "First-wear lag outliers", value: "The slowest adopters in the closet. Higher day counts mean items sat longer before their first logged wear." },
+      { label: "New item adoption", value: "Shows adoption rate, median days to first wear, total never-worn items, grace-window items, and adjusted backlog pressure." },
+      { label: "Grace-window unworn (<120d)", value: "Unworn items that are still new enough not to count as a true backlog problem yet." },
+      { label: "Adjusted backlog", value: "The backlog after removing grace-window items so the pressure read is fairer." },
+      { label: "Monthly spend vs wear value", value: "Compares purchase intake, total spend, and wear activity month by month to show whether a month was wear-first, balanced, or intake-heavy." },
+    ]
+  );
+  html += buildHelpSection(
+    "Rotation balance and value",
+    "These sections explain how evenly the closet is being used and where value may be sitting idle.",
+    [
+      { label: "Brand rotation reach", value: "Shows how active each brand is over the last year, including utilization percent, total wears, and average cost per wear." },
+      { label: "Type rotation balance", value: "Compares how much of the closet a type occupies versus how much of actual wear it receives." },
+      { label: "Parked value", value: "Tracks how many items and how much value have been inactive for long intervals like 180 or 365 days." },
+      { label: "Repeat-wear streaks", value: "Shows brand and type streak patterns when the same lane keeps winning multiple days in a row." },
+      { label: "Seasonality snapshot", value: "Shows which type led each month, helping you spot quiet months or strong seasonal identities." },
+    ]
+  );
+  html += buildHelpSection(
+    "Tags and occasions",
+    "These sections explain how labels and purpose lanes are performing.",
+    [
+      { label: "Tag performance", value: "Shows which tags are punching above or below expectation using average wears and average cost-per-wear signals." },
+      { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
+      { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
+      { label: "Occasion lanes", value: "Shows depth and activity for special-purpose tagged lanes like Work Appropriate, Formal, and other occasion-focused categories." },
+    ]
+  );
+  return html;
+};
+
+const buildNoBuyHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What the No-Buy Game is",
+    "This is a coaching layer for purchase restraint. It turns streak protection, temptation logging, cooldowns, and recovery habits into a simple game loop.",
+    [
+      { label: "Important rule", value: "Buys are manual-only. The app does not auto-log a buy just because a streak changes." },
+      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, and completing recovery after a buy." },
+    ]
+  );
+  html += buildHelpSection(
+    "Buttons and actions",
+    "These are the controls you can press inside the game window.",
+    [
+      { label: "Start 24h cooldown", value: "Begins a one-day pause buffer before buying and logs a cooldown action." },
+      { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one buy credit if available, and starts a recovery mission." },
+      { label: "Tempted today", value: "Logs that you felt pressure to buy today and stores the trigger you selected." },
+      { label: "No temptation today", value: "Marks the day as clear and removes that day’s temptation pressure." },
+      { label: "Export log JSON", value: "Downloads the full no-buy state for backup or personal analysis." },
+      { label: "Open full history", value: "Shows the full in-app action history, newest first." },
+      { label: "Delete", value: "Removes an individual logged action from the recent list." },
+    ]
+  );
+  html += buildHelpSection(
+    "Stat cards and sections",
+    "These numbers explain the current buying-pressure picture.",
+    [
+      { label: "Risk right now", value: "A short summary of the biggest current buying pressures." },
+      { label: "Current streak", value: "Your active run of no-buy days, plus the longest streak reached so far." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days." },
+      { label: "Buy credits", value: "Credits earned every 10 banked no-buy days." },
+      { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
+      { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
+      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline." },
+      { label: "Clean badge", value: "A quick read on whether the current month is buy-clean and whether the last week is temptation-clean." },
+      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into a larger pressure family." },
+      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now." },
+      { label: "Recent button log", value: "The latest 10 logged actions, including cooldowns, temptations, and buys." },
+      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
+      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
+      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and current recovery state." },
+    ]
+  );
+  html += buildHelpSection(
+    "Rules and definitions",
+    "These are the actual rules the current game logic follows.",
+    [
+      { label: "Daily XP", value: "When the app syncs a valid no-buy day, it grants XP once per day, with bonus XP at bigger streak bands." },
+      { label: "No-buy day banking", value: "Every successful no-buy day adds to lifetime banked no-buy days." },
+      { label: "Buy credits rule", value: "Every 10 banked no-buy days grants 1 buy credit." },
+      { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
+      { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
+      { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
+      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing." },
+    ]
+  );
+  return html;
+};
+
+const openStatsHelpDialog = (stats) => openHelpDialog("Main Stats Help", buildMainStatsHelpHtml(stats));
+const openInsightsHelpDialog = () => openHelpDialog("Insights Help", buildInsightsHelpHtml());
+const openAdvancedStatsHelpDialog = () => openHelpDialog("Advanced Stats Help", buildAdvancedStatsHelpHtml());
+const openNoBuyHelpDialog = () => openHelpDialog("No-Buy Game Help", buildNoBuyHelpHtml());
+
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   const safe = normalizeNoBuyGamifyState(state || {});
   const source = String(descriptor.source || "");
@@ -11762,7 +12322,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
   const isWhaleTagged = (item) => hasTag(item, "whale");
   const isProtectedTagged = (item) => hasAnyTag(item, ["whale", "sentimental", "archive"]);
 
-  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead"];
+  const holidayTagKeys = ["holiday", "christmas", "xmas", "halloween", "hanukkah", "valentine", "valentines", "stpatricks", "july4", "july4th", "usa", "thanksgiving", "easter", "mardigras", "mardi", "margigras", "diadelosmuertos", "dayofthedead", "cincodemayo", "cinco"];
   const holidayMonths = new Set([1, 2, 3, 4, 6, 9, 10, 11]);
   const isOutOfWindowHoliday = (item) => hasAnyTag(item, holidayTagKeys) && !holidayMonths.has(monthNow);
   const isSeasonalExempt = (item) => {
@@ -12278,7 +12838,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     if (set.has("bst")) matches.push("bst");
     if (set.has("ebay")) matches.push("ebay");
     if (set.has("mercari")) matches.push("mercari");
-    if (set.has("xxchange")) matches.push("xxchange");
+    if (set.has("xxchange") || set.has("dixxonxxchange")) matches.push("xxchange");
     return matches;
   };
 
@@ -12286,7 +12846,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
-    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
+    xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
   };
 
   const confidenceByKey = {};
@@ -12341,12 +12901,13 @@ const buildBehaviorInsights = (stats, queue = []) => {
     delete bucket.wearSamples;
   });
 
-  const sellSuggestions = wearableItems
+  const rawSellSuggestions = wearableItems
     .map((item) => {
       if (isProtectedTagged(item) || isSeasonalExempt(item)) return null;
       if (item?.createdAt) {
         const createdMs = new Date(item.createdAt).getTime();
-        if (Number.isFinite(createdMs) && createdMs > (nowMs - (30 * dayMs))) return null;
+        const sellRuleStartMs = new Date("2026-02-01T00:00:00").getTime();
+        if (Number.isFinite(createdMs) && createdMs >= sellRuleStartMs && createdMs > (nowMs - (90 * dayMs))) return null;
       }
       const key = getInsightsQueueKey(item);
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
@@ -12389,7 +12950,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       if (daysSince !== null && daysSince <= 30) score -= 25;
 
       if (score < 45) return null;
-      const actionLabel = score >= 78 ? "Sell candidate" : "Review";
+      const actionLabel = "Sell candidate";
       return {
         key,
         name: String(item?.name || "Unnamed"),
@@ -12405,7 +12966,9 @@ const buildBehaviorInsights = (stats, queue = []) => {
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
-    .slice(0, 3);
+    .slice(0, 5);
+  const dismissedSellSuggestions = loadInsightsSellDismissals();
+  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]);
 
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
@@ -12544,6 +13107,8 @@ const isFlannelLikeText = (text) => {
   return normalized.includes("flannel") || normalized.includes("borlandflex");
 };
 
+const isHoodieLikeText = (text) => String(text || "").toLowerCase().includes("hoodie");
+
 const buildTaggedLaneStats = (items, aliases, options = {}) => {
   const allItems = Array.isArray(items) ? items : [];
   const aliasSet = new Set((Array.isArray(aliases) ? aliases : [])
@@ -12581,9 +13146,42 @@ const buildTaggedLaneStats = (items, aliases, options = {}) => {
   };
 };
 
+const HOLIDAY_LANE_TAG_ALIASES = [
+  "holiday",
+  "usa",
+  "patriotic",
+  "july4",
+  "july4th",
+  "christmas",
+  "xmas",
+  "hanukkah",
+  "thanksgiving",
+  "halloween",
+  "st patricks",
+  "st patrick's",
+  "stpatricks",
+  "valentine",
+  "valentines",
+  "easter",
+  "mardi gras",
+  "mardigras",
+  "cinco de mayo",
+  "cinco",
+  "dia de los muertos",
+  "diadelosmuertos",
+  "day of the dead",
+];
+
 const getLastMondayOfMay = (year) => {
   const d = new Date(year, 4, 31);
   while (d.getDay() !== 1) d.setDate(d.getDate() - 1);
+  return d;
+};
+
+const getNthWeekdayOfMonth = (year, monthIndex, weekday, occurrence) => {
+  const d = new Date(year, monthIndex, 1);
+  while (d.getDay() !== weekday) d.setDate(d.getDate() + 1);
+  d.setDate(d.getDate() + ((Math.max(1, Number(occurrence) || 1) - 1) * 7));
   return d;
 };
 
@@ -12653,12 +13251,22 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const dayOfWeek = safeNow.getDay(); // Sun=0..Sat=6
   const year = safeNow.getFullYear();
   const isColdMonth = [0, 1, 2, 3, 8, 9, 10, 11].includes(monthIndex);
+  const isWarmMonth = !isColdMonth;
   const isSummerMonth = [5, 6, 7].includes(monthIndex); // Jun, Jul, Aug
   const isPeakHeatMonth = [6, 7].includes(monthIndex); // Jul, Aug
+  const isMayFlowersMonth = monthIndex === 4;
+  const isMickeyMonday = dayOfWeek === 1;
+  const isTagPopTuesday = dayOfWeek === 2;
+  const isWhaleWednesday = dayOfWeek === 3;
+  const isFloralFriday = dayOfWeek === 5;
+  const isNationalFlannelDay = monthIndex === 1 && dayOfMonth === 10;
 
   const dateOnlyFrom = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const daysBetween = (a, b) => Math.floor(Math.abs(dateOnlyFrom(a).getTime() - dateOnlyFrom(b).getTime()) / 86400000);
+  const presidentsDay = getNthWeekdayOfMonth(year, 1, 1, 3);
   const memorialDay = getLastMondayOfMay(year);
+  const flagDay = new Date(year, 5, 14);
+  const cincoDeMayo = new Date(year, 4, 5);
   const thanksgivingDay = getThanksgivingDate(year);
   const easterDay = getEasterDate(year);
   const mardiGrasDay = getMardiGrasDate(year);
@@ -12668,7 +13276,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
     {
       id: "usa",
       label: "USA holiday",
-      dates: [memorialDay, new Date(year, 6, 4)],
+      dates: [presidentsDay, memorialDay, flagDay, new Date(year, 6, 4)],
       aliases: ["usa", "us", "america", "american", "patriotic"],
     },
     {
@@ -12688,6 +13296,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       label: "Valentine's Day",
       dates: [new Date(year, 1, 14)],
       aliases: ["valentinesday", "valentines", "valentine"],
+    },
+    {
+      id: "cincodemayo",
+      label: "Cinco de Mayo",
+      dates: [cincoDeMayo],
+      aliases: ["cincodemayo", "cinco", "5demayo"],
     },
     {
       id: "mardigras",
@@ -12749,7 +13363,20 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
-      const holidayTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
+      const normalizedTagKeys = new Set(tags.map(normalizeHolidayTagKey).filter(Boolean));
+      const fandomKey = normalizeHolidayTagKey(fandom);
+      const isFloralItem = tagSet.has("floral") || normalizedTagKeys.has("floral");
+      const isWhaleItem = tagSet.has("whale") || normalizedTagKeys.has("whale");
+      const isLongSleeveTagged = tagSet.has("long sleeve") || normalizedTagKeys.has("longsleeve");
+      const isMickeyDisneyItem = nameKey.includes("mickey")
+        || nameKey.includes("disney")
+        || fandomKey.includes("mickey")
+        || fandomKey.includes("disney")
+        || normalizedTagKeys.has("mickey")
+        || normalizedTagKeys.has("disney");
+      const isStarWarsItem = fandomKey === "starwars"
+        || normalizedTagKeys.has("starwars")
+        || nameKey.includes("starwars");
       const createdAt = item.createdAt || null;
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
@@ -12785,23 +13412,32 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         const rawValuePoints = Math.min(24, Math.round(Math.log10(price + 1) * 10));
         let valuePoints = rawValuePoints;
         // High-value Whale/Holiday items should be less aggressively prioritized.
-        if (tagSet.has("whale")) valuePoints = Math.round(valuePoints * 0.25);
-        if (tagSet.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
+        if (isWhaleItem) valuePoints = Math.round(valuePoints * 0.25);
+        if (tagSet.has("holiday") || normalizedTagKeys.has("holiday")) valuePoints = Math.round(valuePoints * 0.45);
         addScore("Item value signal", valuePoints);
         const valueDampener = valuePoints - rawValuePoints;
         addScore("Tag value dampener", valueDampener);
       }
 
-      if (tagSet.has("whale")) addScore("Whale baseline penalty", -28);
+      if (isWhaleItem) addScore("Whale baseline penalty", -28);
 
       if (isColdMonth && isFlannelLikeText(typeLower)) {
-        addScore("Flannel in cold-month season", 45);
+        addScore("Flannel in cold-month season", 34);
+      }
+      if (isColdMonth && isHoodieLikeText(typeLower)) {
+        addScore("Hoodie in cold-month season", 32);
       }
       if (isSummerMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel summer penalty", -170);
       }
       if (isPeakHeatMonth && isFlannelLikeText(typeLower)) {
         addScore("Flannel peak-heat penalty", -120);
+      }
+      if (isWarmMonth && isLongSleeveTagged) {
+        addScore("Warm-month long-sleeve penalty", -26);
+      }
+      if (isWarmMonth && isHoodieLikeText(typeLower) && isLongSleeveTagged) {
+        addScore("Warm-month hoodie long-sleeve penalty", -22);
       }
 
       const summerPriorityKeys = [
@@ -12814,7 +13450,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         "bottleblend",
       ];
       const hasSummerPriorityMatch = summerPriorityKeys.some((key) =>
-        typeKey.includes(key) || nameKey.includes(key) || holidayTagKeys.has(key)
+        typeKey.includes(key) || nameKey.includes(key) || normalizedTagKeys.has(key)
       );
       if (isSummerMonth && hasSummerPriorityMatch) {
         addScore("Summer fabric/style boost", 72);
@@ -12824,8 +13460,20 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       }
 
       // Date-aware thematic boosts (queue naturally changes day to day).
-      if (tagSet.has("floral") && dayOfWeek === 5) {
+      if (isMayFlowersMonth && isFloralItem) {
+        addScore("May Flowers daily floral boost", 60);
+      }
+      if (isFloralItem && isFloralFriday) {
         addScore("Floral Friday boost", 42);
+      }
+      if (isTagPopTuesday && wearCount === 0) {
+        addScore("Tag Pop Tuesday unworn boost", 46);
+      }
+      if (isTagPopTuesday && (condition === "nwt" || condition === "nwot")) {
+        addScore("Tag Pop Tuesday NWT boost", 34);
+      }
+      if (isNationalFlannelDay && isFlannelLikeText(typeLower)) {
+        addScore("National Flannel Day boost", 78);
       }
 
       const holidayDistances = holidayProfiles.map((profile) => {
@@ -12837,9 +13485,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       });
       const activeHolidayProfiles = holidayDistances.filter((entry) => entry.days <= holidayWindowDays);
       const matchedHolidayProfiles = holidayProfiles.filter((profile) =>
-        profile.aliases.some((alias) => holidayTagKeys.has(normalizeHolidayTagKey(alias)))
+        profile.aliases.some((alias) => normalizedTagKeys.has(normalizeHolidayTagKey(alias)))
       );
-      const hasGenericHolidayTag = tagSet.has("holiday") || holidayTagKeys.has("holiday");
+      const hasGenericHolidayTag = tagSet.has("holiday") || normalizedTagKeys.has("holiday");
       const matchedActiveHoliday = activeHolidayProfiles
         .filter((entry) => matchedHolidayProfiles.some((profile) => profile.id === entry.profile.id))
         .sort((a, b) => a.days - b.days)[0] || null;
@@ -12868,13 +13516,13 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         }
       }
 
-      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) {
+      if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) {
         addScore("Star Wars day boost (May 4)", 120);
       }
-      if (nameLower.includes("mickey") && dayOfWeek === 1) {
-        addScore("Monday Mickey boost", 44);
+      if (isMickeyMonday && isMickeyDisneyItem) {
+        addScore("Mickey Monday boost", 52);
       }
-      if (tagSet.has("whale") && dayOfWeek === 3) {
+      if (isWhaleWednesday && isWhaleItem) {
         addScore("Wednesday Whale boost", 58);
       }
 
@@ -12888,22 +13536,35 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
       if (isColdMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel season boost");
+      if (isColdMonth && isHoodieLikeText(typeLower)) reasonParts.push("Hoodie season boost");
       if (isSummerMonth && isFlannelLikeText(typeLower)) reasonParts.push("Flannel summer penalty");
+      if (isWarmMonth && isLongSleeveTagged) reasonParts.push("Warm-month long-sleeve penalty");
       if (isSummerMonth && hasSummerPriorityMatch) reasonParts.push("Summer fabric boost");
-      if (tagSet.has("floral") && dayOfWeek === 5) reasonParts.push("Friday floral boost");
+      if (isMayFlowersMonth && isFloralItem) reasonParts.push("May floral boost");
+      if (isFloralItem && isFloralFriday) reasonParts.push("Friday floral boost");
       if (matchedActiveHoliday) reasonParts.push(`${matchedActiveHoliday.profile.label} boost`);
       if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
       if (hasGenericHolidayTag && activeHolidayProfiles.length) reasonParts.push("Holiday window boost");
-      if (fandom === "star wars" && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
-      if (nameLower.includes("mickey") && dayOfWeek === 1) reasonParts.push("Monday Mickey boost");
-      if (tagSet.has("whale") && dayOfWeek === 3) reasonParts.push("Wednesday Whale boost");
-      if (tagSet.has("whale")) reasonParts.push("Whale deprioritized");
+      if (isNationalFlannelDay && isFlannelLikeText(typeLower)) reasonParts.push("National Flannel Day boost");
+      if (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
+      if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
+      if (isMickeyMonday && isMickeyDisneyItem) reasonParts.push("Mickey Monday boost");
+      if (isWhaleWednesday && isWhaleItem) reasonParts.push("Wednesday Whale boost");
+      if (isWhaleItem) reasonParts.push("Whale deprioritized");
       if (hasGenericHolidayTag && !activeHolidayProfiles.length) reasonParts.push("Holiday deprioritized");
       if (daysSince !== null && daysSince >= 180) reasonParts.push("Long idle gap");
 
+      const hasThemeBoost = (isMayFlowersMonth && isFloralItem)
+        || (isFloralItem && isFloralFriday)
+        || (isMickeyMonday && isMickeyDisneyItem)
+        || (isWhaleWednesday && isWhaleItem)
+        || (isNationalFlannelDay && isFlannelLikeText(typeLower))
+        || (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4)
+        || (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot"));
+
       let lane = "Rotation pick";
       if (wearCount === 0) lane = "First wear";
-      else if (matchedActiveHoliday || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (tagSet.has("floral") && dayOfWeek === 5)) lane = "Seasonal window";
+      else if (matchedActiveHoliday || hasThemeBoost || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (isColdMonth && isHoodieLikeText(typeLower))) lane = "Seasonal window";
       else if (price !== null && price >= 120 && daysSince !== null && daysSince >= 180) lane = "Value wear";
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
       else if (wearCount >= 2 && daysSince !== null && daysSince >= 120) lane = "Safe return";
@@ -13350,6 +14011,60 @@ const buildWrappedStorySlides = (periodLabel, dna) => {
   ];
 };
 
+const buildWrappedPeriodOptions = (stats, now = new Date()) => {
+  const wearEvents = Array.isArray(stats?.wearEvents) ? stats.wearEvents : [];
+  const wearableItems = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
+  const monthKeys = new Set();
+  const yearKeys = new Set();
+  const registerDate = (value) => {
+    if (value === null || value === undefined || value === "") return;
+    const ms = new Date(value).getTime();
+    if (ms <= 0) return;
+    if (!Number.isFinite(ms)) return;
+    const d = new Date(ms);
+    monthKeys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    yearKeys.add(String(d.getFullYear()));
+  };
+
+  wearEvents.forEach((event) => {
+    registerDate(event?.wornAt);
+  });
+  wearableItems.forEach((item) => {
+    registerDate(item?.createdAt);
+  });
+
+  const monthOptions = Array.from(monthKeys)
+    .sort((a, b) => b.localeCompare(a))
+    .map((key) => {
+      const [yearPart, monthPart] = key.split("-");
+      const year = Number(yearPart);
+      const monthIndex = Number(monthPart) - 1;
+      return {
+        key,
+        label: new Date(year, monthIndex, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" }),
+        startMs: new Date(year, monthIndex, 1).getTime(),
+        endMs: new Date(year, monthIndex + 1, 1).getTime() - 1,
+      };
+    });
+
+  const yearOptions = Array.from(yearKeys)
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    .map((key) => {
+      const year = Number(key);
+      return {
+        key,
+        label: key,
+        startMs: new Date(year, 0, 1).getTime(),
+        endMs: new Date(year + 1, 0, 1).getTime() - 1,
+      };
+    });
+
+  return {
+    month: monthOptions,
+    year: yearOptions,
+  };
+};
+
 const openInsightsDialog = (stats, options = {}) => {
   let dialog = document.getElementById("insights-dialog");
   if (!dialog) {
@@ -13361,6 +14076,7 @@ const openInsightsDialog = (stats, options = {}) => {
         <div id="insights-content" class="insights-content"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="insights-help" class="btn secondary">Help</button>
         <button type="button" id="insights-close" class="btn">Close</button>
       </div>
     `;
@@ -13370,7 +14086,11 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!el) return;
       el.addEventListener("click", handler);
     };
+    const helpButton = dialog.querySelector("#insights-help");
     const closeButton = dialog.querySelector("#insights-close");
+    bindClick(helpButton, () => {
+      openInsightsHelpDialog();
+    });
     bindClick(closeButton, () => {
       closeDialog(dialog);
     });
@@ -13415,6 +14135,7 @@ const openInsightsDialog = (stats, options = {}) => {
   const nowMs = now.getTime();
   const monthLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const yearLabel = String(now.getFullYear());
+  const wrappedPeriodOptions = buildWrappedPeriodOptions(stats, now);
   const monthDna = buildStyleDnaPeriod(stats, monthStartMs, nowMs);
   const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
   const workLane = buildTaggedLaneStats(stats?.wearableItems || [], ["workappropriate", "work appropriate"], { nowMs });
@@ -13477,7 +14198,7 @@ const openInsightsDialog = (stats, options = {}) => {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
-      xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
     };
     const marketplaceRows = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari, marketplaceTags.xxchange];
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
@@ -13697,10 +14418,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Sell / review shortlist</div>
+          <div class="insights-score-title">Top 5 to sell</div>
           ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
-          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, with review-first handling for borderline cases.</div>
+          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, while protecting recent additions from the shortlist.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
@@ -13774,14 +14495,14 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Sell / review shortlist</div>
-      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag. Borderline cases are framed as review first, not automatic sell calls (protected archive/sentimental/Whale items are excluded).</div>
+      <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
+      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days.</div>
       ${sellSuggestions.length
-    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
-      <div class="insights-action-list">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
+      <div class="insights-action-list insights-marketplace-details">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
       <div class="stats-hint">Items repeatedly shown in queue but consistently skipped; pressure score ranks intervention urgency. Use Not today when a pass is about timing, not rejection.</div>
       ${bench.length
@@ -13970,7 +14691,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       trackInsightsQueueSnooze(key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -13980,12 +14701,24 @@ const openInsightsDialog = (stats, options = {}) => {
       const key = button.getAttribute("data-insights-soft-pass");
       if (!key) return;
       const next = loadInsightsSnoozes();
-      const until = new Date();
-      until.setDate(until.getDate() + 1);
-      next[key] = localDateKeyFromDate(until);
+      next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
+    });
+  });
+
+  const sellDismissButtons = content.querySelectorAll("[data-insights-sell-dismiss]");
+  sellDismissButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.getAttribute("data-insights-sell-dismiss");
+      if (!key) return;
+      const next = loadInsightsSellDismissals();
+      const until = new Date();
+      until.setDate(until.getDate() + 30);
+      next[key] = localDateKeyFromDate(until);
+      saveInsightsSellDismissals(next);
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14011,7 +14744,7 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
       trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14021,13 +14754,13 @@ const openInsightsDialog = (stats, options = {}) => {
       const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
         ? String(simDateInput.value)
         : localDateKeyFromDate(new Date());
-      openInsightsDialog(collectAllStats(), { simDateKey: nextKey });
+      rerenderInsightsDialog(nextKey);
     });
   }
   const simTodayButton = content.querySelector("#insights-queue-sim-today");
   if (simTodayButton) {
     simTodayButton.addEventListener("click", () => {
-      openInsightsDialog(collectAllStats(), { simDateKey: localDateKeyFromDate(new Date()) });
+      rerenderInsightsDialog(localDateKeyFromDate(new Date()));
     });
   }
 
@@ -14054,9 +14787,28 @@ const openInsightsDialog = (stats, options = {}) => {
     let storyOpen = false;
     let storyPeriod = "month";
     let storyIndex = 0;
-    const periodData = {
-      month: { label: monthLabel, dna: monthDna },
-      year: { label: yearLabel, dna: yearDna },
+    const storySelection = {
+      month: wrappedPeriodOptions.month[0]?.key || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+      year: wrappedPeriodOptions.year[0]?.key || String(now.getFullYear()),
+    };
+    const dnaCache = {
+      [`month:${storySelection.month}`]: monthDna,
+      [`year:${storySelection.year}`]: yearDna,
+    };
+
+    const getActiveStoryOption = () => {
+      const optionsForPeriod = wrappedPeriodOptions[storyPeriod] || [];
+      const selectedKey = storySelection[storyPeriod];
+      return optionsForPeriod.find((option) => option.key === selectedKey) || optionsForPeriod[0] || null;
+    };
+
+    const getStoryDna = (period, option) => {
+      if (!option) return buildStyleDnaPeriod(stats, nowMs, nowMs);
+      const cacheKey = `${period}:${option.key}`;
+      if (!dnaCache[cacheKey]) {
+        dnaCache[cacheKey] = buildStyleDnaPeriod(stats, option.startMs, option.endMs);
+      }
+      return dnaCache[cacheKey];
     };
 
     const renderStory = () => {
@@ -14067,8 +14819,10 @@ const openInsightsDialog = (stats, options = {}) => {
         return;
       }
 
-      const active = periodData[storyPeriod] || periodData.month;
-      const slides = buildWrappedStorySlides(active.label, active.dna);
+      const activeOption = getActiveStoryOption();
+      const activeLabel = activeOption?.label || (storyPeriod === "year" ? yearLabel : monthLabel);
+      const slides = buildWrappedStorySlides(activeLabel, getStoryDna(storyPeriod, activeOption));
+      const periodOptions = wrappedPeriodOptions[storyPeriod] || [];
       if (storyIndex < 0) storyIndex = 0;
       if (storyIndex >= slides.length) storyIndex = slides.length - 1;
 
@@ -14076,9 +14830,13 @@ const openInsightsDialog = (stats, options = {}) => {
       storyRoot.classList.add("is-open");
       storyRoot.innerHTML = `
         <div class="insights-story-periods" role="tablist" aria-label="Story period">
-          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">${esc(`${monthLabel} Wrapped`)}</button>
-          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">${esc(`${yearLabel} Wrapped`)}</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "month" ? "is-active" : ""}" data-insights-story-period="month" role="tab" aria-selected="${storyPeriod === "month" ? "true" : "false"}">Month Wrapped</button>
+          <button type="button" class="insights-story-period ${storyPeriod === "year" ? "is-active" : ""}" data-insights-story-period="year" role="tab" aria-selected="${storyPeriod === "year" ? "true" : "false"}">Year Wrapped</button>
         </div>
+        ${periodOptions.length ? `<div class="insights-controls">
+          <label class="insights-sim-label" for="insights-story-history-select">${storyPeriod === "month" ? "Choose month" : "Choose year"}</label>
+          <select id="insights-story-history-select" class="insights-queue-sim-date">${periodOptions.map((option) => `<option value="${esc(option.key)}" ${option.key === storySelection[storyPeriod] ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select>
+        </div>` : ""}
         <div class="insights-story-shell" tabindex="0">
           <div class="insights-story-track">
             ${slides.map((slide, idx) => `<article class="insights-story-slide ${idx === storyIndex ? "is-active" : ""}" data-insights-story-slide="${idx}">
@@ -14128,6 +14886,15 @@ const openInsightsDialog = (stats, options = {}) => {
           renderStory();
         });
       });
+
+      const historySelect = storyRoot.querySelector("#insights-story-history-select");
+      if (historySelect) {
+        historySelect.addEventListener("change", () => {
+          storySelection[storyPeriod] = String(historySelect.value || storySelection[storyPeriod] || "");
+          storyIndex = 0;
+          renderStory();
+        });
+      }
 
       const dotButtons = storyRoot.querySelectorAll("[data-insights-story-dot]");
       dotButtons.forEach((button) => {
@@ -14219,57 +14986,8 @@ const openNoBuyGameDialog = (stats) => {
   const pressureSummary = getNoBuyPressureSummary(gamify, 30);
   const topTriggerSummary = getNoBuyTriggerSummary(gamify, 14);
   const topTrigger = topTriggerSummary[0] || null;
-  const recentActions = (() => {
-    const fromActionLog = Array.isArray(gamify.actionLog)
-      ? gamify.actionLog
-          .filter((entry) => entry && typeof entry === "object")
-          .map((entry, idx) => ({
-            at: String(entry.at || ""),
-            type: String(entry.type || ""),
-            reason: String(entry.reason || "other"),
-            source: "actionLog",
-            sourceIndex: idx,
-          }))
-      : [];
-    if (fromActionLog.length) {
-      return fromActionLog
-        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-        .slice(0, 10);
-    }
-
-    // Fallback for older synced payloads that predate actionLog.
-    const fallback = [];
-    if (Array.isArray(gamify.buyLog)) {
-      gamify.buyLog.forEach((entry) => {
-        const dateKey = String(entry?.dateKey || "");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-        fallback.push({
-          at: `${dateKey}T12:00:00`,
-          type: "purchase",
-          reason: String(entry?.reason || "other"),
-          source: "buyLog",
-          dateKey,
-        });
-      });
-    }
-    if (Array.isArray(gamify.dailyCheckins)) {
-      gamify.dailyCheckins.forEach((entry) => {
-        if (!entry?.tempted) return;
-        const dateKey = String(entry?.dateKey || "");
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
-        fallback.push({
-          at: `${dateKey}T12:00:00`,
-          type: "temptation",
-          reason: String(entry?.trigger || "other"),
-          source: "dailyCheckins",
-          dateKey,
-        });
-      });
-    }
-    return fallback
-      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .slice(0, 10);
-  })();
+  const recentActions = buildNoBuyActionEntries(gamify, 10);
+  const fullActionHistory = buildNoBuyActionEntries(gamify, Number.POSITIVE_INFINITY);
   const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryDaysLeft = recoveryActive
@@ -14421,6 +15139,7 @@ const openNoBuyGameDialog = (stats) => {
       <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
       <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
       <button type="button" class="btn secondary" id="nobuy-export-log">Export log JSON</button>
+      <button type="button" class="btn secondary" id="nobuy-help">Help</button>
     </div>
     <div class="no-buy-select-row" style="margin-top:8px">
       <div class="no-buy-select-group">
@@ -14468,6 +15187,9 @@ const openNoBuyGameDialog = (stats) => {
           return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
+    <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
+      <button type="button" class="btn secondary no-buy-history-open" id="nobuy-open-full-history">Open full history</button>
+    </div>
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
@@ -14497,6 +15219,8 @@ const openNoBuyGameDialog = (stats) => {
   const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
   const clearBtn = content.querySelector("#nobuy-checkin-clear");
   const exportBtn = content.querySelector("#nobuy-export-log");
+  const helpBtn = content.querySelector("#nobuy-help");
+  const fullHistoryBtn = content.querySelector("#nobuy-open-full-history");
   const triggerSelect = content.querySelector("#nobuy-trigger");
   const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
 
@@ -14537,6 +15261,16 @@ const openNoBuyGameDialog = (stats) => {
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
       exportNoBuyLogJson(loadNoBuyGamifyState());
+    });
+  }
+  if (helpBtn) {
+    helpBtn.addEventListener("click", () => {
+      openNoBuyHelpDialog();
+    });
+  }
+  if (fullHistoryBtn) {
+    fullHistoryBtn.addEventListener("click", () => {
+      openNoBuyHistoryDialog(fullActionHistory);
     });
   }
 
@@ -15049,6 +15783,11 @@ const openStatsDialog = () => {
   if (statsNoBuyButton) {
     statsNoBuyButton.onclick = () => {
       openNoBuyGameDialog(s);
+    };
+  }
+  if (statsHelpButton) {
+    statsHelpButton.onclick = () => {
+      openStatsHelpDialog(s);
     };
   }
   if (statsExportButton) {

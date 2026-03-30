@@ -2602,6 +2602,17 @@ dialog {
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
+#stats-dialog .dialog-actions .btn,
+#advanced-stats-dialog .dialog-actions .btn,
+#stats-coaching-help-dialog .dialog-actions .btn,
+#no-buy-game-dialog .dialog-actions .btn,
+#insights-dialog .dialog-actions .btn {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stats-section {
   margin-bottom: 16px;
   padding: 12px 14px 14px;
@@ -2649,6 +2660,21 @@ dialog {
   color: color-mix(in srgb, var(--ink) 48%, #5f7080);
   white-space: normal;
   word-break: break-word;
+}
+
+#stats-coaching-help-dialog .stats-sub .stats-label {
+  flex: 0 0 210px;
+  min-width: 210px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--ink) 70%, #435364);
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+#stats-coaching-help-dialog .stats-sub .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .stats-sub .stats-value {
@@ -3149,6 +3175,35 @@ input[type="date"].stats-date-input {
   gap: 4px;
 }
 
+#insights-dialog .insights-sell-row {
+  align-items: center;
+}
+
+#insights-dialog .insights-sell-row .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#insights-dialog .insights-sell-dismiss {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#insights-dialog .insights-marketplace-details .stats-label {
+  flex: 0 0 190px;
+  min-width: 190px;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+#insights-dialog .insights-marketplace-details .stats-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .insights-controls {
   display: flex;
   flex-wrap: wrap;
@@ -3451,11 +3506,18 @@ input[type="date"].stats-date-input {
   width: 92vw;
 }
 
+#stats-coaching-help-dialog {
+  max-width: 820px;
+  width: 95vw;
+}
+
 #wear-history-dialog .dialog-body,
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
+#stats-coaching-help-dialog .dialog-body,
+#no-buy-history-dialog .dialog-body,
 #no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
   padding: 20px 24px 12px;
@@ -3472,6 +3534,8 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
+#stats-coaching-help-dialog .dialog-actions,
+#no-buy-history-dialog .dialog-actions,
 #no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
@@ -3492,7 +3556,7 @@ input[type="date"].stats-date-input {
 
 #no-buy-game-dialog .no-buy-actions-row {
   justify-content: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -3527,6 +3591,11 @@ input[type="date"].stats-date-input {
 
 #no-buy-game-dialog .no-buy-log-delete {
   margin-left: 8px;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+}
+
+#no-buy-game-dialog .no-buy-history-open {
   padding: 5px 9px;
   font-size: 0.72rem;
 }
