@@ -13559,7 +13559,9 @@ const buildWrappedPeriodOptions = (stats, now = new Date()) => {
   const monthKeys = new Set();
   const yearKeys = new Set();
   const registerDate = (value) => {
+    if (value === null || value === undefined || value === "") return;
     const ms = new Date(value).getTime();
+    if (ms <= 0) return;
     if (!Number.isFinite(ms)) return;
     const d = new Date(ms);
     monthKeys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
@@ -14709,6 +14711,9 @@ const openNoBuyGameDialog = (stats) => {
           return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
+    <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
+      <button type="button" class="btn secondary no-buy-history-open" id="nobuy-open-full-history">Open full history</button>
+    </div>
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
@@ -14729,9 +14734,6 @@ const openNoBuyGameDialog = (stats) => {
       <div class="stats-row stats-sub"><span class="stats-label">Last buy reason</span><span class="stats-value">${esc(gamify.lastBuyReason ? noBuyReasonLabel(gamify.lastBuyReason) : "n/a")}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recoveries completed</span><span class="stats-value">${gamify.totalRecoveriesCompleted}</span></div>
       <div class="stats-row stats-sub"><span class="stats-label">Recovery state</span><span class="stats-value">${esc(recoveryLabel)}</span></div>
-    </div>
-    <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
-      <button type="button" class="btn secondary no-buy-history-open" id="nobuy-open-full-history">Open full history</button>
     </div>
   `;
 
