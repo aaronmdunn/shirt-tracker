@@ -3,6 +3,7 @@
     "version": "2.1.2",
     "date": "2026-03-30",
     "changes": [
+      "Centralized collector-stats type rules across Main Stats, Insights, Advanced Stats, and related analytics, with a local Advanced Stats Type Rules editor for adding exact or contains-based denylist exclusions without code",
       "Expanded Advanced Stats tag analytics with Collector DNA, tag financial footprint, co-occurrence, 30-day trend tracking, rarity picks, monthly seasonality, and tag-dominance eras for richer collector-facing tag insights",
       "Polished Advanced Stats tag browsing with collapsible per-tag sections, playful Collector DNA archetype framing, an untagged-items finder, coverage logic that treats Original as present without polluting analytics, per-tag item-list dialogs, and cleaner rarity-row wrapping/alignment",
       "Expanded Wear Next Queue day/theme logic with Mickey Monday, Tag Pop Tuesday, Whale Wednesday, Floral Friday, May floral behavior, National Flannel Day, Cinco de Mayo, and broader USA holiday timing while balancing cold-month flannels/hoodies and warm-month long-sleeve pressure",
