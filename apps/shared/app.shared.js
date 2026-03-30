@@ -10210,7 +10210,7 @@ const collectAllStats = () => {
   const untaggedItems = isInventory
     ? allRows
       .map((entry) => {
-        const tags = getRowTags(entry.row).filter((tag) => tag && tag !== "Original");
+        const tags = getRowTags(entry.row).filter(Boolean);
         if (tags.length) return null;
         return {
           name: getCellValue(entry, "Name") || "Unnamed",
