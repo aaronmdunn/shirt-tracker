@@ -10618,12 +10618,19 @@ const openAdvancedStatsDialog = (stats) => {
         <div id="advanced-stats-content" class="advanced-stats-content"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="advanced-stats-help" class="btn secondary">Help</button>
         <button type="button" id="advanced-stats-close" class="btn">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
 
+    const helpButton = dialog.querySelector("#advanced-stats-help");
     const closeButton = dialog.querySelector("#advanced-stats-close");
+    if (helpButton) {
+      helpButton.addEventListener("click", () => {
+        openAdvancedStatsHelpDialog();
+      });
+    }
     if (closeButton) {
       closeButton.addEventListener("click", () => {
         closeDialog(dialog);
@@ -11949,6 +11956,61 @@ const buildInsightsHelpHtml = () => {
   return html;
 };
 
+const buildAdvancedStatsHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What Advanced Stats is for",
+    "Advanced Stats is the deeper diagnostic layer. It is meant for trend-reading, not quick checking. If Main Stats answers what the closet looks like, Advanced Stats answers how it is behaving over time.",
+    [
+      { label: "Best use", value: "Use this window when you want to understand adoption lag, parked value, tag performance, and whether the closet is actually rotating in a healthy way." },
+      { label: "Mindset", value: "These numbers are coaching signals. They are not moral judgments and they are not based on fast-rotation closet assumptions." },
+    ]
+  );
+  html += buildHelpSection(
+    "Collector snapshot and health",
+    "These sections describe the overall state of the collection at a higher level.",
+    [
+      { label: "Collector snapshot", value: "A broad summary of total size, current yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
+      { label: "Closet health score", value: "A 0-100 summary based on yearly reach, never-worn share, parked value, and cost-per-wear efficiency. Higher is healthier." },
+      { label: "Worn in last 365 days", value: "The percent of wearable items touched in the last year." },
+      { label: "Items <= $20 CPW", value: "The share of items that have already delivered relatively efficient value based on cost per wear." },
+    ]
+  );
+  html += buildHelpSection(
+    "Adoption and intake",
+    "These sections explain how quickly new pieces move from purchase into real use.",
+    [
+      { label: "First-wear lag outliers", value: "The slowest adopters in the closet. Higher day counts mean items sat longer before their first logged wear." },
+      { label: "New item adoption", value: "Shows adoption rate, median days to first wear, total never-worn items, grace-window items, and adjusted backlog pressure." },
+      { label: "Grace-window unworn (<120d)", value: "Unworn items that are still new enough not to count as a true backlog problem yet." },
+      { label: "Adjusted backlog", value: "The backlog after removing grace-window items so the pressure read is fairer." },
+      { label: "Monthly spend vs wear value", value: "Compares purchase intake, total spend, and wear activity month by month to show whether a month was wear-first, balanced, or intake-heavy." },
+    ]
+  );
+  html += buildHelpSection(
+    "Rotation balance and value",
+    "These sections explain how evenly the closet is being used and where value may be sitting idle.",
+    [
+      { label: "Brand rotation reach", value: "Shows how active each brand is over the last year, including utilization percent, total wears, and average cost per wear." },
+      { label: "Type rotation balance", value: "Compares how much of the closet a type occupies versus how much of actual wear it receives." },
+      { label: "Parked value", value: "Tracks how many items and how much value have been inactive for long intervals like 180 or 365 days." },
+      { label: "Repeat-wear streaks", value: "Shows brand and type streak patterns when the same lane keeps winning multiple days in a row." },
+      { label: "Seasonality snapshot", value: "Shows which type led each month, helping you spot quiet months or strong seasonal identities." },
+    ]
+  );
+  html += buildHelpSection(
+    "Tags and occasions",
+    "These sections explain how labels and purpose lanes are performing.",
+    [
+      { label: "Tag performance", value: "Shows which tags are punching above or below expectation using average wears and average cost-per-wear signals." },
+      { label: "Sleeper tag", value: "A tag that quietly performs well relative to how often it appears." },
+      { label: "Most overloaded tag", value: "A tag with a lot of samples but relatively weak wear follow-through." },
+      { label: "Occasion lanes", value: "Shows depth and activity for special-purpose tagged lanes like Work Appropriate, Formal, and other occasion-focused categories." },
+    ]
+  );
+  return html;
+};
+
 const buildNoBuyHelpHtml = () => {
   let html = "";
   html += buildHelpSection(
@@ -12010,6 +12072,7 @@ const buildNoBuyHelpHtml = () => {
 
 const openStatsHelpDialog = (stats) => openHelpDialog("Main Stats Help", buildMainStatsHelpHtml(stats));
 const openInsightsHelpDialog = () => openHelpDialog("Insights Help", buildInsightsHelpHtml());
+const openAdvancedStatsHelpDialog = () => openHelpDialog("Advanced Stats Help", buildAdvancedStatsHelpHtml());
 const openNoBuyHelpDialog = () => openHelpDialog("No-Buy Game Help", buildNoBuyHelpHtml());
 
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {

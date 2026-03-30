@@ -2602,6 +2602,17 @@ dialog {
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
+#stats-dialog .dialog-actions .btn,
+#advanced-stats-dialog .dialog-actions .btn,
+#stats-coaching-help-dialog .dialog-actions .btn,
+#no-buy-game-dialog .dialog-actions .btn,
+#insights-dialog .dialog-actions .btn {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stats-section {
   margin-bottom: 16px;
   padding: 12px 14px 14px;
@@ -3444,6 +3455,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog,
 #all-added-dialog,
 #advanced-stats-dialog,
+#stats-coaching-help-dialog,
 #first-wear-lag-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
