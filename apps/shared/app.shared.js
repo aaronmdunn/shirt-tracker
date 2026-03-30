@@ -3448,15 +3448,20 @@ const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
 let insightsRefreshTimer = null;
+const rerenderInsightsDialog = (simDateKey) => {
+  const dialog = document.getElementById("insights-dialog");
+  const body = dialog ? dialog.querySelector(".dialog-body") : null;
+  const previousScrollTop = body ? body.scrollTop : 0;
+  openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+};
+
 const requestInsightsRefreshIfOpen = () => {
   window.clearTimeout(insightsRefreshTimer);
   insightsRefreshTimer = window.setTimeout(() => {
     const dialog = document.getElementById("insights-dialog");
     if (!dialog || !dialog.open) return;
     const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
-    const body = dialog.querySelector(".dialog-body");
-    const previousScrollTop = body ? body.scrollTop : 0;
-    openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+    rerenderInsightsDialog(simDateKey);
   }, 120);
 };
 
@@ -14686,7 +14691,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       trackInsightsQueueSnooze(key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14699,7 +14704,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14713,7 +14718,7 @@ const openInsightsDialog = (stats, options = {}) => {
       until.setDate(until.getDate() + 30);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSellDismissals(next);
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14739,7 +14744,7 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
       trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
-      openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
+      rerenderInsightsDialog(activeSimDateKey);
     });
   });
 
@@ -14749,13 +14754,13 @@ const openInsightsDialog = (stats, options = {}) => {
       const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
         ? String(simDateInput.value)
         : localDateKeyFromDate(new Date());
-      openInsightsDialog(collectAllStats(), { simDateKey: nextKey });
+      rerenderInsightsDialog(nextKey);
     });
   }
   const simTodayButton = content.querySelector("#insights-queue-sim-today");
   if (simTodayButton) {
     simTodayButton.addEventListener("click", () => {
-      openInsightsDialog(collectAllStats(), { simDateKey: localDateKeyFromDate(new Date()) });
+      rerenderInsightsDialog(localDateKeyFromDate(new Date()));
     });
   }
 
