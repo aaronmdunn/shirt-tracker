@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.1.2",
+    "date": "2026-03-30",
+    "changes": [
+      "Expanded Wear Next Queue day/theme logic with Mickey Monday, Tag Pop Tuesday, Whale Wednesday, Floral Friday, May floral behavior, National Flannel Day, Cinco de Mayo, and broader USA holiday timing while balancing cold-month flannels/hoodies and warm-month long-sleeve pressure",
+      "Added collector-facing Help dialogs for Main Stats, Insights, Advanced Stats, and No-Buy Game, plus wider/tuned desktop analytics dialogs for denser explanations and easier scanning",
+      "Added Select All / Unselect All on the main grid, Wrapped history browsing for real data-backed month/year periods, and an in-app No-Buy full-history dialog instead of a browser popup",
+      "Reworked Insights selling and marketplace behavior with a Top 5 to sell shortlist, Feb 1 2026 / 90-day protection logic, per-item 30-day dismissals, preserved dialog scroll during actions, holiday occasion-lane coverage, hidden-Fandom-safe Top Fandoms, and live normalization of XXChange to Dixxon XXChange"
+    ]
+  },
+  {
     "version": "2.1.1",
     "date": "2026-03-29",
     "changes": [
