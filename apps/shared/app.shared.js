@@ -639,6 +639,7 @@ const statsContent = document.getElementById("stats-content");
 const statsTitle = document.getElementById("stats-title");
 const statsCloseButton = document.getElementById("stats-close");
 const statsAdvancedButton = document.getElementById("stats-advanced");
+const statsHelpButton = document.getElementById("stats-help");
 const statsExportButton = document.getElementById("stats-export");
 const statsInsightsButton = document.getElementById("stats-insights");
 const statsNoBuyButton = document.getElementById("stats-no-buy");
@@ -11724,6 +11725,293 @@ const openNoBuyHistoryDialog = (entries) => {
   resetDialogScroll(dialog);
 };
 
+const escapeHelpHtml = (str) => String(str || "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/\"/g, "&quot;");
+
+const buildHelpSection = (title, intro = "", items = []) => `
+  <div class="stats-section">
+    <div class="stats-section-title">${escapeHelpHtml(title)}</div>
+    ${intro ? `<div class="stats-hint">${escapeHelpHtml(intro)}</div>` : ""}
+    ${(Array.isArray(items) ? items : []).map((item) => `<div class="stats-row stats-sub"><span class="stats-label">${escapeHelpHtml(item.label)}</span><span class="stats-value">${escapeHelpHtml(item.value)}</span></div>`).join("")}
+  </div>
+`;
+
+const openHelpDialog = (title, bodyHtml) => {
+  let dialog = document.getElementById("help-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "help-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3 id="help-dialog-title">Help</h3>
+        <div id="help-dialog-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="help-dialog-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#help-dialog-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const titleEl = dialog.querySelector("#help-dialog-title");
+  const content = dialog.querySelector("#help-dialog-content");
+  if (!content) return;
+  if (titleEl) titleEl.textContent = title;
+  content.innerHTML = bodyHtml;
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const buildMainStatsHelpHtml = (stats) => {
+  const isInventory = Boolean(stats?.isInventory);
+  let html = "";
+  html += buildHelpSection(
+    "How to read Main Stats",
+    isInventory
+      ? "Main Stats is your fast dashboard. It answers three simple questions: how big the closet is, where the value is, and how active the rotation looks right now."
+      : "Main Stats is your quick wishlist dashboard. It shows what kinds of items you want, how balanced the wishlist is, and how often wishlist items turn into real purchases and wears.",
+    [
+      { label: "Top summary rows", value: "Quick facts, not grades. Use them to spot patterns, not to judge the closet." },
+      { label: "Bar charts", value: "Longer bars mean a category appears more often. They help you see what is dominant at a glance." },
+      { label: "Lists", value: "Ranked lists surface the strongest examples first, like the most expensive pieces, highest rotation scores, or most recent additions." },
+    ]
+  );
+  html += buildHelpSection(
+    "Counts and breakdowns",
+    "These stats explain what the closet is made of.",
+    [
+      { label: "Total items", value: "How many rows currently exist in this mode." },
+      { label: "Per-tab counts", value: "How many items each brand tab holds. On desktop, each tab can expand into its own type, fandom, size, condition, and tag breakdown." },
+      { label: "Top types", value: "The most common shirt types in the current mode." },
+      { label: "Top fandoms", value: "The most common fandom values currently shown." },
+      { label: "Size breakdown", value: "How your sizes are distributed across the current set of items." },
+      { label: "Condition breakdown", value: "Inventory only. Shows how many items are NWT, NWOT, worn, and other condition states." },
+      { label: "Top tags", value: "The tags you use most often. This helps reveal which themes dominate the closet." },
+      { label: "Items tagged / tag coverage", value: "How many items have at least one tag, plus the percent of the closet that is tagged at all." },
+    ]
+  );
+  if (isInventory) {
+    html += buildHelpSection(
+      "Pricing and value",
+      "These stats explain how money is spread across the closet.",
+      [
+        { label: "Total value", value: "The sum of all item prices in inventory." },
+        { label: "Mean price", value: "The simple average price. Add every price together, then divide by the number of items." },
+        { label: "Median price", value: "The middle price when all item prices are sorted from lowest to highest. Median is useful because one very expensive item will not distort it as much as the mean." },
+        { label: "Standard deviation", value: "How spread out your prices are. Low means prices cluster together. High means there is a wide gap between cheaper and more expensive pieces." },
+        { label: "Top 10 most expensive", value: "The highest-priced pieces in the closet." },
+        { label: "Top 10 cheapest", value: "The least expensive eligible pieces, excluding low-cost categories that would dominate the list." },
+        { label: "Value by tab", value: "How much total dollar value sits inside each brand tab." },
+        { label: "Price distribution", value: "A histogram showing how many items fall into each price bucket." },
+      ]
+    );
+  }
+  html += buildHelpSection(
+    "Identity and variety",
+    "These stats explain whether the closet is concentrated in a few lanes or spread more evenly.",
+    [
+      { label: isInventory ? "Collection diversity" : "Wishlist diversity", value: "A balance score for how evenly your items are spread across types and fandoms. Low means a strong favorite lane. High means more variety." },
+      { label: "Specialist / Balanced / Generalist", value: "These labels summarize whether the closet leans hard into a few lanes, sits in the middle, or spreads broadly across many lanes." },
+      { label: "Common words in names", value: "Desktop only. Surfaces repeated naming patterns so you can see when a few themes or product lines dominate the closet." },
+      { label: "Whales", value: "High-value or special collector-anchor items tagged Whale. The section shows how many exist and whether they are active or intentionally parked." },
+    ]
+  );
+  if (isInventory) {
+    html += buildHelpSection(
+      "Purchase pace and wear tracking",
+      "These sections explain how quickly items enter the closet and how actively they are being worn.",
+      [
+        { label: "Items added per month", value: "How many items were added in each month." },
+        { label: "Purchase streaks", value: "Current streak and longest streak based on consecutive days with purchases or additions." },
+        { label: "No-buy streak", value: "How long it has been since a logged buy reset the no-buy run." },
+        { label: "Longest unworn", value: "The wearable item with the biggest current gap since its last logged wear." },
+        { label: "Top rotation score", value: "A blended ranking based on wears, recency, and price. It highlights items carrying real rotation weight." },
+        { label: "Last 5 worn", value: "The five most recently worn items." },
+        { label: "Worn on date", value: "Looks up what was worn on a specific day using wear-log history." },
+        { label: "Shirts not worn in past 6 months", value: "A focused idle list for wearable items that have gone quiet recently." },
+        { label: "Best cost per wear", value: "Shows which items are delivering the strongest value based on price divided by wear count." },
+        { label: "Top brand by day of week / month", value: "Shows which brands most often win each weekday and month using wear-log history." },
+      ]
+    );
+    html += buildHelpSection(
+      "Recent change sections",
+      "These sections explain what has changed in the closet lately.",
+      [
+        { label: "Recently added", value: "Recent additions, plus whether each one already entered rotation or is still unworn." },
+        { label: "Recently deleted", value: "A compact list of items recently removed from inventory." },
+      ]
+    );
+  } else {
+    html += buildHelpSection(
+      "Wishlist conversion",
+      "Wishlist mode focuses on what eventually gets obtained and whether those wins become real wears.",
+      [
+        { label: "Items obtained", value: "How many wishlist items eventually became purchases or acquisitions." },
+        { label: "Most recent 'Got it!'", value: "The newest wishlist item marked as obtained." },
+        { label: "Tracked conversions", value: "How many obtained items are detailed enough to analyze properly." },
+        { label: "Legacy obtained items", value: "Older obtained history that still counts in totals but may not have full modern metadata." },
+        { label: "Worn at least once / Worn 2+ times", value: "Shows how often obtained wishlist items actually made it into rotation." },
+        { label: "Median add -> got it", value: "Typical number of days between adding an item to the wishlist and obtaining it." },
+        { label: "Median got it -> first wear", value: "Typical number of days between obtaining an item and wearing it for the first time." },
+        { label: "Top converting brand / type", value: "The strongest brand or type lane for turning wishlist interest into real ownership and wear." },
+        { label: "Buy gate reviewed / duplicate-flagged buys", value: "How often the buy-gate system was involved and how often duplicate-risk warnings appeared." },
+      ]
+    );
+  }
+  return html;
+};
+
+const buildInsightsHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What Insights is for",
+    "Insights is the coaching layer. It is less about raw counts and more about behavior, momentum, backlog, and which next action makes the most sense.",
+    [
+      { label: "Use it for", value: "Finding patterns, spotting neglected value, and understanding why the queue recommends what it recommends." },
+      { label: "Do not use it as", value: "A guilt machine. Most cards are signals, not failures." },
+    ]
+  );
+  html += buildHelpSection(
+    "Personal Style DNA (Wrapped)",
+    "Wrapped summarizes how your style behaved over the current month and year, with story mode for past periods that actually have data.",
+    [
+      { label: "Wears / items", value: "How many total wears happened in that period and how many unique items those wears covered." },
+      { label: "Top brand / top type", value: "The brand and type that showed up most often in logged wears." },
+      { label: "Spotlight wear", value: "A single wear event that stands out because of dormancy gap, value, condition, or date-theme signal." },
+      { label: "Peak day / best streak", value: "Your strongest wear day and longest consecutive wear run in that period." },
+      { label: "Adds / spend", value: "How many items were added during that period and how much money that intake represented." },
+      { label: "Top fandom / top tag", value: "The strongest identity signals attached to what you actually wore." },
+      { label: "Play story", value: "Turns the Wrapped data into slide-style narration you can browse by month or year." },
+    ]
+  );
+  html += buildHelpSection(
+    "Behavior and coaching cards",
+    "These cards explain how the closet is behaving right now and what move would balance it best.",
+    [
+      { label: "Rotation volatility", value: "How sharply your wear choices swing week to week." },
+      { label: "Weekday vs weekend persona", value: "How similar weekday wear behavior is to weekend wear behavior." },
+      { label: "Style exploration ratio", value: "How often you stepped outside your core types recently." },
+      { label: "Bench pressure", value: "Items the queue keeps showing that do not get selected." },
+      { label: "Annual coverage index", value: "How much of the wearable closet has been touched at least once in the last year, adjusted for collector-scale closets." },
+      { label: "Wildcard pick of the week", value: "A deliberate recommendation that nudges the rotation in a useful direction." },
+      { label: "Opportunity-adjusted backlog", value: "Never-worn backlog after excluding items that should not be penalized yet." },
+      { label: "Theme fatigue detector", value: "Flags fandom or tag themes that used to carry more of the rotation but have cooled off recently." },
+      { label: "Decision friction", value: "Measures how often the queue and your actual choices disagree." },
+      { label: "Value recovery forecast", value: "Estimates how many additional wears expensive underused items need to reach healthier value." },
+      { label: "Outfit confidence curve", value: "A repeat-confidence signal based on actual behavior and long-gap evidence." },
+      { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
+      { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
+      { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
+      { label: "Sell / review shortlist", value: "Items showing multi-factor risk. It is a review-first prompt, not an automatic purge order." },
+      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
+      { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
+    ]
+  );
+  html += buildHelpSection(
+    "Behavior detail sections",
+    "These lists turn the cards above into concrete item-level coaching.",
+    [
+      { label: "Collector-normal rotation model", value: "Splits the closet into active, cooling, and dormant tiers so collector spacing is judged fairly." },
+      { label: "Comeback candidates", value: "Historically strong items that look ready for a safe return." },
+      { label: "Theme fatigue watchlist", value: "Specific themes whose share of wear has faded noticeably." },
+      { label: "Decision friction heatmap", value: "Weekday hotspots where queue acceptance is weakest." },
+      { label: "Value recovery targets", value: "Specific expensive items that still need more wears to justify their cost." },
+      { label: "Outfit confidence low-signal items", value: "Items whose repeat-wear confidence currently looks weak." },
+      { label: "Adaptive queue recommendations", value: "Type-level boost or cool suggestions learned from real queue behavior." },
+      { label: "7-day reactivation playbook", value: "An ordered short plan for waking dormant value back up." },
+      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength." },
+      { label: "Bench pressure watchlist", value: "Specific queued items that repeatedly get skipped, snoozed, or soft-passed." },
+    ]
+  );
+  html += buildHelpSection(
+    "Closet audit scorecard and queue",
+    "These sections turn behavior into a practical next move.",
+    [
+      { label: "Health score", value: "A broad health check built from coverage, backlog, idle value, and rotation efficiency." },
+      { label: "Parked value", value: "How much closet value is sitting idle for a long time." },
+      { label: "Adoption lag", value: "Typical delay between adding an item and wearing it for the first time." },
+      { label: "Backlog risk", value: "How many items are still waiting for a first wear." },
+      { label: "365-day rotation", value: "How much of the wearable closet has been touched within the last year." },
+      { label: "No-buy streak", value: "Current and longest no-buy run, shown because buying pressure changes closet health too." },
+      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate date previews another day, lane labels explain the reason family, Why this ranked shows score math, Worn today logs the pick, Not today is a soft pass, and Snooze hides the item longer." },
+      { label: "Wear calendar heatmap", value: "A calendar view of wear intensity. The year and brand filters change the view, and clicking dates or months drills into history." },
+    ]
+  );
+  return html;
+};
+
+const buildNoBuyHelpHtml = () => {
+  let html = "";
+  html += buildHelpSection(
+    "What the No-Buy Game is",
+    "This is a coaching layer for purchase restraint. It turns streak protection, temptation logging, cooldowns, and recovery habits into a simple game loop.",
+    [
+      { label: "Important rule", value: "Buys are manual-only. The app does not auto-log a buy just because a streak changes." },
+      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, and completing recovery after a buy." },
+    ]
+  );
+  html += buildHelpSection(
+    "Buttons and actions",
+    "These are the controls you can press inside the game window.",
+    [
+      { label: "Start 24h cooldown", value: "Begins a one-day pause buffer before buying and logs a cooldown action." },
+      { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one buy credit if available, and starts a recovery mission." },
+      { label: "Tempted today", value: "Logs that you felt pressure to buy today and stores the trigger you selected." },
+      { label: "No temptation today", value: "Marks the day as clear and removes that day’s temptation pressure." },
+      { label: "Export log JSON", value: "Downloads the full no-buy state for backup or personal analysis." },
+      { label: "Open full history", value: "Shows the full in-app action history, newest first." },
+      { label: "Delete", value: "Removes an individual logged action from the recent list." },
+    ]
+  );
+  html += buildHelpSection(
+    "Stat cards and sections",
+    "These numbers explain the current buying-pressure picture.",
+    [
+      { label: "Risk right now", value: "A short summary of the biggest current buying pressures." },
+      { label: "Current streak", value: "Your active run of no-buy days, plus the longest streak reached so far." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days." },
+      { label: "Buy credits", value: "Credits earned every 10 banked no-buy days." },
+      { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
+      { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
+      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline." },
+      { label: "Clean badge", value: "A quick read on whether the current month is buy-clean and whether the last week is temptation-clean." },
+      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into a larger pressure family." },
+      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now." },
+      { label: "Recent button log", value: "The latest 10 logged actions, including cooldowns, temptations, and buys." },
+      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
+      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
+      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and current recovery state." },
+    ]
+  );
+  html += buildHelpSection(
+    "Rules and definitions",
+    "These are the actual rules the current game logic follows.",
+    [
+      { label: "Daily XP", value: "When the app syncs a valid no-buy day, it grants XP once per day, with bonus XP at bigger streak bands." },
+      { label: "No-buy day banking", value: "Every successful no-buy day adds to lifetime banked no-buy days." },
+      { label: "Buy credits rule", value: "Every 10 banked no-buy days grants 1 buy credit." },
+      { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
+      { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
+      { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
+      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing." },
+    ]
+  );
+  return html;
+};
+
+const openStatsHelpDialog = (stats) => openHelpDialog("Main Stats Help", buildMainStatsHelpHtml(stats));
+const openInsightsHelpDialog = () => openHelpDialog("Insights Help", buildInsightsHelpHtml());
+const openNoBuyHelpDialog = () => openHelpDialog("No-Buy Game Help", buildNoBuyHelpHtml());
+
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   const safe = normalizeNoBuyGamifyState(state || {});
   const source = String(descriptor.source || "");
@@ -13618,6 +13906,7 @@ const openInsightsDialog = (stats, options = {}) => {
         <div id="insights-content" class="insights-content"></div>
       </div>
       <div class="dialog-actions">
+        <button type="button" id="insights-help" class="btn secondary">Help</button>
         <button type="button" id="insights-close" class="btn">Close</button>
       </div>
     `;
@@ -13627,7 +13916,11 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!el) return;
       el.addEventListener("click", handler);
     };
+    const helpButton = dialog.querySelector("#insights-help");
     const closeButton = dialog.querySelector("#insights-close");
+    bindClick(helpButton, () => {
+      openInsightsHelpDialog();
+    });
     bindClick(closeButton, () => {
       closeDialog(dialog);
     });
@@ -14664,6 +14957,7 @@ const openNoBuyGameDialog = (stats) => {
       <button type="button" class="btn secondary" id="nobuy-checkin-tempted">Tempted today</button>
       <button type="button" class="btn secondary" id="nobuy-checkin-clear">No temptation today</button>
       <button type="button" class="btn secondary" id="nobuy-export-log">Export log JSON</button>
+      <button type="button" class="btn secondary" id="nobuy-help">Help</button>
     </div>
     <div class="no-buy-select-row" style="margin-top:8px">
       <div class="no-buy-select-group">
@@ -14743,6 +15037,7 @@ const openNoBuyGameDialog = (stats) => {
   const temptedBtn = content.querySelector("#nobuy-checkin-tempted");
   const clearBtn = content.querySelector("#nobuy-checkin-clear");
   const exportBtn = content.querySelector("#nobuy-export-log");
+  const helpBtn = content.querySelector("#nobuy-help");
   const fullHistoryBtn = content.querySelector("#nobuy-open-full-history");
   const triggerSelect = content.querySelector("#nobuy-trigger");
   const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
@@ -14784,6 +15079,11 @@ const openNoBuyGameDialog = (stats) => {
   if (exportBtn) {
     exportBtn.addEventListener("click", () => {
       exportNoBuyLogJson(loadNoBuyGamifyState());
+    });
+  }
+  if (helpBtn) {
+    helpBtn.addEventListener("click", () => {
+      openNoBuyHelpDialog();
     });
   }
   if (fullHistoryBtn) {
@@ -15301,6 +15601,11 @@ const openStatsDialog = () => {
   if (statsNoBuyButton) {
     statsNoBuyButton.onclick = () => {
       openNoBuyGameDialog(s);
+    };
+  }
+  if (statsHelpButton) {
+    statsHelpButton.onclick = () => {
+      openStatsHelpDialog(s);
     };
   }
   if (statsExportButton) {
