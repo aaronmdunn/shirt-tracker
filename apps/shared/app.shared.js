@@ -5438,8 +5438,9 @@ const updateDeleteSelectedState = () => {
     bulkTagsButton.style.display = appMode === "wishlist" ? "none" : "";
   }
   if (selectAllRowsButton) {
-    selectAllRowsButton.disabled = !selectableRows.length || allChecked;
+    selectAllRowsButton.disabled = !selectableRows.length;
     selectAllRowsButton.style.display = appMode === "wishlist" ? "none" : "";
+    selectAllRowsButton.textContent = allChecked ? "Unselect All" : "Select All";
   }
 };
 
@@ -5472,8 +5473,9 @@ const clearRowSelections = () => {
 const selectAllVisibleRows = () => {
   const selectableRows = Array.from(sheetBody.querySelectorAll(".row-select"));
   if (!selectableRows.length) return;
+  const allChecked = selectableRows.every((input) => input.checked);
   selectableRows.forEach((input) => {
-    input.checked = true;
+    input.checked = !allChecked;
   });
   updateDeleteSelectedState();
 };
