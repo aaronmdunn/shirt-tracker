@@ -1001,7 +1001,7 @@ const snapshotRow = (row) => {
     const val = row.cells[col.id];
     if (val) snap[label] = String(val);
   });
-  const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+  const tags = getRowTags(row);
   if (tags.length) snap["Tags"] = tags.join(", ");
   return snap;
 };
@@ -2160,7 +2160,7 @@ const renderRecycleBin = () => {
         details.appendChild(line);
       }
     });
-    const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+    const tags = getRowTags(row);
     if (tags.length) {
       const tagLine = document.createElement("div");
       tagLine.textContent = "Tags: " + tags.join(", ");
@@ -6472,7 +6472,7 @@ const matchesFilter = (row, column, queryLower) => {
 
 const getRowTags = (row) => {
   if (!row || !Array.isArray(row.tags)) return [];
-  return row.tags.filter((tag) => String(tag || "").trim() !== "");
+  return canonicalizeTagList(row.tags);
 };
 
 const isForSale = (row) => getRowTags(row).some((tag) => tag.toLowerCase() === FOR_SALE_TAG.toLowerCase());
@@ -6494,6 +6494,24 @@ const matchesTagFilter = (row, queryLower) => {
   return tags.some((tag) => String(tag).toLowerCase().includes(queryLower));
 };
 
+const canonicalizeTagLabel = (tag) => {
+  const trimmed = String(tag || "").trim();
+  if (!trimmed) return "";
+  const key = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (key === "xxchange" || key === "dixxonxxchange") return "Dixxon XXChange";
+  return trimmed;
+};
+
+const canonicalizeTagList = (tags) => {
+  const merged = new Map();
+  (Array.isArray(tags) ? tags : []).forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (key && !merged.has(key)) merged.set(key, canonical);
+  });
+  return Array.from(merged.values());
+};
+
 const BASE_TAG_SUGGESTIONS = [
   "Floral",
   "Christmas",
@@ -6503,6 +6521,7 @@ const BASE_TAG_SUGGESTIONS = [
   "Patriotic",
   "Movie",
   "Animation",
+  "Dixxon XXChange",
   "Original",
   "Dropzone",
 ];
@@ -6512,7 +6531,7 @@ const loadCustomTags = () => {
   try {
     const stored = localStorage.getItem(CUSTOM_TAGS_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    return Array.isArray(parsed) ? canonicalizeTagList(parsed) : [];
   } catch (error) {
     return [];
   }
@@ -6521,7 +6540,7 @@ const loadCustomTags = () => {
 const saveCustomTags = (tags) => {
   if (!canUseLocalStorage()) return;
   try {
-    localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(tags));
+    localStorage.setItem(CUSTOM_TAGS_KEY, JSON.stringify(canonicalizeTagList(tags)));
   } catch (error) {
     // ignore
   }
@@ -6549,16 +6568,16 @@ const persistNewTags = (incoming) => {
 
 const normalizeTagsInput = (value) => String(value || "")
   .split(",")
-  .map((tag) => String(tag || "").trim())
+  .map((tag) => canonicalizeTagLabel(tag))
   .filter((tag) => tag.length > 0);
 
 const mergeTags = (currentTags, incomingTags) => {
   const merged = new Map();
-  currentTags.forEach((tag) => {
+  canonicalizeTagList(currentTags).forEach((tag) => {
     const key = String(tag || "").toLowerCase();
     if (key) merged.set(key, String(tag));
   });
-  incomingTags.forEach((tag) => {
+  canonicalizeTagList(incomingTags).forEach((tag) => {
     const key = String(tag || "").toLowerCase();
     if (key && !merged.has(key)) merged.set(key, String(tag));
   });
@@ -6705,8 +6724,8 @@ const renderBulkTagSuggestions = (query) => {
 const setRowTags = (rowId, nextTags, logContext = null) => {
   const row = state.rows.find((item) => item.id === rowId);
   if (!row) return;
-  const previousTags = Array.isArray(row.tags) ? row.tags : [];
-  const next = Array.isArray(nextTags) ? nextTags : [];
+  const previousTags = getRowTags(row);
+  const next = canonicalizeTagList(nextTags);
   row.tags = next;
   updateShirtUpdateDate();
   saveState();
@@ -9167,7 +9186,7 @@ const collectAllStats = () => {
         return;
       }
     }
-    const entries = rows.map((row) => ({ row, columns: cols, tabName: tab.name }));
+    const entries = rows.map((row) => ({ row, columns: cols, tabName: tab.name, tabId: tab.id }));
     perTabRows.push({ name: tab.name, id: tab.id, count: rows.length, entries });
     entries.forEach((e) => allRows.push(e));
   });
@@ -9180,6 +9199,16 @@ const collectAllStats = () => {
   const getCellValue = (entry, colName) => {
     const col = findColumn(entry.columns, colName);
     return col && entry.row.cells ? (entry.row.cells[col.id] || "").trim() : "";
+  };
+
+  const applyHiddenColumnsToEntry = (entry) => {
+    const hiddenIds = columnOverrides.hiddenColumnsByTab[entry?.tabId];
+    const hidden = new Set(Array.isArray(hiddenIds) ? hiddenIds : []);
+    if (!hidden.size) return entry;
+    return {
+      ...entry,
+      columns: Array.isArray(entry.columns) ? entry.columns.filter((column) => !hidden.has(column.id)) : [],
+    };
   };
 
   const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
@@ -9201,9 +9230,10 @@ const collectAllStats = () => {
   };
 
   // --- Reusable stat helpers (work on any row subset) ---
-  const tallyFrom = (subset, colName) => {
+  const tallyFrom = (subset, colName, options = {}) => {
     const counts = {};
-    subset.forEach((entry) => {
+    const source = options.respectHiddenColumns ? subset.map(applyHiddenColumnsToEntry) : subset;
+    source.forEach((entry) => {
       const val = getCellValue(entry, colName);
       if (val) counts[val] = (counts[val] || 0) + 1;
     });
@@ -9249,7 +9279,7 @@ const collectAllStats = () => {
   const tagsFrom = (subset) => {
     const tagCounts = {};
     subset.forEach((entry) => {
-      const tags = Array.isArray(entry.row.tags) ? entry.row.tags : [];
+      const tags = getRowTags(entry.row);
       tags.forEach((tag) => {
         const t = String(tag || "").trim();
         if (t) tagCounts[t] = (tagCounts[t] || 0) + 1;
@@ -9271,7 +9301,10 @@ const collectAllStats = () => {
   };
 
   // --- Cross-tab aggregate stats ---
-  const globalStats = buildStatsFor(allRows);
+  const globalStats = {
+    ...buildStatsFor(allRows),
+    fandomTally: tallyFrom(allRows, "Fandom", { respectHiddenColumns: true }).slice(0, 5),
+  };
   const totalItems = allRows.length;
 
   // --- Name stats ---
@@ -9724,7 +9757,7 @@ const collectAllStats = () => {
           lastWorn,
           wearLog,
           createdAt: entry.row.createdAt || null,
-          tags: Array.isArray(entry.row.tags) ? entry.row.tags : [],
+          tags: getRowTags(entry.row),
         });
       });
     });
@@ -9941,7 +9974,7 @@ const collectAllStats = () => {
   const tagRollup = {};
   wearableUniverse.forEach((item) => {
     item.tags.forEach((rawTag) => {
-      const tag = String(rawTag || "").trim();
+      const tag = canonicalizeTagLabel(rawTag);
       if (!tag || tag === "Original") return;
       if (!tagRollup[tag]) tagRollup[tag] = { tag, samples: 0, wearSum: 0, cpwSum: 0, cpwCount: 0 };
       const bucket = tagRollup[tag];
@@ -10665,6 +10698,7 @@ const openAdvancedStatsDialog = (stats) => {
   const rotationModel = behavior?.rotationModel || { graceCount: 0, adjustedBacklogPct: 0, topBrandDominance: null, parkedValueSplit: { intentional: { count: 0, value: 0 }, uncertain: { count: 0, value: 0 } } };
   const workLane = buildTaggedLaneStats(s.wearableItems || [], ["workappropriate", "work appropriate"]);
   const formalLane = buildTaggedLaneStats(s.wearableItems || [], ["formal"]);
+  const holidayLane = buildTaggedLaneStats(s.wearableItems || [], HOLIDAY_LANE_TAG_ALIASES);
   let html = "";
 
   if (s.isInventory) {
@@ -10867,7 +10901,7 @@ const openAdvancedStatsDialog = (stats) => {
     html += section("Tag performance", body);
   }
 
-  if (workLane.total || formalLane.total) {
+  if (workLane.total || formalLane.total || holidayLane.total) {
     let body = hint("Special-purpose coverage tracks how deep these tagged lanes are and how alive they still are in real wear activity.");
     if (workLane.total) {
       body += row("Work-ready lane", `${workLane.total} items | ${workLane.active365} active in 365d | ${workLane.neverWorn} never worn`);
@@ -10876,6 +10910,10 @@ const openAdvancedStatsDialog = (stats) => {
     if (formalLane.total) {
       body += row("Formal lane", `${formalLane.total} items | ${formalLane.active365} active in 365d | ${formalLane.neverWorn} never worn`);
       body += sub("Formal leaders", `${formalLane.topBrand} brand | ${formalLane.topType} type`);
+    }
+    if (holidayLane.total) {
+      body += row("Holiday lane", `${holidayLane.total} items | ${holidayLane.active365} active in 365d | ${holidayLane.neverWorn} never worn`);
+      body += sub("Holiday leaders", `${holidayLane.topBrand} brand | ${holidayLane.topType} type`);
     }
     html += section("Occasion lanes", body);
   }
@@ -11918,7 +11956,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
       { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
       { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
-      { label: "Sell / review shortlist", value: "Items showing multi-factor risk. It is a review-first prompt, not an automatic purge order." },
+      { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces." },
       { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
       { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
     ]
@@ -12760,7 +12798,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     if (set.has("bst")) matches.push("bst");
     if (set.has("ebay")) matches.push("ebay");
     if (set.has("mercari")) matches.push("mercari");
-    if (set.has("xxchange")) matches.push("xxchange");
+    if (set.has("xxchange") || set.has("dixxonxxchange")) matches.push("xxchange");
     return matches;
   };
 
@@ -12768,7 +12806,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
-    xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
+    xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
   };
 
   const confidenceByKey = {};
@@ -12828,7 +12866,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
       if (isProtectedTagged(item) || isSeasonalExempt(item)) return null;
       if (item?.createdAt) {
         const createdMs = new Date(item.createdAt).getTime();
-        if (Number.isFinite(createdMs) && createdMs > (nowMs - (30 * dayMs))) return null;
+        const sellRuleStartMs = new Date("2026-02-01T00:00:00").getTime();
+        if (Number.isFinite(createdMs) && createdMs >= sellRuleStartMs && createdMs > (nowMs - (90 * dayMs))) return null;
       }
       const key = getInsightsQueueKey(item);
       const wearCount = Math.max(0, Number(item?.wearCount || 0));
@@ -12871,7 +12910,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       if (daysSince !== null && daysSince <= 30) score -= 25;
 
       if (score < 45) return null;
-      const actionLabel = score >= 78 ? "Sell candidate" : "Review";
+      const actionLabel = "Sell candidate";
       return {
         key,
         name: String(item?.name || "Unnamed"),
@@ -12887,7 +12926,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
-    .slice(0, 3);
+    .slice(0, 5);
 
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
@@ -13064,6 +13103,32 @@ const buildTaggedLaneStats = (items, aliases, options = {}) => {
     topType: topType ? topType[0] : "n/a",
   };
 };
+
+const HOLIDAY_LANE_TAG_ALIASES = [
+  "holiday",
+  "usa",
+  "patriotic",
+  "july4",
+  "july4th",
+  "christmas",
+  "xmas",
+  "hanukkah",
+  "thanksgiving",
+  "halloween",
+  "st patricks",
+  "st patrick's",
+  "stpatricks",
+  "valentine",
+  "valentines",
+  "easter",
+  "mardi gras",
+  "mardigras",
+  "cinco de mayo",
+  "cinco",
+  "dia de los muertos",
+  "diadelosmuertos",
+  "day of the dead",
+];
 
 const getLastMondayOfMay = (year) => {
   const d = new Date(year, 4, 31);
@@ -14091,7 +14156,7 @@ const openInsightsDialog = (stats, options = {}) => {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
-      xxchange: { label: "XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
+      xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
     };
     const marketplaceRows = [marketplaceTags.bst, marketplaceTags.ebay, marketplaceTags.mercari, marketplaceTags.xxchange];
     const comeback = Array.isArray(behavior?.comebackCandidates) ? behavior.comebackCandidates : [];
@@ -14311,10 +14376,10 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Sell / review shortlist</div>
+          <div class="insights-score-title">Top 5 to sell</div>
           ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
-          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, with review-first handling for borderline cases.</div>
+          <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, while protecting recent additions from the shortlist.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
@@ -14388,8 +14453,8 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Sell / review shortlist</div>
-      <div class="stats-hint">Multi-factor candidates for potential offloading, combining inactivity, confidence risk, pressure, and CPW drag. Borderline cases are framed as review first, not automatic sell calls (protected archive/sentimental/Whale items are excluded).</div>
+      <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
+      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces.</div>
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
@@ -14594,9 +14659,7 @@ const openInsightsDialog = (stats, options = {}) => {
       const key = button.getAttribute("data-insights-soft-pass");
       if (!key) return;
       const next = loadInsightsSnoozes();
-      const until = new Date();
-      until.setDate(until.getDate() + 1);
-      next[key] = localDateKeyFromDate(until);
+      next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
       openInsightsDialog(collectAllStats(), { simDateKey: activeSimDateKey });
