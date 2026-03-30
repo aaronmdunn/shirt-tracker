@@ -3456,7 +3456,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
-#help-dialog .dialog-body,
+#stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
 #no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
@@ -3474,7 +3474,7 @@ input[type="date"].stats-date-input {
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
-#help-dialog .dialog-actions,
+#stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
 #no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,

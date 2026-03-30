@@ -11740,21 +11740,21 @@ const buildHelpSection = (title, intro = "", items = []) => `
 `;
 
 const openHelpDialog = (title, bodyHtml) => {
-  let dialog = document.getElementById("help-dialog");
+  let dialog = document.getElementById("stats-coaching-help-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
-    dialog.id = "help-dialog";
+    dialog.id = "stats-coaching-help-dialog";
     dialog.innerHTML = `
       <div class="dialog-body">
-        <h3 id="help-dialog-title">Help</h3>
-        <div id="help-dialog-content"></div>
+        <h3 id="stats-coaching-help-title">Help</h3>
+        <div id="stats-coaching-help-content"></div>
       </div>
       <div class="dialog-actions">
-        <button type="button" id="help-dialog-close" class="btn">Close</button>
+        <button type="button" id="stats-coaching-help-close" class="btn">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
-    const closeButton = dialog.querySelector("#help-dialog-close");
+    const closeButton = dialog.querySelector("#stats-coaching-help-close");
     if (closeButton) {
       closeButton.addEventListener("click", () => {
         closeDialog(dialog);
@@ -11762,8 +11762,8 @@ const openHelpDialog = (title, bodyHtml) => {
     }
   }
 
-  const titleEl = dialog.querySelector("#help-dialog-title");
-  const content = dialog.querySelector("#help-dialog-content");
+  const titleEl = dialog.querySelector("#stats-coaching-help-title");
+  const content = dialog.querySelector("#stats-coaching-help-content");
   if (!content) return;
   if (titleEl) titleEl.textContent = title;
   content.innerHTML = bodyHtml;
