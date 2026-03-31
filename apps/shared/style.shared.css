@@ -672,6 +672,19 @@ body[data-auth="signed-out"] #stats-button {
   display: none !important;
 }
 
+body[data-auth="loading"] .header-actions,
+body[data-auth="loading"] .danger-zone,
+body[data-auth="loading"] #desktop-action-inline-grid,
+body[data-auth="loading"] #mode-switcher-inline {
+  display: none !important;
+}
+
+body[data-auth="signed-out"] #auth-action,
+body[data-auth="signed-out"] #desktop-action-inline-grid,
+body[data-auth="signed-out"] #mode-switcher-inline {
+  display: none !important;
+}
+
 body[data-auth="signed-out"] .filter-row,
 body[data-auth="signed-out"] .filter-bar,
 body[data-auth="signed-out"] .tab-logo-panel {
@@ -691,7 +704,7 @@ body[data-auth="signed-out"] .columns-row {
 }
 
 /* PLATFORM:desktop */
-body[data-auth="signed-out"] .auth-row > :not(#auth-action):not(.signedout-greeting) {
+body[data-auth="signed-out"] .auth-row > :not(.signedout-greeting) {
   display: none !important;
 }
 /* /PLATFORM:desktop */

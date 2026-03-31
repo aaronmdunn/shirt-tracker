@@ -1964,7 +1964,7 @@ const setAuthStatus = () => {
     if (PLATFORM === "mobile") {
       authActionButton.style.setProperty("display", "none", "important");
     } else {
-      authActionButton.style.display = "inline-flex";
+      authActionButton.style.display = "none";
     }
     if (authActionSignedOutButton) {
       authActionSignedOutButton.textContent = "Sign In";
@@ -2027,7 +2027,7 @@ const setAuthStatus = () => {
     if (PLATFORM === "mobile") {
       authActionButton.style.setProperty("display", "none", "important");
     } else {
-      authActionButton.style.display = "inline-flex";
+      authActionButton.style.display = "none";
     }
     if (authActionSignedOutButton) {
       authActionSignedOutButton.textContent = "Sign In";
