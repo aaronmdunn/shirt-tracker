@@ -672,6 +672,19 @@ body[data-auth="signed-out"] #stats-button {
   display: none !important;
 }
 
+body[data-auth="loading"] .header-actions,
+body[data-auth="loading"] .danger-zone,
+body[data-auth="loading"] #desktop-action-inline-grid,
+body[data-auth="loading"] #mode-switcher-inline {
+  display: none !important;
+}
+
+body[data-auth="signed-out"] #auth-action,
+body[data-auth="signed-out"] #desktop-action-inline-grid,
+body[data-auth="signed-out"] #mode-switcher-inline {
+  display: none !important;
+}
+
 body[data-auth="signed-out"] .filter-row,
 body[data-auth="signed-out"] .filter-bar,
 body[data-auth="signed-out"] .tab-logo-panel {
@@ -691,7 +704,7 @@ body[data-auth="signed-out"] .columns-row {
 }
 
 /* PLATFORM:desktop */
-body[data-auth="signed-out"] .auth-row > :not(#auth-action):not(.signedout-greeting) {
+body[data-auth="signed-out"] .auth-row > :not(.signedout-greeting) {
   display: none !important;
 }
 /* /PLATFORM:desktop */
@@ -3650,6 +3663,7 @@ input[type="date"].stats-date-input {
 #advanced-stats-dialog,
 #tag-maintenance-dialog,
 #first-wear-lag-dialog,
+#pre-buy-check-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
@@ -3669,6 +3683,7 @@ input[type="date"].stats-date-input {
 #first-wear-lag-dialog .dialog-body,
 #stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
+#pre-buy-check-dialog .dialog-body,
 #no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
   padding: 20px 24px 12px;
@@ -3688,6 +3703,7 @@ input[type="date"].stats-date-input {
 #first-wear-lag-dialog .dialog-actions,
 #stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
+#pre-buy-check-dialog .dialog-actions,
 #no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
@@ -3759,6 +3775,117 @@ input[type="date"].stats-date-input {
 
 #no-buy-game-dialog .insights-queue-sim-controls .insights-queue-sim-date {
   margin-bottom: 4px;
+}
+
+.pre-buy-reason-grid,
+.pre-buy-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.pre-buy-action-grid {
+  margin-top: 6px;
+}
+
+.pre-buy-reason-btn {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, #d7dbe3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(247, 249, 252, 0.98) 100%);
+  color: color-mix(in srgb, var(--ink) 88%, #4b6076);
+  box-shadow: 0 6px 14px rgba(35, 52, 71, 0.06);
+}
+
+.pre-buy-reason-btn.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 66%, #6f93bf);
+  background: linear-gradient(180deg, rgba(116, 162, 255, 0.14) 0%, rgba(255, 255, 255, 0.98) 100%);
+  box-shadow: 0 8px 18px rgba(57, 93, 145, 0.12);
+}
+
+.pre-buy-reason-btn:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(241, 245, 250, 0.98) 100%);
+  border-color: color-mix(in srgb, var(--accent) 34%, #bac5d3);
+  box-shadow: 0 10px 20px rgba(35, 52, 71, 0.09);
+}
+
+#pre-buy-check-dialog .pre-buy-action-grid .btn {
+  min-height: 42px;
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  white-space: normal;
+  border-radius: 14px;
+  box-shadow: 0 8px 18px rgba(35, 52, 71, 0.08);
+}
+
+#pre-buy-check-dialog .pre-buy-action-grid .btn.secondary {
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, #d4dae3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(243, 247, 252, 0.98) 100%);
+  color: color-mix(in srgb, var(--ink) 90%, #51657b);
+}
+
+#pre-buy-check-dialog .pre-buy-action-grid .btn.secondary:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(236, 242, 249, 0.98) 100%);
+  border-color: color-mix(in srgb, var(--accent) 42%, #a8b9ce);
+  color: var(--ink);
+  box-shadow: 0 12px 24px rgba(35, 52, 71, 0.11);
+}
+
+#prebuy-hold {
+  background: linear-gradient(180deg, rgba(239, 247, 255, 0.98) 0%, rgba(224, 239, 255, 0.98) 100%) !important;
+  border-color: #90b8eb !important;
+  color: #244a77 !important;
+}
+
+#prebuy-wishlist {
+  background: linear-gradient(180deg, rgba(244, 241, 255, 0.98) 0%, rgba(233, 227, 255, 0.98) 100%) !important;
+  border-color: #a89add !important;
+  color: #514082 !important;
+}
+
+#prebuy-wear-first {
+  background: linear-gradient(180deg, rgba(241, 250, 244, 0.98) 0%, rgba(227, 243, 232, 0.98) 100%) !important;
+  border-color: #93c6a0 !important;
+  color: #295d37 !important;
+}
+
+#prebuy-buy-anyway {
+  border: 1px solid #d7a5ad !important;
+  background: linear-gradient(180deg, rgba(255, 248, 249, 0.99) 0%, rgba(252, 238, 241, 0.98) 100%) !important;
+  color: #9a3044 !important;
+  box-shadow: 0 6px 14px rgba(154, 48, 68, 0.09) !important;
+}
+
+#prebuy-buy-anyway:hover {
+  background: linear-gradient(180deg, rgba(255, 250, 251, 1) 0%, rgba(249, 230, 235, 0.98) 100%) !important;
+  border-color: #cc8694 !important;
+  box-shadow: 0 10px 20px rgba(154, 48, 68, 0.13) !important;
+}
+
+.pre-buy-check-intro,
+.pre-buy-check-reason-read,
+.pre-buy-check-best-move,
+.pre-buy-check-footer {
+  text-align: center;
+}
+
+.pre-buy-check-reason-read {
+  margin-top: 8px;
+}
+
+.pre-buy-check-best-move {
+  font-weight: 600;
+}
+
+.pre-buy-check-footer {
+  margin-top: 12px;
 }
 
 .advanced-stats-content {
