@@ -13917,57 +13917,80 @@ const buildNoBuyHelpHtml = () => {
   let html = "";
   html += buildHelpSection(
     "What the No-Buy Game is",
-    "This is a coaching layer for purchase restraint. The fast front door is the Pre-Buy Check, while the full game tracks streak protection, temptation logging, cooldowns, and recovery habits.",
+    "This is a coaching layer for purchase restraint. The fast front door is the Pre-Buy Check, while the full game is the deeper dashboard for streaks, pressure trends, cooldowns, and recovery after a buy.",
     [
       { label: "Important rule", value: "Buys are manual-only. The app does not auto-log a buy just because a streak changes." },
-      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, and completing recovery after a buy." },
+      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, using delay before buying, and completing recovery after a buy." },
+      { label: "Two layers", value: "Pre-Buy Check is the in-the-moment interruption flow. Full No-Buy Game is the detailed coaching and history layer." },
     ]
   );
   html += buildHelpSection(
-    "Buttons and actions",
-    "These are the controls you can press inside the game window.",
+    "Pre-Buy Check",
+    "These are the faster, before-you-buy features that feed into the full game.",
     [
-      { label: "Pre-Buy Check", value: "A faster intercept flow for moments when you are about to shop. It asks for the trigger first, then pushes hold, wishlist, or reroute actions before a buy." },
+      { label: "Trigger buttons", value: "These label the pressure lane first, like Sale, FOMO, Boredom, Rare find, or New drop. The coaching copy changes based on which lane you pick." },
+      { label: "Item fields", value: "Name, Brand, and Type are optional helper inputs. Filling them in gives the duplicate read more context so it can find closer inventory matches." },
+      { label: "Duplicate friction", value: "This is a live fuzzy text read against your inventory using name, brand, and type. It shows a risk level, how many similar rows already exist, and the closest current matches." },
+      { label: "Closet friction", value: "This card summarizes pressure from your current closet, such as unworn backlog or wishlist buy-gate performance, so the cost of buying feels immediate instead of abstract." },
+      { label: "Recovery window live", value: "If a recovery mission is active, the strip under the cards reminds you that added shirts can count toward recovery and shows whether unworn added shirts are still available." },
+      { label: "Hold 72h", value: "Starts or extends a 72-hour cooldown and logs a successful anti-buy check-in." },
+      { label: "Park in Wishlist", value: "Moves the idea into Wishlist instead of your cart. It carries over the typed name, brand, and type when available, adds a Held tag, and writes a hold note into Notes." },
+      { label: "Wear Similar First", value: "Starts a shorter cooldown and bounces you back to Inventory so you can wear something close before you decide to buy." },
+      { label: "Buy anyway", value: "Logs the buy inside the no-buy game, resets the streak, and starts a recovery mission." },
+      { label: "Open Full No-Buy Game", value: "Jumps from the fast intercept flow into the deeper dashboard with trends, history, and recovery details." },
+    ]
+  );
+  html += buildHelpSection(
+    "Full Game Cards",
+    "These cards and sections explain the current buying-pressure picture in the full game dialog.",
+    [
+      { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
+      { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days and completing recovery." },
+      { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
+      { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
+      { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
+      { label: "Recovery mission", value: "A post-buy challenge with a 3-wear target and a 7-day deadline. The note also reflects whether added shirts are still unworn and available to help finish the mission." },
+      { label: "Clean badge", value: "A quick monthly and weekly cleanliness read. It blends this month’s buy count with last week’s temptation count." },
+      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into its larger pressure family." },
+      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now based on streak, pressure mix, cooldown, and recovery state." },
+      { label: "Recovery shortcuts", value: "When recovery is active, this section highlights how many added shirts are eligible to count and suggests low-wear added shirts to reach for first." },
+      { label: "Recent button log", value: "The latest 10 logged no-buy actions, including cooldowns, temptations, and buys." },
+      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
+      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
+      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and the current recovery state." },
+    ]
+  );
+  html += buildHelpSection(
+    "Full Game Actions",
+    "These are the controls you can press inside the full game dialog.",
+    [
       { label: "Start 24h cooldown", value: "Begins a one-day pause buffer before buying and logs a cooldown action." },
       { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one streak shield if you have one banked, and starts a recovery mission." },
       { label: "Tempted today", value: "Logs that you felt pressure to buy today and stores the trigger you selected." },
       { label: "No temptation today", value: "Marks the day as clear and removes that day’s temptation pressure." },
+      { label: "Temptation trigger", value: "This select controls which trigger gets stored when you press Tempted today." },
+      { label: "Buying reason", value: "This select controls which reason gets stored when you press Log buy now." },
       { label: "Export log JSON", value: "Downloads the full no-buy state for backup or personal analysis." },
       { label: "Open full history", value: "Shows the full in-app action history, newest first." },
-      { label: "Delete", value: "Removes an individual logged action from the recent list." },
+      { label: "Delete", value: "Removes an individual logged action from the recent list. This is for cleanup when you logged the wrong button action, not for editing closet wear history." },
+      { label: "Help", value: "Opens this explanation dialog." },
     ]
   );
   html += buildHelpSection(
     "Stat cards and sections",
-    "These numbers explain the current buying-pressure picture.",
+    "These are the older, core ideas the game still runs on behind all the newer UI.",
     [
-      { label: "Risk right now", value: "A short summary of the biggest current buying pressures." },
-      { label: "Current streak", value: "Your active run of no-buy days, plus the longest streak reached so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days." },
-      { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
-      { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
-      { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
-      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline, and only wears from shirts that were actually added in the app will count." },
-      { label: "Clean badge", value: "A quick read on whether the current month is buy-clean and whether the last week is temptation-clean." },
-      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into a larger pressure family." },
-      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now." },
-      { label: "Recent button log", value: "The latest 10 logged actions, including cooldowns, temptations, and buys." },
-      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
-      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
-      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and current recovery state." },
-    ]
-  );
-  html += buildHelpSection(
-    "Rules and definitions",
-    "These are the actual rules the current game logic follows.",
-    [
-      { label: "Daily XP", value: "When the app syncs a valid no-buy day, it grants XP once per day, with bonus XP at bigger streak bands." },
-      { label: "No-buy day banking", value: "Every successful no-buy day adds to lifetime banked no-buy days." },
+      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands." },
+      { label: "No-buy day banking", value: "Every successful no-buy day adds to your lifetime banked no-buy-day total." },
       { label: "Streak shields rule", value: "Every 10 banked no-buy days grants 1 streak shield." },
-      { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
-      { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
-      { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
-      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing. Shirts need an in-app add date (`createdAt`) to count toward recovery." },
+      { label: "Cooldown behavior", value: "Cooldown is a time buffer, not a lockout. Starting a longer cooldown can extend a shorter one that is already active." },
+      { label: "Buy logging rule", value: "Only the buy buttons inside the no-buy flow create a buy event inside the game." },
+      { label: "Temptation logging rule", value: "Temptation pressure only updates when you use Tempted today or the Pre-Buy Check flow." },
+      { label: "Impulse pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
+      { label: "Planned pressure", value: "Pressure driven by more deliberate shopping logic, like sale, good deal, rare find, marketed, or promo." },
+      { label: "Wear logging and recovery", value: "Both Worn today and row-level Log Wear feed the same recovery logic now, so either wear path can advance an active recovery mission." },
+      { label: "Recovery eligibility", value: "Recovery only counts wears from shirts that have an in-app add date (`createdAt`). Older rows without tracked add dates do not count." },
     ]
   );
   return html;
