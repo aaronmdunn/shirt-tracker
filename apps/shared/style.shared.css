@@ -2602,11 +2602,57 @@ dialog {
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
+#collector-type-rules-dialog .dialog-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 8px 20px 16px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
+}
+
 #stats-dialog .dialog-actions .btn,
+#collector-type-rules-dialog .dialog-actions .btn,
 #advanced-stats-dialog .dialog-actions .btn,
+#tag-maintenance-dialog .dialog-actions .btn,
 #stats-coaching-help-dialog .dialog-actions .btn,
 #no-buy-game-dialog .dialog-actions .btn,
 #insights-dialog .dialog-actions .btn {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary) {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: none;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):hover {
+  background: rgba(176, 0, 32, 0.07);
+  box-shadow: none;
+}
+
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):active {
+  background: var(--accent-2);
+  color: var(--accent);
+  box-shadow: none;
+}
+
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):disabled:hover {
+  background: transparent;
+}
+
+#tag-maintenance-dialog .tag-maintenance-primary {
   padding: 5px 9px;
   font-size: 0.72rem;
   line-height: 1.2;
@@ -2951,6 +2997,11 @@ input[type="date"].stats-date-input {
   cursor: pointer;
 }
 
+.stats-card-detail-link {
+  display: inline-block;
+  margin-top: 6px;
+}
+
 .stats-export-options {
   display: grid;
   gap: 8px;
@@ -3219,6 +3270,22 @@ input[type="date"].stats-date-input {
     width: 100%;
     justify-content: center;
   }
+
+  .insights-queue-meta {
+    flex-direction: column;
+  }
+
+  .insights-queue-actions {
+    justify-content: flex-start;
+  }
+
+  .insights-queue-control-group {
+    width: 100%;
+  }
+
+  .tag-maintenance-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3267,6 +3334,21 @@ input[type="date"].stats-date-input {
   gap: 8px;
 }
 
+.insights-queue-toolbar {
+  justify-content: center;
+}
+
+.insights-queue-control-group {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.insights-queue-action-note {
+  text-align: center;
+}
+
 .insights-controls select {
   width: auto;
   min-width: 130px;
@@ -3283,6 +3365,14 @@ input[type="date"].stats-date-input {
   flex: 0 0 auto;
   width: auto;
   margin: 0 auto;
+}
+
+#insights-dialog #insights-queue-sim-today,
+#insights-dialog #insights-queue-refresh {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .insights-queue-sim-controls .insights-sim-label {
@@ -3390,7 +3480,7 @@ input[type="date"].stats-date-input {
   color: var(--muted);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -3401,6 +3491,8 @@ input[type="date"].stats-date-input {
 .insights-queue-actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -3556,6 +3648,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog,
 #all-added-dialog,
 #advanced-stats-dialog,
+#tag-maintenance-dialog,
 #first-wear-lag-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
@@ -3572,6 +3665,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
+#tag-maintenance-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
 #stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
@@ -3590,6 +3684,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-actions,
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
+#tag-maintenance-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
 #stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
@@ -3669,6 +3764,73 @@ input[type="date"].stats-date-input {
 .advanced-stats-content {
   display: grid;
   gap: 8px;
+}
+
+.tag-maintenance-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tag-maintenance-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.tag-maintenance-main {
+  display: grid;
+  gap: 4px;
+}
+
+.tag-maintenance-label {
+  color: var(--ink);
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.tag-maintenance-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
+.tag-maintenance-actions {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-maintenance-actions-compact {
+  grid-template-columns: auto;
+  justify-content: flex-start;
+}
+
+.tag-maintenance-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.tag-maintenance-checkbox input {
+  margin-top: 2px;
+}
+
+.tag-maintenance-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .wear-history-list {

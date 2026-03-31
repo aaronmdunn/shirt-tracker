@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.1.2";
+const APP_VERSION = "2.1.3";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -703,6 +703,36 @@ const normalizeCollectorTypeRuleToken = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
 
+const copyTextToClipboard = async (value, fallbackInput = null) => {
+  const text = String(value || "");
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    if (fallbackInput && typeof fallbackInput.select === "function") {
+      fallbackInput.focus();
+      fallbackInput.select();
+      return document.execCommand("copy");
+    }
+  } catch (error) {
+    return false;
+  }
+  return false;
+};
+
+const readTextFromClipboard = async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      return await navigator.clipboard.readText();
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+};
+
 const loadCollectorStatsTypeRulesRaw = () => {
   if (!canUseLocalStorage()) return "";
   try {
@@ -727,6 +757,34 @@ const parseCollectorStatsTypeRules = (rawValue) => {
   const exact = new Set(DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
   const contains = new Set(DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
   const customLines = [];
+  const exactRules = [];
+  const containsRules = [];
+  const customExact = [];
+  const customContains = [];
+  const seenExact = new Set();
+  const seenContains = new Set();
+  const addRule = (mode, value, source) => {
+    const cleanValue = String(value || "").trim();
+    const normalized = normalizeCollectorTypeRuleToken(cleanValue);
+    if (!normalized) return;
+    if (mode === "contains") {
+      contains.add(normalized);
+      if (!seenContains.has(normalized)) {
+        containsRules.push({ mode, value: cleanValue, normalized, source, label: `contains:${cleanValue}` });
+        seenContains.add(normalized);
+      }
+      if (source === "custom") customContains.push(cleanValue);
+      return;
+    }
+    exact.add(normalized);
+    if (!seenExact.has(normalized)) {
+      exactRules.push({ mode: "exact", value: cleanValue, normalized, source, label: cleanValue });
+      seenExact.add(normalized);
+    }
+    if (source === "custom") customExact.push(cleanValue);
+  };
+  DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.forEach((value) => addRule("exact", value, "default"));
+  DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.forEach((value) => addRule("contains", value, "default"));
   String(rawValue || "")
     .split(/[\n,]+/)
     .map((line) => line.trim())
@@ -743,24 +801,31 @@ const parseCollectorStatsTypeRules = (rawValue) => {
       }
       const normalized = normalizeCollectorTypeRuleToken(value);
       if (!normalized) return;
-      if (mode === "contains") contains.add(normalized);
-      else exact.add(normalized);
+      addRule(mode, value, "custom");
       customLines.push(mode === "contains" ? `contains:${value}` : value);
     });
-  return { exact, contains, customLines };
+  return { exact, contains, customLines, exactRules, containsRules, customExact, customContains };
 };
 
 const getCollectorStatsTypeRuleSet = () => parseCollectorStatsTypeRules(loadCollectorStatsTypeRulesRaw());
 
-const isCollectorStatsExcludedType = (typeValue, ruleSet = null) => {
+const describeCollectorStatsTypeExclusion = (typeValue, ruleSet = null) => {
   const normalizedType = normalizeCollectorTypeRuleToken(typeValue);
-  if (!normalizedType) return false;
+  if (!normalizedType) return null;
   const rules = ruleSet || getCollectorStatsTypeRuleSet();
-  if (rules.exact.has(normalizedType)) return true;
-  for (const token of rules.contains) {
-    if (token && normalizedType.includes(token)) return true;
+  const exactMatch = Array.isArray(rules.exactRules)
+    ? rules.exactRules.find((rule) => rule.normalized === normalizedType)
+    : null;
+  if (exactMatch) return exactMatch;
+  if (Array.isArray(rules.containsRules)) {
+    const containsMatch = rules.containsRules.find((rule) => rule.normalized && normalizedType.includes(rule.normalized));
+    if (containsMatch) return containsMatch;
   }
-  return false;
+  return null;
+};
+
+const isCollectorStatsExcludedType = (typeValue, ruleSet = null) => {
+  return Boolean(describeCollectorStatsTypeExclusion(typeValue, ruleSet));
 };
 
 const isShirtNameColumn = (column) => {
@@ -921,6 +986,80 @@ const normalizeSizeOptionsEverywhere = () => {
 const getStorageKey = (tabId) => {
   const prefix = appMode === "wishlist" ? WISHLIST_STORAGE_KEY : STORAGE_KEY;
   return `${prefix}:${tabId || "default"}`;
+};
+
+const getCellValueFromColumns = (row, columns, columnName) => {
+  const target = String(columnName || "").trim().toLowerCase();
+  const column = Array.isArray(columns)
+    ? columns.find((item) => String(item?.name || "").trim().toLowerCase() === target)
+    : null;
+  return column && row && row.cells ? String(row.cells[column.id] || "").trim() : "";
+};
+
+const sameTagList = (left, right) => {
+  const a = canonicalizeTagList(left);
+  const b = canonicalizeTagList(right);
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (String(a[i] || "") !== String(b[i] || "")) return false;
+  }
+  return true;
+};
+
+const mutateInventoryRowsAcrossTabs = (mutateRow) => {
+  if (appMode !== "inventory" || typeof mutateRow !== "function") {
+    return { changed: false, changedRows: 0, changedTabs: 0 };
+  }
+  let changed = false;
+  let changedRows = 0;
+  let changedTabs = 0;
+  let activeChanged = false;
+  const tabs = Array.isArray(tabsState.tabs) ? tabsState.tabs : [];
+  tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    const isActive = tab.id === tabsState.activeTabId;
+    let payload = null;
+    if (isActive) {
+      payload = { rows: state.rows, columns: state.columns };
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        payload = stored ? JSON.parse(stored) : null;
+      } catch (error) {
+        payload = null;
+      }
+      if (!payload || !Array.isArray(payload.rows) || !Array.isArray(payload.columns)) return;
+    }
+    let tabChanged = false;
+    payload.rows.forEach((row) => {
+      const didChange = mutateRow({ row, columns: payload.columns, tabId: tab.id, tabName: tab.name || "", isActive });
+      if (!didChange) return;
+      tabChanged = true;
+      changedRows += 1;
+    });
+    if (!tabChanged) return;
+    changed = true;
+    changedTabs += 1;
+    if (isActive) {
+      activeChanged = true;
+      return;
+    }
+    try {
+      localStorage.setItem(getStorageKey(tab.id), JSON.stringify(payload));
+    } catch (error) {
+      // ignore
+    }
+  });
+  if (!changed) return { changed: false, changedRows: 0, changedTabs: 0 };
+  updateShirtUpdateDate();
+  if (activeChanged) {
+    saveState();
+    renderRows();
+    renderFooter();
+  } else {
+    scheduleSync();
+  }
+  return { changed: true, changedRows, changedTabs };
 };
 
 const getActiveTabKey = () => appMode === "wishlist" ? WISHLIST_TAB_STORAGE_KEY : TAB_STORAGE_KEY;
@@ -3284,7 +3423,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.1.2",
+    version: "2.1.3",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -3561,11 +3700,12 @@ const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
 let insightsRefreshTimer = null;
-const rerenderInsightsDialog = (simDateKey) => {
+const rerenderInsightsDialog = (viewState = {}) => {
   const dialog = document.getElementById("insights-dialog");
   const body = dialog ? dialog.querySelector(".dialog-body") : null;
   const previousScrollTop = body ? body.scrollTop : 0;
-  openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+  const nextOptions = typeof viewState === "string" ? { simDateKey: viewState } : (viewState || {});
+  openInsightsDialog(collectAllStats(), { ...nextOptions, preserveState: true, preserveScroll: true, scrollTop: previousScrollTop });
 };
 
 const requestInsightsRefreshIfOpen = () => {
@@ -3574,7 +3714,15 @@ const requestInsightsRefreshIfOpen = () => {
     const dialog = document.getElementById("insights-dialog");
     if (!dialog || !dialog.open) return;
     const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
-    rerenderInsightsDialog(simDateKey);
+    const queueTypeFilter = String(dialog.getAttribute("data-queue-type-filter") || "all");
+    let queueExcludedKeys = [];
+    try {
+      queueExcludedKeys = JSON.parse(dialog.getAttribute("data-queue-excluded-keys") || "[]");
+    } catch (error) {
+      queueExcludedKeys = [];
+    }
+    const queueRefreshNonce = Number(dialog.getAttribute("data-queue-refresh-nonce") || 0);
+    rerenderInsightsDialog({ simDateKey, queueTypeFilter, queueExcludedKeys, queueRefreshNonce });
   }, 120);
 };
 
@@ -6703,6 +6851,105 @@ const mergeTags = (currentTags, incomingTags) => {
   return Array.from(merged.values());
 };
 
+const buildNearDuplicateTagKey = (tag) => {
+  const base = String(canonicalizeTagLabel(tag) || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  return base;
+};
+
+const syncCustomTagsAfterGlobalTagChange = ({ removeTags = [], ensureTags = [] } = {}) => {
+  const removeSet = new Set((Array.isArray(removeTags) ? removeTags : []).map((tag) => String(canonicalizeTagLabel(tag) || "").toLowerCase()).filter(Boolean));
+  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((tag) => String(tag || "").toLowerCase()));
+  const merged = new Map();
+  loadCustomTags().forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (!key || removeSet.has(key)) return;
+    if (!merged.has(key)) merged.set(key, canonical);
+  });
+  (Array.isArray(ensureTags) ? ensureTags : []).forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (!key || baseLower.has(key)) return;
+    if (!merged.has(key)) merged.set(key, canonical);
+  });
+  saveCustomTags(Array.from(merged.values()));
+};
+
+const collectInventoryTagMaintenanceSnapshot = () => {
+  const usedTagMap = new Map();
+  const duplicateGroups = new Map();
+  const untaggedItems = [];
+  const tabs = Array.isArray(tabsState.tabs) ? tabsState.tabs : [];
+  tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let rows = [];
+    let columns = [];
+    if (tab.id === tabsState.activeTabId) {
+      rows = state.rows;
+      columns = state.columns;
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        const parsed = stored ? JSON.parse(stored) : null;
+        rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+        columns = Array.isArray(parsed?.columns) ? parsed.columns : [];
+      } catch (error) {
+        rows = [];
+        columns = [];
+      }
+    }
+    rows.forEach((row) => {
+      const name = getCellValueFromColumns(row, columns, "Name") || "Unnamed";
+      const type = getCellValueFromColumns(row, columns, "Type") || "Unknown";
+      const tags = getRowTags(row);
+      if (!tags.length) {
+        untaggedItems.push({ rowId: row.id, tabId: tab.id, tab: tab.name || "", name, type });
+        return;
+      }
+      tags.forEach((tag) => {
+        const canonical = canonicalizeTagLabel(tag);
+        const key = canonical.toLowerCase();
+        if (!key) return;
+        if (!usedTagMap.has(key)) {
+          usedTagMap.set(key, { tag: canonical, count: 0 });
+        }
+        usedTagMap.get(key).count += 1;
+        const dupKey = buildNearDuplicateTagKey(canonical);
+        if (!dupKey || dupKey.length < 3) return;
+        if (!duplicateGroups.has(dupKey)) duplicateGroups.set(dupKey, new Map());
+        const group = duplicateGroups.get(dupKey);
+        if (!group.has(key)) group.set(key, { tag: canonical, count: 0 });
+        group.get(key).count += 1;
+      });
+    });
+  });
+  const usedTags = Array.from(usedTagMap.values())
+    .sort((a, b) => a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+  const suspiciousGroups = Array.from(duplicateGroups.entries())
+    .map(([groupKey, group]) => {
+      const variants = Array.from(group.values())
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+      if (variants.length < 2) return null;
+      return {
+        key: groupKey,
+        variants,
+        preferredTag: variants[0].tag,
+        totalCount: variants.reduce((sum, item) => sum + item.count, 0),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.totalCount - a.totalCount || a.preferredTag.localeCompare(b.preferredTag, undefined, { sensitivity: "base" }));
+  return {
+    usedTags,
+    duplicateGroups: suspiciousGroups,
+    untaggedItems,
+    totalUsedTags: usedTags.length,
+    totalTaggedAssignments: usedTags.reduce((sum, item) => sum + item.count, 0),
+  };
+};
+
 const getAllTags = () => {
   const merged = new Map();
   BASE_TAG_SUGGESTIONS.forEach((tag) => {
@@ -6938,49 +7185,44 @@ const showTagsMainView = () => {
 };
 
 const deleteGlobalTag = (tag) => {
-  const tagLower = String(tag).toLowerCase();
-  const custom = loadCustomTags().filter((t) => t.toLowerCase() !== tagLower);
-  saveCustomTags(custom);
-  state.rows.forEach((row) => {
+  const canonicalTag = canonicalizeTagLabel(tag);
+  const tagLower = String(canonicalTag || "").toLowerCase();
+  if (!tagLower) return false;
+  syncCustomTagsAfterGlobalTagChange({ removeTags: [canonicalTag] });
+  const summary = mutateInventoryRowsAcrossTabs(({ row }) => {
     const current = getRowTags(row);
-    if (current.some((t) => t.toLowerCase() === tagLower)) {
-      const next = current.filter((t) => t.toLowerCase() !== tagLower);
-      setRowTags(row.id, next, "manage-delete");
-    }
+    if (!current.some((item) => String(item || "").toLowerCase() === tagLower)) return false;
+    const next = current.filter((item) => String(item || "").toLowerCase() !== tagLower);
+    if (sameTagList(current, next)) return false;
+    row.tags = next;
+    return true;
   });
-  addEventLog("Deleted tag", tag);
+  if (!summary.changed) return false;
+  addEventLog("Deleted tag", `${canonicalTag} (${summary.changedRows} row${summary.changedRows === 1 ? "" : "s"})`);
+  return true;
 };
 
 const renameGlobalTag = (oldTag, newTag) => {
-  const oldLower = String(oldTag).toLowerCase();
-  const newTrimmed = String(newTag || "").trim();
-  if (!newTrimmed || newTrimmed.toLowerCase() === oldLower) return;
-  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((t) => t.toLowerCase()));
-  const custom = loadCustomTags();
-  if (baseLower.has(oldLower)) {
-    const alreadyExists = custom.some((t) => t.toLowerCase() === newTrimmed.toLowerCase());
-    if (!alreadyExists) custom.push(newTrimmed);
-  } else {
-    const idx = custom.findIndex((t) => t.toLowerCase() === oldLower);
-    if (idx !== -1) {
-      custom[idx] = newTrimmed;
-    } else {
-      custom.push(newTrimmed);
-    }
-  }
-  const dupeCheck = new Map();
-  custom.forEach((t) => { const k = t.toLowerCase(); if (!dupeCheck.has(k)) dupeCheck.set(k, t); });
-  saveCustomTags(Array.from(dupeCheck.values()));
-  state.rows.forEach((row) => {
+  const fromTag = canonicalizeTagLabel(oldTag);
+  const toTag = canonicalizeTagLabel(newTag);
+  const oldLower = String(fromTag || "").toLowerCase();
+  const newLower = String(toTag || "").toLowerCase();
+  if (!newLower || newLower === oldLower) return false;
+  syncCustomTagsAfterGlobalTagChange({ removeTags: [fromTag], ensureTags: [toTag] });
+  const summary = mutateInventoryRowsAcrossTabs(({ row }) => {
     const current = getRowTags(row);
-    if (current.some((t) => t.toLowerCase() === oldLower)) {
-      const next = current.map((t) => t.toLowerCase() === oldLower ? newTrimmed : t);
-      setRowTags(row.id, next, "manage-rename");
-    }
+    if (!current.some((item) => String(item || "").toLowerCase() === oldLower)) return false;
+    const next = canonicalizeTagList(current.map((item) => String(item || "").toLowerCase() === oldLower ? toTag : item));
+    if (sameTagList(current, next)) return false;
+    row.tags = next;
+    return true;
   });
-  addEventLog("Renamed tag", `${oldTag} → ${newTrimmed}`);
-  scheduleSync();
+  if (!summary.changed) return false;
+  addEventLog("Renamed tag", `${fromTag} → ${toTag} (${summary.changedRows} row${summary.changedRows === 1 ? "" : "s"})`);
+  return true;
 };
+
+const mergeGlobalTag = (fromTag, intoTag) => renameGlobalTag(fromTag, intoTag);
 
 const renderManageTagsView = () => {
   if (!tagsManageList) return;
@@ -9428,6 +9670,36 @@ const collectAllStats = () => {
   const collectorStatsRuleSet = getCollectorStatsTypeRuleSet();
   const isCollectorStatsEntry = (entry) => !isCollectorStatsExcludedType(getCellValue(entry, "Type"), collectorStatsRuleSet);
   const collectorStatsRows = allRows.filter(isCollectorStatsEntry);
+  const excludedTypeMatchMap = new Map();
+  allRows.forEach((entry) => {
+    const rawType = getCellValue(entry, "Type");
+    const type = String(rawType || "").trim() || "Unknown";
+    const match = describeCollectorStatsTypeExclusion(type, collectorStatsRuleSet);
+    if (!match) return;
+    const existing = excludedTypeMatchMap.get(type);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+    excludedTypeMatchMap.set(type, {
+      type,
+      count: 1,
+      ruleLabel: match.label,
+      ruleSource: match.source,
+      ruleMode: match.mode,
+    });
+  });
+  const excludedTypeMatches = Array.from(excludedTypeMatchMap.values())
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+  const collectorTypeRulesSummary = {
+    builtInExact: DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.slice(),
+    builtInContains: DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.slice(),
+    customExact: Array.isArray(collectorStatsRuleSet.customExact) ? collectorStatsRuleSet.customExact.slice() : [],
+    customContains: Array.isArray(collectorStatsRuleSet.customContains) ? collectorStatsRuleSet.customContains.slice() : [],
+    excludedTypeMatches,
+    excludedTypeCount: excludedTypeMatches.length,
+    excludedItemCount: excludedTypeMatches.reduce((sum, item) => sum + item.count, 0),
+  };
   const collectorPerTabRows = perTabRows
     .map((tab) => ({
       ...tab,
@@ -9661,10 +9933,10 @@ const collectAllStats = () => {
   collectorStatsRows.forEach((entry) => {
     const name = getCellValue(entry, "Name");
     if (!name) return;
-    name.split(/[\s\-\/\(\)\[\]:,]+/).forEach((word) => {
-      const w = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (w.length < 2 || stopWords.has(w)) return;
-      wordCounts[w] = (wordCounts[w] || 0) + 1;
+    const words = String(name).toLowerCase().match(/[a-z0-9]+/g) || [];
+    words.forEach((word) => {
+      if (word.length < 2 || stopWords.has(word)) return;
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
     });
   });
   const topWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -10428,6 +10700,7 @@ const collectAllStats = () => {
     tagSeasonalityByMonth,
     tagEras,
     collectorDna,
+    collectorTypeRules: collectorTypeRulesSummary,
     untaggedItems,
     closetHealth: {
       score: closetHealthScore,
@@ -11127,6 +11400,13 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
         <label for="collector-type-rules-input">Custom denylist additions</label>
         <textarea id="collector-type-rules-input" placeholder="Examples:&#10;Thermal Pants&#10;contains:beanie"></textarea>
         <div class="stats-hint">Use one rule per line or commas. Matching is case- and punctuation-insensitive. Use <code>contains:</code> for whole families; plain entries are exact-match rules.</div>
+        <div class="dialog-actions" style="margin-top:8px;">
+          <button type="button" id="collector-type-rules-import" class="btn secondary">Import clipboard</button>
+          <button type="button" id="collector-type-rules-export" class="btn secondary">Export custom rules</button>
+        </div>
+        <div id="collector-type-rules-status" class="stats-hint"></div>
+        <div id="collector-type-rules-summary" class="stats-section" style="margin-top:8px"></div>
+        <div id="collector-type-rules-matches" class="stats-section"></div>
       </div>
       <div class="dialog-actions">
         <button type="button" id="collector-type-rules-reset" class="btn secondary">Clear custom rules</button>
@@ -11141,9 +11421,101 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
   const saveButton = dialog.querySelector("#collector-type-rules-save");
   const cancelButton = dialog.querySelector("#collector-type-rules-cancel");
   const resetButton = dialog.querySelector("#collector-type-rules-reset");
-  if (!input || !saveButton || !cancelButton || !resetButton) return false;
+  const importButton = dialog.querySelector("#collector-type-rules-import");
+  const exportButton = dialog.querySelector("#collector-type-rules-export");
+  const status = dialog.querySelector("#collector-type-rules-status");
+  const summary = dialog.querySelector("#collector-type-rules-summary");
+  const matches = dialog.querySelector("#collector-type-rules-matches");
+  if (!input || !saveButton || !cancelButton || !resetButton || !importButton || !exportButton || !status || !summary || !matches) return false;
 
   input.value = loadCollectorStatsTypeRulesRaw();
+
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const setStatus = (message) => {
+    status.textContent = String(message || "");
+  };
+  const activeSummary = collectAllStats()?.advanced?.collectorTypeRules || {
+    builtInExact: DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST,
+    builtInContains: DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST,
+    customExact: [],
+    customContains: [],
+    excludedTypeMatches: [],
+    excludedTypeCount: 0,
+    excludedItemCount: 0,
+  };
+  const sourceEntries = (() => {
+    const tabs = tabsState.tabs;
+    const entries = [];
+    tabs.forEach((tab) => {
+      let rows;
+      let cols;
+      if (tab.id === tabsState.activeTabId) {
+        rows = state.rows;
+        cols = state.columns;
+      } else {
+        try {
+          const stored = localStorage.getItem(getStorageKey(tab.id));
+          if (!stored) return;
+          const parsed = JSON.parse(stored);
+          rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+          cols = Array.isArray(parsed.columns) ? parsed.columns : [];
+        } catch (error) {
+          return;
+        }
+      }
+      (Array.isArray(rows) ? rows : []).forEach((row) => {
+        entries.push({ row, columns: Array.isArray(cols) ? cols : [], tabName: tab.name || "", tabId: tab.id });
+      });
+    });
+    return entries;
+  })();
+  const findColumn = (cols, name) =>
+    cols.find((c) => (c.name || "").trim().toLowerCase() === name.toLowerCase());
+  const getEntryType = (entry) => {
+    const col = findColumn(entry.columns, "Type");
+    return col && entry.row && entry.row.cells ? String(entry.row.cells[col.id] || "").trim() : "";
+  };
+  const renderRuleMeta = () => {
+    const draftRules = parseCollectorStatsTypeRules(input.value);
+    const draftExcludedTypeMap = new Map();
+    sourceEntries.forEach((entry) => {
+      const type = getEntryType(entry) || "Unknown";
+      const match = describeCollectorStatsTypeExclusion(type, draftRules);
+      if (!match) return;
+      const existing = draftExcludedTypeMap.get(type);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+      draftExcludedTypeMap.set(type, {
+        type,
+        count: 1,
+        ruleLabel: match.label,
+        ruleSource: match.source,
+      });
+    });
+    const draftExcludedTypeMatches = Array.from(draftExcludedTypeMap.values())
+      .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+    const draftExcludedItemCount = draftExcludedTypeMatches.reduce((sum, item) => sum + item.count, 0);
+    summary.innerHTML = `
+      <div class="stats-section-title">Current rule summary</div>
+      <div class="stats-row stats-sub"><span class="stats-label">Built-in exact rules</span><span class="stats-value">${esc((activeSummary.builtInExact || []).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Built-in contains rules</span><span class="stats-value">${esc((activeSummary.builtInContains || []).map((value) => `contains:${value}`).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Draft custom exact rules</span><span class="stats-value">${esc((draftRules.customExact || []).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Draft custom contains rules</span><span class="stats-value">${esc((draftRules.customContains || []).map((value) => `contains:${value}`).join(", ") || "none")}</span></div>
+      <div class="stats-hint">Built-in rules always stay active. Import/export/reset affects only your custom additions.</div>`;
+    matches.innerHTML = `
+      <div class="stats-section-title">Excluded with current draft</div>
+      <div class="stats-hint">${draftExcludedTypeMatches.length || 0} excluded type${draftExcludedTypeMatches.length === 1 ? "" : "s"} removing ${draftExcludedItemCount || 0} item${draftExcludedItemCount === 1 ? "" : "s"} from collector-facing stats if you save this draft.</div>
+      ${draftExcludedTypeMatches.length
+        ? draftExcludedTypeMatches.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(item.type)}</span><span class="stats-value">${item.count} item${item.count === 1 ? "" : "s"} · ${esc(item.ruleLabel)} (${item.ruleSource === "default" ? "built-in" : "custom"})</span></div>`).join("")
+        : `<div class="stats-hint">No current closet types are being excluded.</div>`}`;
+  };
+  renderRuleMeta();
 
   const didSave = await new Promise((resolve) => {
     let settled = false;
@@ -11153,6 +11525,9 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
       saveButton.removeEventListener("click", onSave);
       cancelButton.removeEventListener("click", onCancel);
       resetButton.removeEventListener("click", onReset);
+      importButton.removeEventListener("click", onImport);
+      exportButton.removeEventListener("click", onExport);
+      input.removeEventListener("input", onInput);
       dialog.removeEventListener("cancel", onCancelEvent);
     };
     const onSave = () => {
@@ -11168,6 +11543,33 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
     };
     const onReset = () => {
       input.value = "";
+      setStatus("Draft custom rules cleared. Save to apply the reset.");
+      renderRuleMeta();
+    };
+    const onImport = async () => {
+      const importedText = await readTextFromClipboard();
+      if (typeof importedText !== "string") {
+        setStatus("Clipboard import is unavailable here. Paste your rules into the box manually.");
+        input.focus();
+        return;
+      }
+      input.value = importedText.trim();
+      setStatus("Clipboard rules loaded into the editor. Save to apply them.");
+      renderRuleMeta();
+      input.focus();
+    };
+    const onExport = async () => {
+      if (!String(input.value || "").trim()) {
+        setStatus("No custom rules to export yet.");
+        return;
+      }
+      const didCopy = await copyTextToClipboard(input.value, input);
+      setStatus(didCopy ? "Custom rules copied to clipboard." : "Copy failed here. Select the text manually to export it.");
+      if (!didCopy) input.focus();
+    };
+    const onInput = () => {
+      if (status.textContent) setStatus("");
+      renderRuleMeta();
     };
     const onCancelEvent = (event) => {
       event.preventDefault();
@@ -11176,6 +11578,9 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
     saveButton.addEventListener("click", onSave);
     cancelButton.addEventListener("click", onCancel);
     resetButton.addEventListener("click", onReset);
+    importButton.addEventListener("click", onImport);
+    exportButton.addEventListener("click", onExport);
+    input.addEventListener("input", onInput);
     dialog.addEventListener("cancel", onCancelEvent);
     openDialog(dialog);
     resetDialogScroll(dialog);
@@ -11184,6 +11589,249 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
 
   if (didSave && typeof options.onSaved === "function") options.onSaved();
   return didSave;
+};
+
+const openTagMaintenanceDialog = (options = {}) => {
+  let dialog = document.getElementById("tag-maintenance-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "tag-maintenance-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Tag Maintenance</h3>
+        <div id="tag-maintenance-status" class="stats-hint"></div>
+        <div id="tag-maintenance-content" class="advanced-stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="tag-maintenance-close" class="btn tag-maintenance-primary">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#tag-maintenance-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#tag-maintenance-content");
+  const status = dialog.querySelector("#tag-maintenance-status");
+  if (!content || !status) return;
+
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const setStatus = (message) => {
+    status.textContent = String(message || "");
+  };
+  const notifyUpdate = (message) => {
+    if (typeof options.onUpdated === "function") options.onUpdated();
+    if (PLATFORM === "mobile" && message) showToast(message);
+  };
+  const appendTagValue = (input, tag) => {
+    if (!input) return;
+    const nextTag = canonicalizeTagLabel(tag);
+    const existing = normalizeTagsInput(input.value);
+    const merged = mergeTags(existing, [nextTag]);
+    input.value = merged.join(", ");
+    input.focus();
+  };
+  const render = () => {
+    const snapshot = collectInventoryTagMaintenanceSnapshot();
+    const topSuggestions = snapshot.usedTags.map((item) => item.tag);
+    content.innerHTML = `
+      <div class="stats-section">
+        <div class="stats-section-title">Overview</div>
+        <div class="stats-hint">Manage tags across all inventory tabs from one place. Rename, merge, and delete work closet-wide by default.</div>
+        <div class="stats-row stats-sub"><span class="stats-label">Used tags</span><span class="stats-value">${snapshot.totalUsedTags}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tag assignments</span><span class="stats-value">${snapshot.totalTaggedAssignments}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Possible duplicate groups</span><span class="stats-value">${snapshot.duplicateGroups.length}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Untagged items</span><span class="stats-value">${snapshot.untaggedItems.length}</span></div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Cleanup tags</div>
+        <div class="stats-hint">Rename or merge one tag family at a time. Delete removes the tag from every inventory tab.</div>
+        <div class="tag-maintenance-list">
+          ${snapshot.usedTags.length ? snapshot.usedTags.map((item, index) => `
+            <div class="tag-maintenance-item">
+              <div class="tag-maintenance-main">
+                <div class="tag-maintenance-label">${esc(item.tag)}</div>
+                <div class="tag-maintenance-meta">${item.count} item${item.count === 1 ? "" : "s"}</div>
+              </div>
+              <div class="tag-maintenance-actions">
+                <input type="text" id="tag-maintenance-target-${index}" data-tag-source="${esc(item.tag)}" placeholder="Rename or merge target">
+                <button type="button" class="btn" data-tag-rename="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Rename</button>
+                <button type="button" class="btn" data-tag-merge="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Merge</button>
+                <button type="button" class="btn tag-maintenance-primary" data-tag-delete="${esc(item.tag)}">Delete</button>
+              </div>
+            </div>`).join("") : `<div class="stats-hint">No used tags found yet.</div>`}
+        </div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Possible duplicates</div>
+        <div class="stats-hint">These are conservative suggestions based on casing and punctuation/spacing variants. Review before merging.</div>
+        <div class="tag-maintenance-list">
+          ${snapshot.duplicateGroups.length ? snapshot.duplicateGroups.map((group, index) => `
+            <div class="tag-maintenance-item">
+              <div class="tag-maintenance-main">
+                <div class="tag-maintenance-label">Keep ${esc(group.preferredTag)}</div>
+                <div class="tag-maintenance-meta">${esc(group.variants.map((item) => `${item.tag} (${item.count})`).join(" · "))}</div>
+              </div>
+              <div class="tag-maintenance-actions tag-maintenance-actions-compact">
+                <button type="button" class="btn" data-tag-merge-group="${index}">Merge into ${esc(group.preferredTag)}</button>
+              </div>
+            </div>`).join("") : `<div class="stats-hint">No suspicious duplicate groups found right now.</div>`}
+        </div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Untagged cleanup</div>
+        <div class="stats-hint">Select untagged items, add one or more tags, and apply them across all selected rows in one step.</div>
+        <div class="dialog-actions" style="margin-top:8px;">
+          <button type="button" class="btn" id="tag-maintenance-select-all">Select all</button>
+          <button type="button" class="btn tag-maintenance-primary" id="tag-maintenance-clear-selection">Clear selection</button>
+        </div>
+        <div class="tag-maintenance-actions" style="margin-top:8px;">
+          <input type="text" id="tag-maintenance-untagged-input" placeholder="Examples: Floral, Holiday">
+          <button type="button" class="btn tag-maintenance-primary" id="tag-maintenance-untagged-apply">Apply to selected</button>
+        </div>
+        <div class="tag-maintenance-suggestions">
+          ${topSuggestions.map((tag) => `<button type="button" class="btn" data-tag-suggestion="${esc(tag)}">${esc(tag)}</button>`).join("")}
+        </div>
+        <div class="tag-maintenance-list">
+          ${snapshot.untaggedItems.length ? snapshot.untaggedItems.map((item) => `
+            <label class="tag-maintenance-checkbox">
+              <input type="checkbox" data-untagged-row="${esc(`${item.tabId}::${item.rowId}`)}">
+              <span>${esc(`${item.name} (${item.tab}) - ${item.type}`)}</span>
+            </label>`).join("") : `<div class="stats-hint">No untagged items right now.</div>`}
+        </div>
+      </div>`;
+
+    content.querySelectorAll("[data-tag-rename]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-rename") || "");
+        const input = document.getElementById(String(button.getAttribute("data-target-input") || ""));
+        const targetTag = input ? input.value : "";
+        const didChange = renameGlobalTag(sourceTag, targetTag);
+        if (!didChange) {
+          setStatus(`Rename skipped for ${sourceTag}. Enter a different target name.`);
+          return;
+        }
+        setStatus(`Renamed ${sourceTag} to ${canonicalizeTagLabel(targetTag)} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-merge]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-merge") || "");
+        const input = document.getElementById(String(button.getAttribute("data-target-input") || ""));
+        const targetTag = input ? input.value : "";
+        const didChange = mergeGlobalTag(sourceTag, targetTag);
+        if (!didChange) {
+          setStatus(`Merge skipped for ${sourceTag}. Enter a different existing or new target tag.`);
+          return;
+        }
+        setStatus(`Merged ${sourceTag} into ${canonicalizeTagLabel(targetTag)} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-delete]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-delete") || "");
+        const didChange = deleteGlobalTag(sourceTag);
+        if (!didChange) {
+          setStatus(`Delete skipped for ${sourceTag}.`);
+          return;
+        }
+        setStatus(`Deleted ${sourceTag} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-merge-group]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const index = Number(button.getAttribute("data-tag-merge-group") || -1);
+        const group = snapshot.duplicateGroups[index];
+        if (!group) return;
+        let changed = false;
+        group.variants.forEach((item) => {
+          if (item.tag === group.preferredTag) return;
+          changed = mergeGlobalTag(item.tag, group.preferredTag) || changed;
+        });
+        if (!changed) {
+          setStatus(`No duplicate merge was needed for ${group.preferredTag}.`);
+          return;
+        }
+        setStatus(`Merged duplicate variants into ${group.preferredTag}.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+
+    const untaggedInput = content.querySelector("#tag-maintenance-untagged-input");
+    const selectAllButton = content.querySelector("#tag-maintenance-select-all");
+    const clearSelectionButton = content.querySelector("#tag-maintenance-clear-selection");
+    const applyButton = content.querySelector("#tag-maintenance-untagged-apply");
+    if (selectAllButton) {
+      selectAllButton.addEventListener("click", () => {
+        content.querySelectorAll("[data-untagged-row]").forEach((input) => {
+          input.checked = true;
+        });
+      });
+    }
+    if (clearSelectionButton) {
+      clearSelectionButton.addEventListener("click", () => {
+        content.querySelectorAll("[data-untagged-row]").forEach((input) => {
+          input.checked = false;
+        });
+      });
+    }
+    content.querySelectorAll("[data-tag-suggestion]").forEach((button) => {
+      button.addEventListener("click", () => {
+        appendTagValue(untaggedInput, button.getAttribute("data-tag-suggestion") || "");
+      });
+    });
+    if (applyButton && untaggedInput) {
+      applyButton.addEventListener("click", () => {
+        const nextTags = normalizeTagsInput(untaggedInput.value);
+        const selectedKeys = new Set(Array.from(content.querySelectorAll("[data-untagged-row]:checked")).map((input) => String(input.getAttribute("data-untagged-row") || "")).filter(Boolean));
+        if (!selectedKeys.size) {
+          setStatus("Select at least one untagged item first.");
+          return;
+        }
+        if (!nextTags.length) {
+          setStatus("Enter one or more tags to apply.");
+          return;
+        }
+        persistNewTags(nextTags);
+        const summary = mutateInventoryRowsAcrossTabs(({ row, tabId }) => {
+          const selectionKey = `${tabId}::${row.id}`;
+          if (!selectedKeys.has(selectionKey)) return false;
+          const current = getRowTags(row);
+          const next = mergeTags(current, nextTags);
+          if (sameTagList(current, next)) return false;
+          row.tags = next;
+          return true;
+        });
+        if (!summary.changed) {
+          setStatus("Those tags were already applied to the selected items.");
+          return;
+        }
+        addEventLog("Added tags", `Tag Maintenance (${summary.changedRows} rows): ${nextTags.join(", ")}`);
+        setStatus(`Applied ${nextTags.join(", ")} to ${summary.changedRows} selected row${summary.changedRows === 1 ? "" : "s"}.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    }
+  };
+
+  render();
+  openDialog(dialog);
+  resetDialogScroll(dialog);
 };
 
 const openAdvancedStatsDialog = (stats) => {
@@ -11198,6 +11846,7 @@ const openAdvancedStatsDialog = (stats) => {
       </div>
       <div class="dialog-actions">
         <button type="button" id="advanced-stats-type-rules" class="btn secondary">Type Rules</button>
+        <button type="button" id="advanced-stats-tag-maintenance" class="btn secondary">Tag Maintenance</button>
         <button type="button" id="advanced-stats-help" class="btn secondary">Help</button>
         <button type="button" id="advanced-stats-close" class="btn">Close</button>
       </div>
@@ -11205,6 +11854,7 @@ const openAdvancedStatsDialog = (stats) => {
     document.body.appendChild(dialog);
 
     const typeRulesButton = dialog.querySelector("#advanced-stats-type-rules");
+    const tagMaintenanceButton = dialog.querySelector("#advanced-stats-tag-maintenance");
     const helpButton = dialog.querySelector("#advanced-stats-help");
     const closeButton = dialog.querySelector("#advanced-stats-close");
     if (typeRulesButton) {
@@ -11215,6 +11865,17 @@ const openAdvancedStatsDialog = (stats) => {
             latestStatsSnapshot = refreshed;
             openAdvancedStatsDialog(refreshed);
             if (PLATFORM === "mobile") showToast("Collector type rules updated");
+          },
+        });
+      });
+    }
+    if (tagMaintenanceButton) {
+      tagMaintenanceButton.addEventListener("click", () => {
+        openTagMaintenanceDialog({
+          onUpdated: () => {
+            const refreshed = collectAllStats();
+            latestStatsSnapshot = refreshed;
+            openAdvancedStatsDialog(refreshed);
           },
         });
       });
@@ -11245,6 +11906,7 @@ const openAdvancedStatsDialog = (stats) => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const hint = (text) => `<div class="stats-hint">${esc(text)}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const formatDateKeyLabel = (key) => {
     const d = new Date(`${key}T00:00:00`);
     return Number.isNaN(d.getTime()) ? key : d.toLocaleDateString();
@@ -11373,13 +12035,13 @@ const openAdvancedStatsDialog = (stats) => {
       `<div class="insights-score-grid">
          <div class="insights-score-card"><div class="insights-score-title">Total items</div><div class="insights-score-value">${s.totalItems}</div><div class="insights-score-note">Across ${s.perTab.length} ${s.perTab.length === 1 ? "brand tab" : "brand tabs"}</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Worn this year</div><div class="insights-score-value">${uniqueWornThisYear}</div><div class="insights-score-note">Unique wearable items touched in ${new Date().getFullYear()}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Work-ready lane</div><div class="insights-score-value">${workLane.total} items · ${workLane.activePct}% active</div><div class="insights-score-note">Top brand: ${workLane.topBrand} · top type: ${workLane.topType}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Formal lane</div><div class="insights-score-value">${formalLane.total} items · ${formalLane.activePct}% active</div><div class="insights-score-note">Top brand: ${formalLane.topBrand} · top type: ${formalLane.topType}</div></div>
-       </div>`
+         <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div>${adv.newItemAdoption ? detailButton("advanced-detail-adoption") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div>${adv.inactiveCapital ? detailButton("advanced-detail-parked") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div>${Array.isArray(adv.brandUtilization) && adv.brandUtilization.length ? detailButton("advanced-detail-brand-rotation") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div>${adv.newItemAdoption ? detailButton("advanced-detail-adoption") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Work-ready lane</div><div class="insights-score-value">${workLane.total} items · ${workLane.activePct}% active</div><div class="insights-score-note">Top brand: ${workLane.topBrand} · top type: ${workLane.topType}</div>${(workLane.total || formalLane.total || holidayLane.total) ? detailButton("advanced-detail-occasion-lanes") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Formal lane</div><div class="insights-score-value">${formalLane.total} items · ${formalLane.activePct}% active</div><div class="insights-score-note">Top brand: ${formalLane.topBrand} · top type: ${formalLane.topType}</div>${(workLane.total || formalLane.total || holidayLane.total) ? detailButton("advanced-detail-occasion-lanes") : ""}</div>
+        </div>`
     );
   }
 
@@ -11431,7 +12093,7 @@ const openAdvancedStatsDialog = (stats) => {
         body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, "Unworn");
       });
     }
-    html += section("New item adoption", body);
+    html += section("New item adoption", `<div id="advanced-detail-adoption"></div>${body}`);
   }
 
   if (Array.isArray(adv.monthlySpendVsWear) && adv.monthlySpendVsWear.length) {
@@ -11468,19 +12130,37 @@ const openAdvancedStatsDialog = (stats) => {
       const cpw = brand.avgCpw === null ? "n/a" : formatCurrency(brand.avgCpw);
       body += sub(brand.brand, `${brand.utilizationPct}% active (365d) | ${brand.inventory} items | ${brand.totalWears} wears | avg CPW ${cpw}`);
     });
-    html += section("Brand rotation reach", body);
+    html += section("Brand rotation reach", `<div id="advanced-detail-brand-rotation"></div>${body}`);
   }
 
   if (Array.isArray(adv.typeRotationBalance) && adv.typeRotationBalance.length) {
     let body = "";
     const mostOver = adv.typeRotationBalance.slice().sort((a, b) => b.deltaPct - a.deltaPct)[0] || null;
     const mostUnder = adv.typeRotationBalance.slice().sort((a, b) => a.deltaPct - b.deltaPct)[0] || null;
-    body += hint(`Most overrepresented in wear: ${mostOver ? `${mostOver.type} (${mostOver.deltaPct >= 0 ? "+" : ""}${mostOver.deltaPct.toFixed(1)}%)` : "n/a"}. Most underused: ${mostUnder ? `${mostUnder.type} (${mostUnder.deltaPct.toFixed(1)}%)` : "n/a"}.`);
-    adv.typeRotationBalance.slice(0, 10).forEach((t) => {
+    body += hint(`Most overrepresented in wear: ${mostOver ? `${mostOver.type} (${mostOver.deltaPct >= 0 ? "+" : ""}${mostOver.deltaPct.toFixed(1)}%)` : "n/a"}. Most underused: ${mostUnder ? `${mostUnder.type} (${mostUnder.deltaPct.toFixed(1)}%)` : "n/a"}. All included collector types are listed below, even when current wear share is 0%.`);
+    adv.typeRotationBalance.forEach((t) => {
       const delta = `${t.deltaPct >= 0 ? "+" : ""}${t.deltaPct.toFixed(1)}%`;
       body += sub(t.type, `inventory ${t.inventoryPct.toFixed(1)}% vs wear ${t.wearPct.toFixed(1)}% (${delta})`);
     });
     html += section("Type rotation balance", body);
+  }
+
+  if (adv.collectorTypeRules) {
+    const rules = adv.collectorTypeRules;
+    let body = hint(`Collector-facing stats exclude ${rules.excludedTypeCount || 0} current type${rules.excludedTypeCount === 1 ? "" : "s"} across ${rules.excludedItemCount || 0} item${rules.excludedItemCount === 1 ? "" : "s"}. Built-in rules stay active; custom rules are local additions from the Type Rules button.`);
+    body += row("Built-in exact rules", (rules.builtInExact || []).join(", ") || "none");
+    body += row("Built-in contains rules", (rules.builtInContains || []).map((value) => `contains:${value}`).join(", ") || "none");
+    body += row("Custom exact rules", (rules.customExact || []).join(", ") || "none");
+    body += row("Custom contains rules", (rules.customContains || []).map((value) => `contains:${value}`).join(", ") || "none");
+    if (Array.isArray(rules.excludedTypeMatches) && rules.excludedTypeMatches.length) {
+      rules.excludedTypeMatches.slice(0, 8).forEach((item, index) => {
+        body += sub(`${index + 1}. ${item.type}`, `${item.count} item${item.count === 1 ? "" : "s"} · ${item.ruleLabel} (${item.ruleSource === "default" ? "built-in" : "custom"})`);
+      });
+      if (rules.excludedTypeMatches.length > 8) {
+        body += `<div class="stats-hint">${rules.excludedTypeMatches.length - 8} more excluded type${rules.excludedTypeMatches.length - 8 === 1 ? "" : "s"} are listed in the Type Rules dialog.</div>`;
+      }
+    }
+    html += section("Collector type rules", body);
   }
 
   if (adv.inactiveCapital) {
@@ -11489,7 +12169,7 @@ const openAdvancedStatsDialog = (stats) => {
       row("Parked >180d", `${adv.inactiveCapital.inactive180Count} items | ${formatCurrency(adv.inactiveCapital.inactive180Value)}`) +
       row("Parked >365d", `${adv.inactiveCapital.inactive365Count} items | ${formatCurrency(adv.inactiveCapital.inactive365Value)}`) +
       row("Total wearable value", formatCurrency(adv.inactiveCapital.totalWearableValue));
-    html += section("Parked value", body);
+    html += section("Parked value", `<div id="advanced-detail-parked"></div>${body}`);
   }
 
   if (adv.repeatWearStreaks) {
@@ -11644,10 +12324,11 @@ const openAdvancedStatsDialog = (stats) => {
       body += row("Holiday lane", `${holidayLane.total} items | ${holidayLane.active365} active in 365d | ${holidayLane.neverWorn} never worn`);
       body += sub("Holiday leaders", `${holidayLane.topBrand} brand | ${holidayLane.topType} type`);
     }
-    html += section("Occasion lanes", body);
+    html += section("Occasion lanes", `<div id="advanced-detail-occasion-lanes"></div>${body}`);
   }
 
   content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
+  bindDetailJumpLinks(content);
 
   const firstWearLagLink = content.querySelector("#advanced-first-wear-lag-link");
   if (firstWearLagLink) {
@@ -12637,6 +13318,19 @@ const buildHelpSection = (title, intro = "", items = []) => `
   </div>
 `;
 
+const bindDetailJumpLinks = (container) => {
+  if (!container) return;
+  container.querySelectorAll("[data-detail-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = String(button.getAttribute("data-detail-target") || "").trim();
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+};
+
 const openHelpDialog = (title, bodyHtml) => {
   let dialog = document.getElementById("stats-coaching-help-dialog");
   if (!dialog) {
@@ -12681,6 +13375,7 @@ const buildMainStatsHelpHtml = (stats) => {
       { label: "Top summary rows", value: "Quick facts, not grades. Use them to spot patterns, not to judge the closet." },
       { label: "Bar charts", value: "Longer bars mean a category appears more often. They help you see what is dominant at a glance." },
       { label: "Lists", value: "Ranked lists surface the strongest examples first, like the most expensive pieces, highest rotation scores, or most recent additions." },
+      { label: "View details links", value: "Small View details links jump to the matching deeper section or list inside the same stats dialog when more context is available." },
     ]
   );
   html += buildHelpSection(
@@ -12718,7 +13413,7 @@ const buildMainStatsHelpHtml = (stats) => {
     [
       { label: isInventory ? "Collection diversity" : "Wishlist diversity", value: "A balance score for how evenly your items are spread across types and fandoms. Low means a strong favorite lane. High means more variety." },
       { label: "Specialist / Balanced / Generalist", value: "These labels summarize whether the closet leans hard into a few lanes, sits in the middle, or spreads broadly across many lanes." },
-      { label: "Common words in names", value: "Desktop only. Surfaces repeated naming patterns so you can see when a few themes or product lines dominate the closet." },
+      { label: "Common words in names", value: "Desktop only. Counts whole name words so repeated themes or product lines stand out without punctuation fusing fragments into fake words." },
       { label: "Whales", value: "High-value or special collector-anchor items tagged Whale. The section shows how many exist and whether they are active or intentionally parked." },
     ]
   );
@@ -12775,6 +13470,7 @@ const buildInsightsHelpHtml = () => {
     [
       { label: "Use it for", value: "Finding patterns, spotting neglected value, and understanding why the queue recommends what it recommends." },
       { label: "Do not use it as", value: "A guilt machine. Most cards are signals, not failures." },
+      { label: "View details links", value: "Cards with deeper breakdowns can jump straight to the matching detail section in the same dialog." },
     ]
   );
   html += buildHelpSection(
@@ -12803,13 +13499,13 @@ const buildInsightsHelpHtml = () => {
       { label: "Opportunity-adjusted backlog", value: "Never-worn backlog after excluding items that should not be penalized yet." },
       { label: "Theme fatigue detector", value: "Flags fandom or tag themes that used to carry more of the rotation but have cooled off recently." },
       { label: "Decision friction", value: "Measures how often the queue and your actual choices disagree." },
-      { label: "Value recovery forecast", value: "Estimates how many additional wears expensive underused items need to reach healthier value." },
+      { label: "Recovery load", value: "Shows how much dormant value still needs deliberate wears and points to the lead item in the current 7-day recovery plan." },
       { label: "Outfit confidence curve", value: "A repeat-confidence signal based on actual behavior and long-gap evidence." },
       { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
       { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
-      { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
+      { label: "7-day recovery plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
       { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces. Use the dismiss action to hide an item for 30 days." },
-      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
+      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many still look like real keepers, and how much slow-moving drag they create." },
       { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
     ]
   );
@@ -12821,11 +13517,11 @@ const buildInsightsHelpHtml = () => {
       { label: "Comeback candidates", value: "Historically strong items that look ready for a safe return." },
       { label: "Theme fatigue watchlist", value: "Specific themes whose share of wear has faded noticeably." },
       { label: "Decision friction heatmap", value: "Weekday hotspots where queue acceptance is weakest." },
-      { label: "Value recovery targets", value: "Specific expensive items that still need more wears to justify their cost." },
+      { label: "7-day recovery plan details", value: "Seven item-level recommendations that combine comeback pressure, queue friction, and cost-per-wear recovery into one list." },
       { label: "Outfit confidence low-signal items", value: "Items whose repeat-wear confidence currently looks weak." },
       { label: "Adaptive queue recommendations", value: "Type-level boost or cool suggestions learned from real queue behavior." },
-      { label: "7-day reactivation playbook", value: "An ordered short plan for waking dormant value back up." },
-      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength." },
+      { label: "Top 5 to sell", value: "The shortlist backfills immediately after a Nope dismissal, while keeping 30-day snoozed items out of the list." },
+      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength. A keeper currently means 2+ wears plus either activity in the last 365 days or strong queue confidence." },
       { label: "Bench pressure watchlist", value: "Specific queued items that repeatedly get skipped, snoozed, or soft-passed." },
     ]
   );
@@ -12839,7 +13535,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Backlog risk", value: "How many items are still waiting for a first wear." },
       { label: "365-day rotation", value: "How much of the wearable closet has been touched within the last year." },
       { label: "No-buy streak", value: "Current and longest no-buy run, shown because buying pressure changes closet health too." },
-      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate date previews another day, lane labels explain the reason family, Why this ranked shows score math, Worn today logs the pick, Not today is a soft pass, and Snooze hides the item longer." },
+      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate another day, filter to one exact type, or ask for another 10 suggestions. Why this ranked shows score math. Worn today logs a wear. Not today hides an item until tomorrow and only adds a soft-pass signal, while Snooze hides it for 30 days and adds a stronger queue-avoidance signal. Neither action logs a wear or changes your closet totals." },
       { label: "Wear calendar heatmap", value: "A calendar view of wear intensity. The year and brand filters change the view, and clicking dates or months drills into history." },
     ]
   );
@@ -12854,13 +13550,14 @@ const buildAdvancedStatsHelpHtml = () => {
     [
       { label: "Best use", value: "Use this window when you want to understand adoption lag, parked value, tag performance, and whether the closet is actually rotating in a healthy way." },
       { label: "Mindset", value: "These numbers are coaching signals. They are not moral judgments and they are not based on fast-rotation closet assumptions." },
+      { label: "View details links", value: "Snapshot cards with deeper reads can jump straight to the matching section lower in the same dialog." },
     ]
   );
   html += buildHelpSection(
     "Collector snapshot and health",
     "These sections describe the overall state of the collection at a higher level.",
     [
-      { label: "Collector snapshot", value: "A broad summary of total size, current yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
+      { label: "Collector snapshot", value: "A plain-language overview of closet size, yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
       { label: "Closet health score", value: "A 0-100 summary based on yearly reach, never-worn share, parked value, and cost-per-wear efficiency. Higher is healthier." },
       { label: "Worn in last 365 days", value: "The percent of wearable items touched in the last year." },
       { label: "Items <= $20 CPW", value: "The share of items that have already delivered relatively efficient value based on cost per wear." },
@@ -12892,8 +13589,10 @@ const buildAdvancedStatsHelpHtml = () => {
     "Tags and occasions",
     "These sections explain how labels and purpose lanes are performing.",
     [
-      { label: "Collector DNA", value: "Separates broad tag coverage from the non-default tags used for analytics, then summarizes known-tag count, average tags per analyzed item, and the top tag identities shaping the closet." },
-      { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation." },
+      { label: "Collector DNA", value: "Separates basic tagging coverage from the custom tags that actually shape analytics, then summarizes known-tag count, average tags per analyzed item, and the strongest tag identities in the closet." },
+      { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation. Import/export/reset tools affect only your custom rules." },
+      { label: "Tag Maintenance", value: "Use the Tag Maintenance button to rename, merge, or delete tags across all inventory tabs, review suspicious near-duplicates, and batch-tag untagged items from one workspace." },
+      { label: "Currently excluded by rules", value: "Shows which real closet types are currently outside the collector-stats universe, how many items they remove, and which built-in or custom rule matched them." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
       { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak. Each expanded tag also includes a link to view all items carrying that tag." },
@@ -12904,7 +13603,7 @@ const buildAdvancedStatsHelpHtml = () => {
       { label: "Trending tags", value: "Highlights tags whose add-plus-wear activity spiked over the last 30 days compared with the prior 30-day window." },
       { label: "Rarity index", value: "Calls out shirts whose exact tag combinations are unusually rare compared with the rest of the closet." },
       { label: "Time-series tagging", value: "Maps tag-linked wear usage month by month so seasonal swings are visible." },
-      { label: "Tag eras", value: "Tracks consecutive day, week, and month runs where one tag clearly dominated wear activity." },
+      { label: "Tag eras", value: "Tracks stretches where one tag clearly led your wear history across day, week, or month windows." },
       { label: "Occasion lanes", value: "Shows depth and activity for special-purpose tagged lanes like Work Appropriate, Formal, and other occasion-focused categories." },
     ]
   );
@@ -13561,7 +14260,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     })
     .filter(Boolean)
     .sort((a, b) => b.recoveryPressure - a.recoveryPressure || b.currentCpw - a.currentCpw || a.name.localeCompare(b.name))
-    .slice(0, 8);
+    .slice(0, 10);
   const totalRecoveryWears = valueRecoveryCandidates.reduce((sum, item) => sum + item.additionalWears, 0);
 
   const confidenceRows = wearableItems
@@ -13704,7 +14403,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       }
       bucket.wearSamples.push(wearCount);
       const confidenceHit = confidenceByKey[getInsightsQueueKey(item)] || null;
-      if (wearCount >= 3 && ((daysSince !== null && daysSince <= 365) || (confidenceHit && confidenceHit.confidenceScore >= 60))) {
+      if (wearCount >= 2 && ((daysSince !== null && daysSince <= 365) || (confidenceHit && confidenceHit.confidenceScore >= 60))) {
         bucket.strongKeepers += 1;
       }
     });
@@ -13787,45 +14486,81 @@ const buildBehaviorInsights = (stats, queue = []) => {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
-    .slice(0, 5);
+    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name));
   const dismissedSellSuggestions = loadInsightsSellDismissals();
-  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]);
+  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]).slice(0, 5);
 
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
     if (!item?.key || queueByKey[item.key]) return;
     queueByKey[item.key] = item;
   });
-  const reactivationSeeds = [];
+  const playbookSeedMap = {};
+  const addPlaybookSeed = (key, reason, score, extra = {}) => {
+    const cleanKey = String(key || "");
+    if (!cleanKey || protectedKeySet.has(cleanKey) || seasonalExemptKeySet.has(cleanKey)) return;
+    if (!playbookSeedMap[cleanKey]) {
+      playbookSeedMap[cleanKey] = {
+        key: cleanKey,
+        score: 0,
+        reasons: [],
+        currentCpw: null,
+        additionalWears: null,
+        etaDays: null,
+        daysSince: null,
+        pressureScore: null,
+      };
+    }
+    playbookSeedMap[cleanKey].score += Math.max(0, Number(score || 0));
+    if (reason && !playbookSeedMap[cleanKey].reasons.includes(reason)) playbookSeedMap[cleanKey].reasons.push(reason);
+    if (extra.currentCpw !== undefined && extra.currentCpw !== null) playbookSeedMap[cleanKey].currentCpw = extra.currentCpw;
+    if (extra.additionalWears !== undefined && extra.additionalWears !== null) playbookSeedMap[cleanKey].additionalWears = extra.additionalWears;
+    if (extra.etaDays !== undefined && extra.etaDays !== null) playbookSeedMap[cleanKey].etaDays = extra.etaDays;
+    if (extra.daysSince !== undefined && extra.daysSince !== null) playbookSeedMap[cleanKey].daysSince = extra.daysSince;
+    if (extra.pressureScore !== undefined && extra.pressureScore !== null) playbookSeedMap[cleanKey].pressureScore = extra.pressureScore;
+  };
   comebackCandidates.forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Comeback ${item.daysSince}d idle` });
-  });
-  benchPressure.slice(0, 5).forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Bench pressure ${item.pressureScore}` });
-  });
-  valueRecoveryCandidates.slice(0, 5).forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Recovery ${Math.round(item.currentCpw)}/wear` });
-  });
-  const playbook = [];
-  const used = new Set();
-  reactivationSeeds.forEach((seed) => {
-    if (playbook.length >= 7 || !seed?.key || used.has(seed.key)) return;
-    const qItem = queueByKey[seed.key];
-    const source = qItem || wearableItems.find((item) => getInsightsQueueKey(item) === seed.key);
-    if (!source) return;
-    used.add(seed.key);
-    playbook.push({
-      key: seed.key,
-      name: String(source.name || "Unnamed"),
-      tab: String(source.tab || "Unknown"),
-      type: String(source.type || "Unknown"),
-      reason: seed.reason,
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, "Comeback", 50 + Math.min(40, Number(item.daysSince || 0) * 0.12), {
+      daysSince: item.daysSince,
     });
   });
+  benchPressure.slice(0, 7).forEach((item) => {
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, "Bench pressure", Math.min(80, Number(item.pressureScore || 0)), {
+      pressureScore: item.pressureScore,
+    });
+  });
+  valueRecoveryCandidates.slice(0, 7).forEach((item) => {
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, "Recovery", Number(item.recoveryPressure || 0), {
+      currentCpw: item.currentCpw,
+      additionalWears: item.additionalWears,
+      etaDays: item.etaDays,
+    });
+  });
+  const playbook = Object.values(playbookSeedMap)
+    .map((seed) => {
+      const qItem = queueByKey[seed.key];
+      const source = qItem || wearableItems.find((item) => getInsightsQueueKey(item) === seed.key);
+      if (!source) return null;
+      return {
+        key: seed.key,
+        name: String(source.name || "Unnamed"),
+        tab: String(source.tab || "Unknown"),
+        type: String(source.type || "Unknown"),
+        reason: seed.reasons.slice(0, 2).join(" · "),
+        score: Math.round(seed.score),
+        currentCpw: seed.currentCpw,
+        daysSince: seed.daysSince,
+        pressureScore: seed.pressureScore,
+        additionalWears: seed.additionalWears,
+        etaDays: seed.etaDays,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 7);
 
   return {
     volatility: {
@@ -14060,6 +14795,9 @@ const getHanukkahStartDate = (year) => {
 const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const activeSnoozes = snoozes || {};
+  const activeTypeFilter = String(options?.typeFilter || "all");
+  const excludedQueueKeys = new Set(Array.isArray(options?.excludedKeys) ? options.excludedKeys.map((key) => String(key || "")) : []);
+  const refreshNonce = Math.max(0, Number(options?.refreshNonce || 0));
   const defaultNow = new Date();
   const simDateKey = options && /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
@@ -14169,7 +14907,17 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
     },
   ];
 
-  return items
+  const deterministicJitter = (seedText) => {
+    let hash = 2166136261;
+    const text = String(seedText || "");
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return ((hash >>> 0) % 1000) / 1000;
+  };
+
+  const candidates = items
     .map((item) => {
       const name = item.name || "Unnamed";
       const nameLower = String(name || "").trim().toLowerCase();
@@ -14420,8 +15168,32 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       };
     })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-    .slice(0, 10);
+    .filter((item) => activeTypeFilter === "all" || item.type === activeTypeFilter)
+    .filter((item) => !excludedQueueKeys.has(item.key))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const picked = [];
+  const typeCounts = {};
+  while (candidates.length && picked.length < 10) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    candidates.forEach((item, index) => {
+      const normalizedType = String(item.type || "Unknown").trim().toLowerCase();
+      const duplicateTypePenalty = activeTypeFilter === "all" ? (typeCounts[normalizedType] || 0) * 38 : 0;
+      const refreshBoost = refreshNonce > 0 ? deterministicJitter(`${refreshNonce}:${item.key}`) * 16 : 0;
+      const effectiveScore = item.score - duplicateTypePenalty + refreshBoost;
+      if (effectiveScore > bestScore) {
+        bestScore = effectiveScore;
+        bestIndex = index;
+      }
+    });
+    const [next] = candidates.splice(bestIndex, 1);
+    picked.push(next);
+    const normalizedType = String(next.type || "Unknown").trim().toLowerCase();
+    typeCounts[normalizedType] = (typeCounts[normalizedType] || 0) + 1;
+  }
+
+  return picked;
 };
 
 const markQueueItemWornToday = (queueItem) => {
@@ -14928,6 +15700,7 @@ const openInsightsDialog = (stats, options = {}) => {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const toneClass = (tone) => (tone === "good" ? "tone-good" : tone === "bad" ? "tone-bad" : "");
   const insightValue = (valueHtml, tone) => `<div class="insights-score-value${toneClass(tone) ? ` ${toneClass(tone)}` : ""}">${valueHtml}</div>`;
 
@@ -14940,12 +15713,40 @@ const openInsightsDialog = (stats, options = {}) => {
     return;
   }
 
+  const readStoredQueueKeys = () => {
+    try {
+      const parsed = JSON.parse(dialog.getAttribute("data-queue-excluded-keys") || "[]");
+      return Array.isArray(parsed) ? parsed.map((key) => String(key || "")).filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
+  };
+  const defaultSimDateKey = localDateKeyFromDate(new Date());
   const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
-    : localDateKeyFromDate(new Date());
+    : (options.preserveState && /^\d{4}-\d{2}-\d{2}$/.test(String(dialog.getAttribute("data-sim-date-key") || ""))
+      ? String(dialog.getAttribute("data-sim-date-key") || "")
+      : defaultSimDateKey);
+  const activeQueueTypeFilter = options.queueTypeFilter !== undefined
+    ? String(options.queueTypeFilter || "all")
+    : (options.preserveState ? String(dialog.getAttribute("data-queue-type-filter") || "all") : "all");
+  const activeQueueExcludedKeys = Array.isArray(options.queueExcludedKeys)
+    ? options.queueExcludedKeys.map((key) => String(key || "")).filter(Boolean)
+    : (options.preserveState ? readStoredQueueKeys() : []);
+  const activeQueueRefreshNonce = Number.isFinite(Number(options.queueRefreshNonce))
+    ? Math.max(0, Number(options.queueRefreshNonce))
+    : (options.preserveState ? Math.max(0, Number(dialog.getAttribute("data-queue-refresh-nonce") || 0)) : 0);
   dialog.setAttribute("data-sim-date-key", activeSimDateKey);
+  dialog.setAttribute("data-queue-type-filter", activeQueueTypeFilter);
+  dialog.setAttribute("data-queue-excluded-keys", JSON.stringify(activeQueueExcludedKeys));
+  dialog.setAttribute("data-queue-refresh-nonce", String(activeQueueRefreshNonce));
   const snoozes = loadInsightsSnoozes();
-  const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
+  const queue = buildWearNextQueue(stats, snoozes, {
+    simDateKey: activeSimDateKey,
+    typeFilter: activeQueueTypeFilter,
+    excludedKeys: activeQueueExcludedKeys,
+    refreshNonce: activeQueueRefreshNonce,
+  });
   const behavior = buildBehaviorInsights(stats, queue);
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
@@ -14962,6 +15763,9 @@ const openInsightsDialog = (stats, options = {}) => {
   const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
   const workLane = buildTaggedLaneStats(stats?.wearableItems || [], ["workappropriate", "work appropriate"], { nowMs });
   const formalLane = buildTaggedLaneStats(stats?.wearableItems || [], ["formal"], { nowMs });
+  const queueTypeOptions = Array.from(new Set((Array.isArray(stats?.wearableItems) ? stats.wearableItems : [])
+    .map((item) => String(item?.type || "Unknown").trim() || "Unknown")))
+    .sort((a, b) => a.localeCompare(b));
 
   const renderDnaCard = (title, dna) => {
     if (!dna || dna.totalWears === 0) {
@@ -15042,8 +15846,8 @@ const openInsightsDialog = (stats, options = {}) => {
     const frictionWorstLabel = friction.worstDay
       ? `${friction.worstDay.dateKey} (${Math.round(friction.worstDay.acceptance * 100)}%)`
       : "n/a";
-    const recoveryLead = Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
-      ? `${valueRecovery.candidates[0].name} (${Math.round(valueRecovery.candidates[0].currentCpw)}/wear)`
+    const recoveryLead = Array.isArray(reactivation.playbook) && reactivation.playbook.length
+      ? `${reactivation.playbook[0].name}${reactivation.playbook[0].currentCpw ? ` (${Math.round(reactivation.playbook[0].currentCpw)}/wear)` : ""}`
       : "n/a";
     const confidenceLead = Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
       ? `${confidence.lowConfidence[0].name} (${confidence.lowConfidence[0].confidenceScore})`
@@ -15077,10 +15881,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const benchTone = bench.length <= 2 ? "good" : bench.length >= 6 ? "bad" : "";
     const fatigueTone = fatigue.count <= 1 ? "good" : fatigue.count >= 4 ? "bad" : "";
     const frictionTone = friction.avgAcceptance >= 24 ? "good" : friction.avgAcceptance < 12 ? "bad" : "";
-    const recoveryTone = valueRecovery.totalRecoveryWears <= 14 ? "good" : valueRecovery.totalRecoveryWears >= 34 ? "bad" : "";
+    const recoveryTone = playbookCount <= 3 && valueRecovery.totalRecoveryWears <= 14 ? "good" : playbookCount >= 7 || valueRecovery.totalRecoveryWears >= 34 ? "bad" : "";
     const confidenceTone = confidence.avgConfidence >= 70 ? "good" : confidence.avgConfidence < 45 ? "bad" : "";
     const adaptiveTone = adaptive.sampleSize >= 5 ? "good" : adaptive.sampleSize <= 1 ? "bad" : "";
-    const playbookTone = playbookCount <= 3 ? "good" : playbookCount >= 7 ? "bad" : "";
     const sellTone = sellSuggestions.length <= 1 ? "good" : sellSuggestions.length >= 3 ? "bad" : "";
     const coverageTone = rotationModel.coverageScore >= 65 ? "good" : rotationModel.coverageScore < 35 ? "bad" : "";
     const adjustedBacklogTone = rotationModel.adjustedBacklogPct <= 18 ? "good" : rotationModel.adjustedBacklogPct >= 34 ? "bad" : "";
@@ -15197,24 +16000,28 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Excludes <120d adds, Whale/sentimental/archive items, and out-of-season exempt pieces.</div>
           <div class="insights-score-note">Grace window items (not penalized yet): ${rotationModel.graceCount}.</div>
           <div class="insights-score-note">Target pace is learned from your recent collector cadence, not a generic closet rule.</div>
+          ${detailButton("insights-detail-rotation-model")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Theme fatigue detector</div>
           ${insightValue(`${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}`, fatigueTone)}
           <div class="insights-score-note">Lead fade: ${esc(fatigueLead)}</div>
           <div class="insights-score-note">Signals where previously strong fandom/tag themes are cooling off in recent wear windows.</div>
+          ${detailButton("insights-detail-fatigue")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Decision friction</div>
           ${insightValue(`${friction.avgAcceptance}% queue acceptance`, frictionTone)}
           <div class="insights-score-note">${friction.highFrictionDays} high-friction day${friction.highFrictionDays === 1 ? "" : "s"} in last ${friction.totalDays} tracked days</div>
           <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
+          ${detailButton("insights-detail-friction")}
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Value recovery forecast</div>
-          ${insightValue(`${valueRecovery.totalRecoveryWears} wears to recover`, recoveryTone)}
-          <div class="insights-score-note">Collector cadence: ${valueRecovery.cadencePerDay.toFixed(2)} wears/day</div>
+          <div class="insights-score-title">7-day recovery plan</div>
+          ${insightValue(`${playbookCount} planned wear${playbookCount === 1 ? "" : "s"}`, recoveryTone)}
+          <div class="insights-score-note">Projected recovery load: ${valueRecovery.totalRecoveryWears} wears · cadence ${valueRecovery.cadencePerDay.toFixed(2)}/day</div>
           <div class="insights-score-note">Lead recovery target: ${esc(recoveryLead)}</div>
+          ${detailButton("insights-detail-recovery")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Outfit confidence curve</div>
@@ -15232,24 +16039,21 @@ const openInsightsDialog = (stats, options = {}) => {
           ${insightValue(`${adaptive.sampleSize} type signals`, adaptiveTone)}
           <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
           <div class="insights-score-note">Uses actual queue selection rates to suggest what to amplify or cool down.</div>
-        </div>
-        <div class="insights-score-card">
-          <div class="insights-score-title">7-day reactivation plan</div>
-          ${insightValue(`${playbookCount} planned wears`, playbookTone)}
-          <div class="insights-score-note">Built from comeback, bench pressure, and value-recovery priorities.</div>
-          <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
+          ${detailButton("insights-detail-adaptive")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Top 5 to sell</div>
           ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
           <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, while protecting recent additions from the shortlist.</div>
+          ${detailButton("insights-detail-sell")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
+          ${detailButton("insights-detail-marketplace")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace keepers</div>
@@ -15272,7 +16076,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">${formalLane.neverWorn} never worn · top brand ${esc(formalLane.topBrand)} · top type ${esc(formalLane.topType)}</div>
         </div>
       </div>
-      <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
+      <div id="insights-detail-rotation-model" class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
       <div class="stats-hint">These metrics are calibrated for large low-frequency closets (1-2 wears per item/year) instead of daily-use assumptions.</div>
       <div class="insights-action-list">
         <div class="stats-row stats-sub"><span class="stats-label">Tier A (worn last 365d)</span><span class="stats-value">${rotationModel.tierA.count} items (${rotationModel.tierA.pct}%)</span></div>
@@ -15287,42 +16091,44 @@ const openInsightsDialog = (stats, options = {}) => {
       ${comeback.length
     ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
+      <div id="insights-detail-fatigue" class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
       <div class="stats-hint">Detects fandom/tag themes that were strong earlier but dropped in recent wear share.</div>
       ${Array.isArray(fatigue.themes) && fatigue.themes.length
     ? `<div class="insights-action-list">${fatigue.themes.map((theme, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(theme.label)} (${esc(theme.family)})</span><span class="stats-value">${theme.priorShare}% -> ${theme.recentShare}% (${theme.drop}pt drop)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong fatigue signals yet. This fills in once a theme was previously dominant and then cooled.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
+      <div id="insights-detail-friction" class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
       <div class="stats-hint">Shows where queue suggestions and actual choices diverge, by acceptance rate and weekday hotspots.</div>
       ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
     ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Value recovery targets</div>
-      <div class="stats-hint">High cost-per-wear items that still look meaningfully under-realized for a collector closet. Recent wears and brand-new additions are intentionally filtered out.</div>
-      ${Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
-    ? `<div class="insights-action-list">${valueRecovery.candidates.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${Math.round(item.currentCpw)}/wear -> ${Math.round(item.targetCpw)}/wear · +${item.additionalWears} wears (~${item.etaDays}d)</span></div>`).join("")}</div>`
-    : `<div class="stats-hint">No value recovery backlog right now. Items here appear when cost-per-wear is still far above target.</div>`}
+      <div id="insights-detail-recovery" class="stats-section-title" style="margin-top:8px">7-day recovery plan</div>
+      <div class="stats-hint">Combines the old reactivation and value-recovery lists into one 7-day plan. Each day blends comeback timing, queue pressure, and cost-per-wear recovery so the next wears feel useful instead of repetitive.</div>
+      ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
+    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => {
+      const recoveryStats = [];
+      if (item.daysSince !== null && item.daysSince !== undefined) recoveryStats.push(`${item.daysSince}d idle`);
+      if (item.pressureScore !== null && item.pressureScore !== undefined) recoveryStats.push(`pressure ${item.pressureScore}`);
+      if (item.currentCpw) recoveryStats.push(`${Math.round(item.currentCpw)}/wear`);
+      recoveryStats.push(`priority ${item.score}`);
+      return `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}${recoveryStats.length ? ` · ${esc(recoveryStats.join(" · "))}` : ""}</span></div>`;
+    }).join("")}</div>`
+    : `<div class="stats-hint">No recovery plan generated yet. It appears once comeback, queue pressure, or value-recovery signals have enough weight.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
       <div class="stats-hint">Items with weak repeat confidence based on actual repeat evidence, very long gaps, and explicit queue push-away signals. Collector-normal yearly spacing is treated more gently here.</div>
       ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
     ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${esc(item.reasonText || "low signal")} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Confidence curve is healthy. Low-signal list appears when a worn item drifts into weak repeat confidence.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
+      <div id="insights-detail-adaptive" class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
       <div class="stats-hint">Type-level boost/cool suggestions derived from actual queue exposure vs selection outcomes.</div>
       ${(Array.isArray(adaptive.boosts) && adaptive.boosts.length) || (Array.isArray(adaptive.suppressions) && adaptive.suppressions.length)
     ? `<div class="insights-action-list">${(adaptive.boosts || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Boost ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}${(adaptive.suppressions || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Cool ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Need more queue telemetry for adaptive tuning. Keep using Wear-next and Worn today to train this section.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">7-day reactivation playbook</div>
-      <div class="stats-hint">A one-week sequence built from pressure/recovery signals to restart dormant rotation without dragging protected collector pieces into the plan.</div>
-      ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
-    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
-    : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
-      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days.</div>
+      <div id="insights-detail-sell" class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
+      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days, and the list will immediately backfill with the next eligible candidate.</div>
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
+      <div id="insights-detail-marketplace" class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
       <div class="insights-action-list insights-marketplace-details">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
@@ -15334,6 +16140,65 @@ const openInsightsDialog = (stats, options = {}) => {
     );
   };
 
+  const renderQueueSection = () => {
+    const queueSummary = queue.length
+      ? `${queue.length} suggestion${queue.length === 1 ? "" : "s"} ready${activeQueueTypeFilter !== "all" ? ` for ${activeQueueTypeFilter}` : ""}.`
+      : (activeQueueExcludedKeys.length
+        ? `No more matches found after hiding the current ${activeQueueExcludedKeys.length} suggestion${activeQueueExcludedKeys.length === 1 ? "" : "s"}.`
+        : `No queue suggestions match${activeQueueTypeFilter !== "all" ? ` the ${activeQueueTypeFilter} filter` : " right now"}.`);
+    return section(
+      "Wear next queue",
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, season/date signals, and value/condition boosts. Use the type filter for strict same-type picks, or Another 10 to swap out the current list for a different mix.</div>
+      <div class="stats-hint insights-queue-action-note">Not today hides an item until tomorrow and only adds a soft-pass signal to queue analytics. Snooze 30d hides it for 30 days and counts as a stronger skip signal. Neither action logs a wear or changes closet totals.</div>
+      <div class="insights-controls insights-queue-toolbar">
+        <div class="insights-queue-control-group">
+          <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
+          <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
+          <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
+        </div>
+        <div class="insights-queue-control-group">
+          <label for="insights-queue-type-filter" class="insights-sim-label">Type filter</label>
+          <select id="insights-queue-type-filter" class="insights-queue-sim-date"><option value="all">All types</option>${queueTypeOptions.map((type) => `<option value="${esc(type)}" ${type === activeQueueTypeFilter ? "selected" : ""}>${esc(type)}</option>`).join("")}</select>
+          <button type="button" class="btn secondary" id="insights-queue-refresh">Another 10</button>
+        </div>
+      </div>
+      <div class="stats-hint insights-queue-preview-date">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()} · ${queueSummary}</div>
+      ${queue.length
+        ? `<div class="insights-queue-list">
+        ${queue.map((item, idx) => `
+          <div class="insights-queue-item">
+            <div class="insights-queue-head">
+              <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
+              <div class="insights-queue-score lane-${esc(item.laneKey || "rotation-pick")}">${esc(item.lane || "Rotation pick")} · ${Math.round(item.score)}</div>
+            </div>
+              <div class="stats-hint insights-queue-lane-hint">${esc(item.laneHint || "")}</div>
+              <div class="insights-queue-meta">
+                <span>${esc(item.reason)}</span>
+                <div class="insights-queue-actions">
+                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-soft-pass="${esc(item.key)}">Not today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 30d</button>
+                </div>
+              </div>
+            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
+              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
+                <div class="insights-queue-breakdown-row">
+                  <span>${esc(line.label)}</span>
+                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
+                </div>
+              `).join("")}
+              <div class="insights-queue-breakdown-row total">
+                <span>Total priority score</span>
+                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
+              </div>
+            </div>
+          </div>`).join("")}
+      </div>`
+        : `<div class="stats-hint">Try another date, switch the type filter, or press Another 10 again to pull a fresh mix.</div>`}`
+    );
+  };
+
   let html = "";
   html += section(
     "Personal style DNA (Wrapped)",
@@ -15342,11 +16207,12 @@ const openInsightsDialog = (stats, options = {}) => {
        ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
        ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
      </div>
-     <div class="insights-story-launch">
+     <div class="dialog-actions insights-story-launch">
        <button type="button" class="btn secondary" id="insights-story-play">Play story</button>
      </div>
      <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
   );
+  html += renderQueueSection();
   html += renderBehaviorInsights();
 
   if (health) {
@@ -15434,52 +16300,6 @@ const openInsightsDialog = (stats, options = {}) => {
     );
   }
 
-  if (queue.length) {
-    html += section(
-      "Wear next queue",
-      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Each pick carries a lane and a quick explanation so the queue feels intentional. "Why this ranked" shows the full score math. Snooze hides an item for 3 days.</div>
-      <div class="insights-controls insights-queue-sim-controls">
-        <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
-        <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
-        <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
-      </div>
-      <div class="stats-hint insights-queue-preview-date">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
-      <div class="insights-queue-list">
-        ${queue.map((item, idx) => `
-          <div class="insights-queue-item">
-            <div class="insights-queue-head">
-              <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
-              <div class="insights-queue-score lane-${esc(item.laneKey || "rotation-pick")}">${esc(item.lane || "Rotation pick")} · ${Math.round(item.score)}</div>
-            </div>
-              <div class="stats-hint insights-queue-lane-hint">${esc(item.laneHint || "")}</div>
-              <div class="insights-queue-meta">
-                <span>${esc(item.reason)}</span>
-                <div class="insights-queue-actions">
-                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-soft-pass="${esc(item.key)}">Not today</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze</button>
-                </div>
-              </div>
-            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
-              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
-                <div class="insights-queue-breakdown-row">
-                  <span>${esc(line.label)}</span>
-                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
-                </div>
-              `).join("")}
-              <div class="insights-queue-breakdown-row total">
-                <span>Total priority score</span>
-                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
-              </div>
-            </div>
-          </div>`).join("")}
-      </div>`
-    );
-  } else {
-    html += section("Wear next queue", `<div class="stats-hint">Queue is clear for now. Log fresh wears or remove snoozes to regenerate suggestions.</div>`);
-  }
-
   const wearEvents = Array.isArray(stats.wearEvents) ? stats.wearEvents : [];
   const years = Array.from(new Set(wearEvents
     .map((event) => {
@@ -15501,6 +16321,7 @@ const openInsightsDialog = (stats, options = {}) => {
   );
 
   content.innerHTML = html;
+  bindDetailJumpLinks(content);
 
   const snoozeButtons = content.querySelectorAll("[data-insights-snooze]");
   snoozeButtons.forEach((button) => {
@@ -15509,11 +16330,11 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!key) return;
       const next = loadInsightsSnoozes();
       const until = new Date();
-      until.setDate(until.getDate() + 3);
+      until.setDate(until.getDate() + 30);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       trackInsightsQueueSnooze(key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15526,7 +16347,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15541,7 +16362,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSellDismissals(next);
       scheduleSync();
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15567,7 +16388,7 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
       trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15577,13 +16398,32 @@ const openInsightsDialog = (stats, options = {}) => {
       const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
         ? String(simDateInput.value)
         : localDateKeyFromDate(new Date());
-      rerenderInsightsDialog(nextKey);
+      rerenderInsightsDialog({ simDateKey: nextKey, queueExcludedKeys: [], queueRefreshNonce: 0 });
     });
   }
   const simTodayButton = content.querySelector("#insights-queue-sim-today");
   if (simTodayButton) {
     simTodayButton.addEventListener("click", () => {
-      rerenderInsightsDialog(localDateKeyFromDate(new Date()));
+      rerenderInsightsDialog({ simDateKey: localDateKeyFromDate(new Date()), queueExcludedKeys: [], queueRefreshNonce: 0 });
+    });
+  }
+  const typeFilterSelect = content.querySelector("#insights-queue-type-filter");
+  if (typeFilterSelect) {
+    typeFilterSelect.addEventListener("change", () => {
+      rerenderInsightsDialog({
+        queueTypeFilter: String(typeFilterSelect.value || "all"),
+        queueExcludedKeys: [],
+        queueRefreshNonce: 0,
+      });
+    });
+  }
+  const queueRefreshButton = content.querySelector("#insights-queue-refresh");
+  if (queueRefreshButton) {
+    queueRefreshButton.addEventListener("click", () => {
+      rerenderInsightsDialog({
+        queueExcludedKeys: queue.length ? queue.map((item) => item.key) : [],
+        queueRefreshNonce: activeQueueRefreshNonce + 1,
+      });
     });
   }
 
@@ -16135,6 +16975,7 @@ const openStatsDialog = () => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const section = (content) => `<div class="stats-section">${content}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 
   const barChart = (tally, maxItems) => {
@@ -16156,9 +16997,9 @@ const openStatsDialog = () => {
     }).join("")}</div>`;
   };
 
-  const renderTallySection = (title, tally, maxItems) => {
+  const renderTallySection = (title, tally, maxItems, targetId = "") => {
     if (!tally.length) return "";
-    return section(`<div class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
+    return section(`<div${targetId ? ` id="${esc(targetId)}"` : ""} class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
   };
 
   const renderCollapsibleSection = (title, valueLabel, bodyHtml) => {
@@ -16182,6 +17023,7 @@ const openStatsDialog = () => {
       block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
     block += `<div class="stats-hint" style="margin-top:8px">${topValueShare >= 35 ? `A few grails are carrying ${topValueShare}% of total closet value.` : "Closet value is spread fairly evenly across the collection."}</div>`;
+    block += detailButton("stats-detail-price-distribution", "View distribution");
     block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
       const brand = item.tab || "Unknown";
@@ -16267,14 +17109,14 @@ const openStatsDialog = () => {
 
     // --- Price distribution histogram (Inventory) ---
     if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
-      html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
+      html += section(`<div id="stats-detail-price-distribution" class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
     }
   }
 
   // --- Bar charts for aggregate tallies ---
   if (s.isInventory) html += renderTallySection("Condition breakdown", s.conditionTally);
-  html += renderTallySection("Top types", s.typeTally, 5);
-  html += renderTallySection("Top fandoms", s.fandomTally, 5);
+  html += renderTallySection("Top types", s.typeTally, 5, "stats-detail-top-types");
+  html += renderTallySection("Top fandoms", s.fandomTally, 5, "stats-detail-top-fandoms");
   html += renderTallySection("Size breakdown", s.sizeTally);
 
   // --- Tag coverage (inventory only) ---
@@ -16300,6 +17142,7 @@ const openStatsDialog = () => {
         divBlock += row("Fandoms", `${s.fandomDiversity}% \u2014 ${fandomLabel}`);
         divBlock += progressBar(s.fandomDiversity, "");
       }
+      divBlock += detailButton("stats-detail-top-types", "View type/fandom breakdown");
       html += section(divBlock);
     }
 
@@ -16529,6 +17372,7 @@ const openStatsDialog = () => {
   }
 
   statsContent.innerHTML = html;
+  bindDetailJumpLinks(statsContent);
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");
