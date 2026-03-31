@@ -3,6 +3,11 @@
     "version": "2.1.3",
     "date": "2026-03-31",
     "changes": [
+      "Added a dedicated Pre-Buy Check front door to No-Buy with trigger-first coaching, 72-hour hold flow, wishlist parking, and a softer action layout across desktop and mobile",
+      "Expanded Pre-Buy Check with live fuzzy duplicate friction against inventory using name/brand/type, so likely closet overlaps surface before a buy or wishlist park",
+      "Upgraded Pre-Buy wishlist parking to carry over typed brand/type details, add a Held tag, and save clearer hold notes for later review",
+      "Expanded No-Buy recovery guidance with recovery-window summaries, low-wear added-shirt shortcuts, and help-copy refreshes that explain both the newer pre-buy layer and the older streak/cooldown/trend rules more clearly",
+      "Aligned Worn today and row-level Log Wear so both feed the same recovery-progress logic, while keeping recovery eligibility limited to shirts with tracked in-app add dates (`createdAt`)",
       "Expanded Wear Next Queue with exact type filtering, an 'Another 10' reshuffle, clearer Not today vs Snooze 30d behavior, richer queue help text, and placement directly under Wrapped for faster recommendation browsing",
       "Updated collector-facing stats wording and correctness with a 2-wear keeper threshold, whole-word common-name matching, plain-English help copy refreshes, and in-dialog drilldown jump links across Main Stats, Insights, and Advanced Stats",
       "Merged reactivation/value-recovery coaching into a single 7-day recovery plan, refined recovery wording to avoid repetitive CPW phrasing, and made Top 5 to sell immediately backfill after 30-day dismissals",
