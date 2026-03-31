@@ -12812,11 +12812,11 @@ const buildInsightsHelpHtml = () => {
       { label: "Opportunity-adjusted backlog", value: "Never-worn backlog after excluding items that should not be penalized yet." },
       { label: "Theme fatigue detector", value: "Flags fandom or tag themes that used to carry more of the rotation but have cooled off recently." },
       { label: "Decision friction", value: "Measures how often the queue and your actual choices disagree." },
-      { label: "Value recovery forecast", value: "Estimates how many additional wears expensive underused items need to reach healthier value." },
+      { label: "Recovery load", value: "Shows how much dormant value still needs deliberate wears and points to the lead item in the current 7-day recovery plan." },
       { label: "Outfit confidence curve", value: "A repeat-confidence signal based on actual behavior and long-gap evidence." },
       { label: "Top brand lane", value: "Shows whether one brand is starting to carry too much of the year." },
       { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
-      { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
+      { label: "7-day recovery plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
       { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces. Use the dismiss action to hide an item for 30 days." },
       { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many still look like real keepers, and how much slow-moving drag they create." },
       { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
@@ -12830,10 +12830,10 @@ const buildInsightsHelpHtml = () => {
       { label: "Comeback candidates", value: "Historically strong items that look ready for a safe return." },
       { label: "Theme fatigue watchlist", value: "Specific themes whose share of wear has faded noticeably." },
       { label: "Decision friction heatmap", value: "Weekday hotspots where queue acceptance is weakest." },
-      { label: "Value recovery targets", value: "Specific expensive items that still need more wears to justify their cost." },
+      { label: "7-day recovery plan details", value: "Seven item-level recommendations that combine comeback pressure, queue friction, and cost-per-wear recovery into one list." },
       { label: "Outfit confidence low-signal items", value: "Items whose repeat-wear confidence currently looks weak." },
       { label: "Adaptive queue recommendations", value: "Type-level boost or cool suggestions learned from real queue behavior." },
-      { label: "7-day reactivation playbook", value: "An ordered short plan for waking dormant value back up." },
+      { label: "Top 5 to sell", value: "The shortlist backfills immediately after a Nope dismissal, while keeping 30-day snoozed items out of the list." },
       { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength. A keeper currently means 2+ wears plus either activity in the last 365 days or strong queue confidence." },
       { label: "Bench pressure watchlist", value: "Specific queued items that repeatedly get skipped, snoozed, or soft-passed." },
     ]
@@ -13570,7 +13570,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
     })
     .filter(Boolean)
     .sort((a, b) => b.recoveryPressure - a.recoveryPressure || b.currentCpw - a.currentCpw || a.name.localeCompare(b.name))
-    .slice(0, 8);
+    .slice(0, 10);
   const totalRecoveryWears = valueRecoveryCandidates.reduce((sum, item) => sum + item.additionalWears, 0);
 
   const confidenceRows = wearableItems
@@ -13796,45 +13796,64 @@ const buildBehaviorInsights = (stats, queue = []) => {
       };
     })
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name))
-    .slice(0, 5);
+    .sort((a, b) => b.score - a.score || b.price - a.price || a.name.localeCompare(b.name));
   const dismissedSellSuggestions = loadInsightsSellDismissals();
-  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]);
+  const sellSuggestions = rawSellSuggestions.filter((item) => !dismissedSellSuggestions[item.key]).slice(0, 5);
 
   const queueByKey = {};
   (Array.isArray(queue) ? queue : []).forEach((item) => {
     if (!item?.key || queueByKey[item.key]) return;
     queueByKey[item.key] = item;
   });
-  const reactivationSeeds = [];
+  const playbookSeedMap = {};
+  const addPlaybookSeed = (key, reason, score, extra = {}) => {
+    const cleanKey = String(key || "");
+    if (!cleanKey || protectedKeySet.has(cleanKey) || seasonalExemptKeySet.has(cleanKey)) return;
+    if (!playbookSeedMap[cleanKey]) {
+      playbookSeedMap[cleanKey] = { key: cleanKey, score: 0, reasons: [], currentCpw: null, additionalWears: null, etaDays: null };
+    }
+    playbookSeedMap[cleanKey].score += Math.max(0, Number(score || 0));
+    if (reason && !playbookSeedMap[cleanKey].reasons.includes(reason)) playbookSeedMap[cleanKey].reasons.push(reason);
+    if (extra.currentCpw !== undefined && extra.currentCpw !== null) playbookSeedMap[cleanKey].currentCpw = extra.currentCpw;
+    if (extra.additionalWears !== undefined && extra.additionalWears !== null) playbookSeedMap[cleanKey].additionalWears = extra.additionalWears;
+    if (extra.etaDays !== undefined && extra.etaDays !== null) playbookSeedMap[cleanKey].etaDays = extra.etaDays;
+  };
   comebackCandidates.forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Comeback ${item.daysSince}d idle` });
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, `Comeback ${item.daysSince}d idle`, 50 + Math.min(40, Number(item.daysSince || 0) * 0.12));
   });
-  benchPressure.slice(0, 5).forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Bench pressure ${item.pressureScore}` });
+  benchPressure.slice(0, 7).forEach((item) => {
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, `Bench pressure ${item.pressureScore}`, Math.min(80, Number(item.pressureScore || 0)));
   });
-  valueRecoveryCandidates.slice(0, 5).forEach((item) => {
-    if (protectedKeySet.has(String(item?.key || "")) || seasonalExemptKeySet.has(String(item?.key || ""))) return;
-    if (item?.key) reactivationSeeds.push({ key: item.key, reason: `Recovery ${Math.round(item.currentCpw)}/wear` });
-  });
-  const playbook = [];
-  const used = new Set();
-  reactivationSeeds.forEach((seed) => {
-    if (playbook.length >= 7 || !seed?.key || used.has(seed.key)) return;
-    const qItem = queueByKey[seed.key];
-    const source = qItem || wearableItems.find((item) => getInsightsQueueKey(item) === seed.key);
-    if (!source) return;
-    used.add(seed.key);
-    playbook.push({
-      key: seed.key,
-      name: String(source.name || "Unnamed"),
-      tab: String(source.tab || "Unknown"),
-      type: String(source.type || "Unknown"),
-      reason: seed.reason,
+  valueRecoveryCandidates.slice(0, 7).forEach((item) => {
+    if (!item?.key) return;
+    addPlaybookSeed(item.key, `Recovery ${Math.round(item.currentCpw)}/wear`, Number(item.recoveryPressure || 0), {
+      currentCpw: item.currentCpw,
+      additionalWears: item.additionalWears,
+      etaDays: item.etaDays,
     });
   });
+  const playbook = Object.values(playbookSeedMap)
+    .map((seed) => {
+      const qItem = queueByKey[seed.key];
+      const source = qItem || wearableItems.find((item) => getInsightsQueueKey(item) === seed.key);
+      if (!source) return null;
+      return {
+        key: seed.key,
+        name: String(source.name || "Unnamed"),
+        tab: String(source.tab || "Unknown"),
+        type: String(source.type || "Unknown"),
+        reason: seed.reasons.slice(0, 2).join(" · "),
+        score: Math.round(seed.score),
+        currentCpw: seed.currentCpw,
+        additionalWears: seed.additionalWears,
+        etaDays: seed.etaDays,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .slice(0, 7);
 
   return {
     volatility: {
@@ -15119,8 +15138,8 @@ const openInsightsDialog = (stats, options = {}) => {
     const frictionWorstLabel = friction.worstDay
       ? `${friction.worstDay.dateKey} (${Math.round(friction.worstDay.acceptance * 100)}%)`
       : "n/a";
-    const recoveryLead = Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
-      ? `${valueRecovery.candidates[0].name} (${Math.round(valueRecovery.candidates[0].currentCpw)}/wear)`
+    const recoveryLead = Array.isArray(reactivation.playbook) && reactivation.playbook.length
+      ? `${reactivation.playbook[0].name}${reactivation.playbook[0].currentCpw ? ` (${Math.round(reactivation.playbook[0].currentCpw)}/wear)` : ""}`
       : "n/a";
     const confidenceLead = Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
       ? `${confidence.lowConfidence[0].name} (${confidence.lowConfidence[0].confidenceScore})`
@@ -15154,10 +15173,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const benchTone = bench.length <= 2 ? "good" : bench.length >= 6 ? "bad" : "";
     const fatigueTone = fatigue.count <= 1 ? "good" : fatigue.count >= 4 ? "bad" : "";
     const frictionTone = friction.avgAcceptance >= 24 ? "good" : friction.avgAcceptance < 12 ? "bad" : "";
-    const recoveryTone = valueRecovery.totalRecoveryWears <= 14 ? "good" : valueRecovery.totalRecoveryWears >= 34 ? "bad" : "";
+    const recoveryTone = playbookCount <= 3 && valueRecovery.totalRecoveryWears <= 14 ? "good" : playbookCount >= 7 || valueRecovery.totalRecoveryWears >= 34 ? "bad" : "";
     const confidenceTone = confidence.avgConfidence >= 70 ? "good" : confidence.avgConfidence < 45 ? "bad" : "";
     const adaptiveTone = adaptive.sampleSize >= 5 ? "good" : adaptive.sampleSize <= 1 ? "bad" : "";
-    const playbookTone = playbookCount <= 3 ? "good" : playbookCount >= 7 ? "bad" : "";
     const sellTone = sellSuggestions.length <= 1 ? "good" : sellSuggestions.length >= 3 ? "bad" : "";
     const coverageTone = rotationModel.coverageScore >= 65 ? "good" : rotationModel.coverageScore < 35 ? "bad" : "";
     const adjustedBacklogTone = rotationModel.adjustedBacklogPct <= 18 ? "good" : rotationModel.adjustedBacklogPct >= 34 ? "bad" : "";
@@ -15288,9 +15306,9 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
         </div>
         <div class="insights-score-card">
-          <div class="insights-score-title">Value recovery forecast</div>
-          ${insightValue(`${valueRecovery.totalRecoveryWears} wears to recover`, recoveryTone)}
-          <div class="insights-score-note">Collector cadence: ${valueRecovery.cadencePerDay.toFixed(2)} wears/day</div>
+          <div class="insights-score-title">7-day recovery plan</div>
+          ${insightValue(`${playbookCount} planned wear${playbookCount === 1 ? "" : "s"}`, recoveryTone)}
+          <div class="insights-score-note">Projected recovery load: ${valueRecovery.totalRecoveryWears} wears · cadence ${valueRecovery.cadencePerDay.toFixed(2)}/day</div>
           <div class="insights-score-note">Lead recovery target: ${esc(recoveryLead)}</div>
         </div>
         <div class="insights-score-card">
@@ -15309,12 +15327,6 @@ const openInsightsDialog = (stats, options = {}) => {
           ${insightValue(`${adaptive.sampleSize} type signals`, adaptiveTone)}
           <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
           <div class="insights-score-note">Uses actual queue selection rates to suggest what to amplify or cool down.</div>
-        </div>
-        <div class="insights-score-card">
-          <div class="insights-score-title">7-day reactivation plan</div>
-          ${insightValue(`${playbookCount} planned wears`, playbookTone)}
-          <div class="insights-score-note">Built from comeback, bench pressure, and value-recovery priorities.</div>
-          <div class="insights-score-note">Goal: re-activate dormant value without queue overload.</div>
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Top 5 to sell</div>
@@ -15374,11 +15386,11 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
     ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Value recovery targets</div>
-      <div class="stats-hint">High cost-per-wear items that still look meaningfully under-realized for a collector closet. Recent wears and brand-new additions are intentionally filtered out.</div>
-      ${Array.isArray(valueRecovery.candidates) && valueRecovery.candidates.length
-    ? `<div class="insights-action-list">${valueRecovery.candidates.slice(0, 5).map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${Math.round(item.currentCpw)}/wear -> ${Math.round(item.targetCpw)}/wear · +${item.additionalWears} wears (~${item.etaDays}d)</span></div>`).join("")}</div>`
-    : `<div class="stats-hint">No value recovery backlog right now. Items here appear when cost-per-wear is still far above target.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">7-day recovery plan</div>
+      <div class="stats-hint">Combines the old reactivation and value-recovery lists into one 7-day plan. Each day blends comeback timing, queue pressure, and cost-per-wear recovery so the next wears feel useful instead of repetitive.</div>
+      ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
+    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}${item.currentCpw ? ` · ${Math.round(item.currentCpw)}/wear` : ""}${item.additionalWears ? ` · +${item.additionalWears} wears` : ""}${item.etaDays ? ` (~${item.etaDays}d)` : ""}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No recovery plan generated yet. It appears once comeback, queue pressure, or value-recovery signals have enough weight.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
       <div class="stats-hint">Items with weak repeat confidence based on actual repeat evidence, very long gaps, and explicit queue push-away signals. Collector-normal yearly spacing is treated more gently here.</div>
       ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
@@ -15389,13 +15401,8 @@ const openInsightsDialog = (stats, options = {}) => {
       ${(Array.isArray(adaptive.boosts) && adaptive.boosts.length) || (Array.isArray(adaptive.suppressions) && adaptive.suppressions.length)
     ? `<div class="insights-action-list">${(adaptive.boosts || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Boost ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}${(adaptive.suppressions || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Cool ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Need more queue telemetry for adaptive tuning. Keep using Wear-next and Worn today to train this section.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">7-day reactivation playbook</div>
-      <div class="stats-hint">A one-week sequence built from pressure/recovery signals to restart dormant rotation without dragging protected collector pieces into the plan.</div>
-      ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
-    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}</span></div>`).join("")}</div>`
-    : `<div class="stats-hint">No playbook generated yet. It appears once queue + comeback + pressure signals have enough overlap.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
-      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days.</div>
+      <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days, and the list will immediately backfill with the next eligible candidate.</div>
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
