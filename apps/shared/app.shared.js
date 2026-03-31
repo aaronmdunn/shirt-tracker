@@ -30,7 +30,7 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
-const APP_VERSION = "2.1.2";
+const APP_VERSION = "2.1.3";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -3423,7 +3423,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.1.2",
+    version: "2.1.3",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -11672,7 +11672,7 @@ const openTagMaintenanceDialog = (options = {}) => {
       </div>
       <div class="stats-section">
         <div class="stats-section-title">Possible duplicates</div>
-        <div class="stats-hint">These are conservative suggestions based on casing, punctuation/spacing, and light plural normalization. Review before merging.</div>
+        <div class="stats-hint">These are conservative suggestions based on casing and punctuation/spacing variants. Review before merging.</div>
         <div class="tag-maintenance-list">
           ${snapshot.duplicateGroups.length ? snapshot.duplicateGroups.map((group, index) => `
             <div class="tag-maintenance-item">

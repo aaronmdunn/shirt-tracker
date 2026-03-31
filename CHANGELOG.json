@@ -1,5 +1,16 @@
 [
   {
+    "version": "2.1.3",
+    "date": "2026-03-31",
+    "changes": [
+      "Expanded Wear Next Queue with exact type filtering, an 'Another 10' reshuffle, clearer Not today vs Snooze 30d behavior, richer queue help text, and placement directly under Wrapped for faster recommendation browsing",
+      "Updated collector-facing stats wording and correctness with a 2-wear keeper threshold, whole-word common-name matching, plain-English help copy refreshes, and in-dialog drilldown jump links across Main Stats, Insights, and Advanced Stats",
+      "Merged reactivation/value-recovery coaching into a single 7-day recovery plan, refined recovery wording to avoid repetitive CPW phrasing, and made Top 5 to sell immediately backfill after 30-day dismissals",
+      "Expanded Advanced Stats Type Rules with import/export/reset helpers, built-in vs custom rule transparency, live excluded-type summaries, and full type-rotation balance rows that include zero-wear included types",
+      "Added a new Tag Maintenance workspace in Advanced Stats for closet-wide tag rename/merge/delete actions, conservative duplicate review, batch untagged cleanup, and related dialog polish"
+    ]
+  },
+  {
     "version": "2.1.2",
     "date": "2026-03-30",
     "changes": [
