@@ -2254,50 +2254,108 @@ const loadInventoryEntriesForPreBuy = () => {
   return entries;
 };
 
+const getPreBuyFieldMatchDetails = (desiredValue, actualValue, label) => {
+  const desired = String(desiredValue || "").trim();
+  const actual = String(actualValue || "").trim();
+  const normalizedDesired = normalizeDuplicateCheckText(desired);
+  const normalizedActual = normalizeDuplicateCheckText(actual);
+  if (!normalizedDesired || !normalizedActual) {
+    return { matched: false, exact: false, score: 0, reason: "" };
+  }
+
+  const exactScore = label === "name" ? 45 : label === "brand" ? 30 : 20;
+  const partialScore = label === "name" ? 30 : label === "brand" ? 18 : 16;
+  const strongTokenScore = label === "name" ? 22 : 14;
+  const weakTokenScore = label === "name" ? 12 : 8;
+  const tokenOverlap = sharedTokenCount(normalizedDesired, normalizedActual);
+
+  if (normalizedDesired === normalizedActual) {
+    return {
+      matched: true,
+      exact: true,
+      score: exactScore,
+      reason: `same ${label}`,
+    };
+  }
+
+  if (normalizedDesired.length > 2 && normalizedActual.length > 2 && (normalizedDesired.includes(normalizedActual) || normalizedActual.includes(normalizedDesired))) {
+    return {
+      matched: true,
+      exact: false,
+      score: partialScore,
+      reason: label === "name" ? "very similar name" : `${label} family match`,
+    };
+  }
+
+  if (tokenOverlap >= 2) {
+    return {
+      matched: true,
+      exact: false,
+      score: strongTokenScore,
+      reason: `${tokenOverlap} shared ${label} words`,
+    };
+  }
+
+  if (tokenOverlap === 1) {
+    return {
+      matched: true,
+      exact: false,
+      score: weakTokenScore,
+      reason: `1 shared ${label} word`,
+    };
+  }
+
+  return { matched: false, exact: false, score: 0, reason: "" };
+};
+
 const buildPreBuyDuplicateSnapshot = (details, inventoryEntries) => {
   const cleanName = String(details?.name || "").trim();
   const cleanBrand = String(details?.brand || "").trim();
   const cleanType = String(details?.type || "").trim();
   if (!cleanName && !cleanBrand && !cleanType) return null;
 
-  const wishlistValues = { name: cleanName, brand: cleanBrand, type: cleanType, fandom: "" };
-  const wishlistRow = { tags: [] };
   const normalizedName = normalizeDuplicateCheckText(cleanName);
-  const normalizedBrand = normalizeDuplicateCheckText(cleanBrand);
-  const normalizedType = normalizeDuplicateCheckText(cleanType);
   const source = Array.isArray(inventoryEntries) ? inventoryEntries : [];
+  const filledFieldCount = [cleanName, cleanBrand, cleanType].filter(Boolean).length;
+  const minimumScore = filledFieldCount >= 2 ? 14 : 8;
 
   const matches = source.map((entry) => {
-    const textSignals = buildTextDuplicateSignals(
-      wishlistValues,
-      wishlistRow,
-      { name: entry.name, brand: entry.brand, type: entry.type, fandom: entry.fandom },
-      entry.row,
-      cleanBrand
-    );
-    if (textSignals.score < 20) return null;
+    const nameMatch = getPreBuyFieldMatchDetails(cleanName, entry.name, "name");
+    const brandMatch = getPreBuyFieldMatchDetails(cleanBrand, entry.brand || entry.tabName, "brand");
+    const typeMatch = getPreBuyFieldMatchDetails(cleanType, entry.type, "type");
+    const reasons = [nameMatch.reason, brandMatch.reason, typeMatch.reason].filter(Boolean);
+    let score = nameMatch.score + brandMatch.score + typeMatch.score;
+
+    if (brandMatch.matched && typeMatch.matched) {
+      score += 8;
+      reasons.push("same brand lane");
+    }
+    if (nameMatch.matched && typeMatch.matched) {
+      score += 6;
+    }
+
+    if (score < minimumScore) return null;
     return {
       name: entry.name || "Unnamed",
       brand: entry.brand || entry.tabName || "Unknown",
       type: entry.type || "Unknown",
       wearCount: entry.wearCount || 0,
       createdAt: entry.createdAt || "",
-      score: textSignals.score,
-      reasons: Array.from(new Set(textSignals.reasons)),
+      score,
+      reasons: Array.from(new Set(reasons)),
+      nameMatch,
+      brandMatch,
+      typeMatch,
     };
   }).filter(Boolean).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
-  const sameTypeCount = normalizedType
-    ? source.filter((entry) => normalizeDuplicateCheckText(entry.type) === normalizedType).length
-    : 0;
-  const sameBrandCount = normalizedBrand
-    ? source.filter((entry) => normalizeDuplicateCheckText(entry.brand) === normalizedBrand).length
-    : 0;
-  const sameBrandTypeCount = normalizedBrand && normalizedType
-    ? source.filter((entry) => normalizeDuplicateCheckText(entry.brand) === normalizedBrand && normalizeDuplicateCheckText(entry.type) === normalizedType).length
+  const sameTypeCount = cleanType ? matches.filter((entry) => entry.typeMatch?.matched).length : 0;
+  const sameBrandCount = cleanBrand ? matches.filter((entry) => entry.brandMatch?.matched).length : 0;
+  const sameBrandTypeCount = cleanBrand && cleanType
+    ? matches.filter((entry) => entry.brandMatch?.matched && entry.typeMatch?.matched).length
     : 0;
   const exactNameCount = normalizedName
-    ? source.filter((entry) => normalizeDuplicateCheckText(entry.name) === normalizedName).length
+    ? matches.filter((entry) => entry.nameMatch?.exact).length
     : 0;
   const strongest = matches[0] || null;
   const riskLevel = exactNameCount > 0 || sameBrandTypeCount >= 3 || (strongest && strongest.score >= 55)
