@@ -11641,7 +11641,7 @@ const openTagMaintenanceDialog = (options = {}) => {
   };
   const render = () => {
     const snapshot = collectInventoryTagMaintenanceSnapshot();
-    const topSuggestions = snapshot.usedTags.slice(0, 16).map((item) => item.tag);
+    const topSuggestions = snapshot.usedTags.map((item) => item.tag);
     content.innerHTML = `
       <div class="stats-section">
         <div class="stats-section-title">Overview</div>
