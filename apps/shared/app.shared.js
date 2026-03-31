@@ -11232,7 +11232,7 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
         <label for="collector-type-rules-input">Custom denylist additions</label>
         <textarea id="collector-type-rules-input" placeholder="Examples:&#10;Thermal Pants&#10;contains:beanie"></textarea>
         <div class="stats-hint">Use one rule per line or commas. Matching is case- and punctuation-insensitive. Use <code>contains:</code> for whole families; plain entries are exact-match rules.</div>
-        <div class="dialog-actions" style="justify-content:flex-start; margin-top:8px;">
+        <div class="dialog-actions" style="margin-top:8px;">
           <button type="button" id="collector-type-rules-import" class="btn secondary">Import clipboard</button>
           <button type="button" id="collector-type-rules-export" class="btn secondary">Export custom rules</button>
         </div>
