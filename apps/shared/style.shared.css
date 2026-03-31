@@ -2093,6 +2093,108 @@ input[type="date"].wear-date-input {
 }
 /* /PLATFORM:desktop */
 
+/* PLATFORM:desktop */
+#daily-no-buy-mission {
+  display: none;
+}
+
+#daily-no-buy-mission.is-visible {
+  display: flex;
+  justify-content: center;
+  padding: 14px 20px 10px;
+  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+}
+
+.daily-no-buy-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  width: min(100%, 760px);
+  padding: 14px 16px;
+  border: 1px solid rgba(138, 90, 0, 0.18);
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(58, 35, 16, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(174, 53, 85, 0.12), transparent 38%),
+    linear-gradient(135deg, rgba(244, 234, 193, 0.94), rgba(249, 244, 232, 0.98));
+}
+
+.daily-no-buy-copy {
+  min-width: 0;
+}
+
+.daily-no-buy-kicker {
+  font-family: "Work Sans", "Trebuchet MS", sans-serif;
+  font-size: 0.71rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8a5a00;
+  margin-bottom: 6px;
+}
+
+.daily-no-buy-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.daily-no-buy-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #3a2310;
+}
+
+.daily-no-buy-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(138, 90, 0, 0.12);
+  color: #8a5a00;
+}
+
+.daily-no-buy-status.is-complete {
+  background: rgba(46, 125, 50, 0.14);
+  color: #226228;
+}
+
+.daily-no-buy-body {
+  margin-top: 6px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #4d4036;
+}
+
+.daily-no-buy-note {
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: #7a6b61;
+}
+
+.daily-no-buy-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.daily-no-buy-actions .btn {
+  white-space: nowrap;
+  font-size: 0.68rem;
+  padding: 5px 9px;
+  min-height: 0;
+}
+
+.daily-no-buy-card.is-complete {
+  opacity: 0.92;
+}
+/* /PLATFORM:desktop */
+
 /* PLATFORM:mobile */
 .filter-row {
   display: flex;

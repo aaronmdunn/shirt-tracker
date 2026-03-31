@@ -2013,6 +2013,7 @@ const setAuthStatus = () => {
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
     updateHeaderSubtitle();
+    renderDailyNoBuyMissionCard();
 
     positionTotalCount();
     updateFooterVersionLine();
@@ -2055,6 +2056,7 @@ const setAuthStatus = () => {
        The function is idempotent — safe to call twice if
        applyCloudPayload() also triggers it. */
     renderModeSwitcher();
+    renderDailyNoBuyMissionCard();
   } else {
     document.body.setAttribute("data-auth", "signed-out");
     document.body.setAttribute("data-viewer", "false");
@@ -2081,6 +2083,7 @@ const setAuthStatus = () => {
     if (verifyBackupButton) verifyBackupButton.disabled = true;
     updateUnsavedStatus();
     updateHeaderSubtitle();
+    renderDailyNoBuyMissionCard();
 
     positionTotalCount();
     updatePublicShareLink();
@@ -2225,6 +2228,7 @@ const PRE_BUY_REASON_OPTIONS = [
 const saveNoBuyGamifyStateAndSync = (nextState) => {
   saveNoBuyGamifyState(nextState);
   if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
+  renderDailyNoBuyMissionCard(null, nextState);
 };
 
 const isBlankDataRow = (row) => {
@@ -3893,9 +3897,13 @@ const applyCloudPayload = (payload) => {
       const localNoBuy = JSON.parse(localStorage.getItem(NO_BUY_GAMIFY_KEY) || "{}");
       const mergedNoBuy = mergeNoBuyGamifyState(localNoBuy, payload.noBuyGamify);
       localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(mergedNoBuy));
+      renderDailyNoBuyMissionCard();
     } catch (error) {
       // fallback: cloud snapshot wins if merge fails
-      try { localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(payload.noBuyGamify)); } catch (e) { /* ignore */ }
+      try {
+        localStorage.setItem(NO_BUY_GAMIFY_KEY, JSON.stringify(payload.noBuyGamify));
+        renderDailyNoBuyMissionCard();
+      } catch (e) { /* ignore */ }
     }
   }
   if (payload.insightsQueueActivity && typeof payload.insightsQueueActivity === "object" && !Array.isArray(payload.insightsQueueActivity)) {
@@ -8024,6 +8032,7 @@ const renderTable = () => {
   sortRows();
   renderRows();
   renderFooter();
+  renderDailyNoBuyMissionCard();
 };
 
 const escapeCsv = (value) => {
@@ -13042,6 +13051,12 @@ const defaultNoBuyGamifyState = () => ({
   actionLog: [],
   snapshots: [],
   dailyCheckins: [],
+  dailyMission: {
+    dateKey: "",
+    type: "",
+    completedAt: "",
+    completedBy: "",
+  },
 });
 
 const computeNoBuyLevel = (xp) => {
@@ -13126,6 +13141,19 @@ const normalizeNoBuyGamifyState = (value) => {
             trigger: String(entry?.trigger || ""),
           }))
       : [],
+    dailyMission: raw.dailyMission && typeof raw.dailyMission === "object" && !Array.isArray(raw.dailyMission)
+      ? {
+          dateKey: String(raw.dailyMission.dateKey || ""),
+          type: String(raw.dailyMission.type || ""),
+          completedAt: String(raw.dailyMission.completedAt || ""),
+          completedBy: String(raw.dailyMission.completedBy || ""),
+        }
+      : {
+          dateKey: "",
+          type: "",
+          completedAt: "",
+          completedBy: "",
+        },
   };
   out.level = computeNoBuyLevel(out.xp);
   if (!out.updatedAt) {
@@ -13316,6 +13344,209 @@ const getNoBuyNextMilestone = (streak) => {
   const safeStreak = Math.max(0, Number(streak || 0));
   const next = getNoBuyMilestones().find((day) => day > safeStreak);
   return next || null;
+};
+
+const getDailyNoBuyMissionContainer = (createIfMissing = false) => {
+  if (PLATFORM !== "desktop") return null;
+  let container = document.getElementById("daily-no-buy-mission");
+  if (container || !createIfMissing) return container;
+  const sheetHeader = document.querySelector(".sheet > .sheet-header");
+  if (!sheetHeader || !sheetHeader.parentNode) return null;
+  container = document.createElement("div");
+  container.id = "daily-no-buy-mission";
+  sheetHeader.insertAdjacentElement("afterend", container);
+  return container;
+};
+
+const chooseNoBuyDailyMissionType = (state, stats) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const topTrigger = getNoBuyTriggerSummary(safe, 14)[0] || null;
+  const pressure = getNoBuyPressureSummary(safe, 14);
+  const pressureCount = Number(pressure.impulse.count || 0) + Number(pressure.planned.count || 0);
+  const cooldownActive = isNoBuyCooldownActive(safe);
+  const recovery = safe.activeRecovery;
+  const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryRemaining = recoveryActive
+    ? Math.max(0, Number(recovery.target || 0) - Number(recovery.progress || 0))
+    : 0;
+  const todayKey = localDateKeyFromDate(new Date());
+  const todayCheckin = Array.isArray(safe.dailyCheckins)
+    ? safe.dailyCheckins.find((entry) => String(entry?.dateKey || "") === todayKey)
+    : null;
+  if (recoveryActive && recoveryRemaining > 0) return "review-recovery";
+  if (todayCheckin?.tempted && !cooldownActive) return "start-cooldown";
+  if (topTrigger || pressureCount >= 2 || Number(stats?.noBuyCurrentDays || 0) < 3) return "open-prebuy";
+  return "log-clear-day";
+};
+
+const ensureTodayNoBuyDailyMission = (state, stats) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const todayKey = localDateKeyFromDate(new Date());
+  if (safe.dailyMission?.dateKey === todayKey && safe.dailyMission?.type) {
+    return { state: safe, changed: false };
+  }
+  safe.dailyMission = {
+    dateKey: todayKey,
+    type: chooseNoBuyDailyMissionType(safe, stats),
+    completedAt: "",
+    completedBy: "",
+  };
+  return { state: markNoBuyStateUpdated(safe), changed: true };
+};
+
+const completeNoBuyDailyMission = (state, missionType, completedBy = "") => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const todayKey = localDateKeyFromDate(new Date());
+  if (safe.dailyMission?.dateKey !== todayKey) return { state: safe, changed: false };
+  if (safe.dailyMission?.type !== missionType) return { state: safe, changed: false };
+  if (safe.dailyMission?.completedAt) return { state: safe, changed: false };
+  safe.dailyMission.completedAt = new Date().toISOString();
+  safe.dailyMission.completedBy = String(completedBy || missionType);
+  return { state: markNoBuyStateUpdated(safe), changed: true };
+};
+
+const syncNoBuyDailyMissionCompletion = (state) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const todayKey = localDateKeyFromDate(new Date());
+  const mission = safe.dailyMission;
+  if (!mission?.type || mission.dateKey !== todayKey || mission.completedAt) {
+    return { state: safe, changed: false };
+  }
+  if (mission.type === "log-clear-day") {
+    const todayCheckin = Array.isArray(safe.dailyCheckins)
+      ? safe.dailyCheckins.find((entry) => String(entry?.dateKey || "") === todayKey)
+      : null;
+    if (todayCheckin && !todayCheckin.tempted) {
+      return completeNoBuyDailyMission(safe, mission.type, "clear-day");
+    }
+  }
+  if (mission.type === "start-cooldown" && isNoBuyCooldownActive(safe)) {
+    return completeNoBuyDailyMission(safe, mission.type, "cooldown");
+  }
+  return { state: safe, changed: false };
+};
+
+const buildNoBuyDailyMission = (state, stats) => {
+  const safe = normalizeNoBuyGamifyState(state || {});
+  const mission = safe.dailyMission;
+  if (!mission?.type) return null;
+  const currentStreak = Math.max(0, Number(stats?.noBuyCurrentDays || safe.currentStreak || 0));
+  const topTrigger = getNoBuyTriggerSummary(safe, 14)[0] || null;
+  const recovery = safe.activeRecovery;
+  const recoveryRemaining = recovery && !recovery.completedAt
+    ? Math.max(0, Number(recovery.target || 0) - Number(recovery.progress || 0))
+    : 0;
+  if (mission.type === "review-recovery") {
+    return {
+      type: mission.type,
+      title: "Protect the bounce-back plan",
+      body: recoveryRemaining > 0
+        ? `${recoveryRemaining} recovery wear${recoveryRemaining === 1 ? " is" : "s are"} still needed before a new browse spiral earns a vote.`
+        : "Open the recovery plan before you let a new want into the room.",
+      button: "Open recovery plan",
+      note: `Current streak: ${currentStreak} day${currentStreak === 1 ? "" : "s"}`,
+    };
+  }
+  if (mission.type === "start-cooldown") {
+    return {
+      type: mission.type,
+      title: "Put a buffer in front of the urge",
+      body: "You already logged buying pressure today. Start a 24-hour cooldown before the tab army starts recruiting your wallet.",
+      button: "Start 24h cooldown",
+      note: `Current streak: ${currentStreak} day${currentStreak === 1 ? "" : "s"}`,
+    };
+  }
+  if (mission.type === "open-prebuy") {
+    return {
+      type: mission.type,
+      title: "Use the gate before the marketplace",
+      body: topTrigger
+        ? `${noBuyReasonLabel(topTrigger.label)} has been your loudest recent trigger. Run Pre-Buy Check before you browse anything else.`
+        : "Open the Pre-Buy Check first so the app gets first swing at your impulse instead of the algorithm.",
+      button: "Open Pre-Buy Check",
+      note: `Current streak: ${currentStreak} day${currentStreak === 1 ? "" : "s"}`,
+    };
+  }
+  return {
+    type: "log-clear-day",
+    title: "Bank a clean start",
+    body: "Mark today as a no-temptation day before shopping apps get a chance to write the plot for you.",
+    button: "Log clean day",
+    note: `Current streak: ${currentStreak} day${currentStreak === 1 ? "" : "s"}`,
+  };
+};
+
+const renderDailyNoBuyMissionCard = (sourceStats = null, sourceMissionState = null) => {
+  if (PLATFORM !== "desktop") return;
+  const dailyNoBuyMission = getDailyNoBuyMissionContainer(Boolean(currentUser && !isViewerSession && !state.readOnly));
+  if (!currentUser || isViewerSession || state.readOnly || document.body.getAttribute("data-auth") !== "signed-in") {
+    if (dailyNoBuyMission) dailyNoBuyMission.remove();
+    return;
+  }
+  if (!dailyNoBuyMission) return;
+  const stats = sourceStats || collectAllStats();
+  let missionState = normalizeNoBuyGamifyState(sourceMissionState || loadNoBuyGamifyState());
+  const ensured = ensureTodayNoBuyDailyMission(missionState, stats);
+  missionState = ensured.state;
+  const synced = syncNoBuyDailyMissionCompletion(missionState);
+  missionState = synced.state;
+  if (ensured.changed || synced.changed) {
+    saveNoBuyGamifyState(missionState);
+  }
+  const mission = buildNoBuyDailyMission(missionState, stats);
+  if (!mission) {
+    dailyNoBuyMission.classList.remove("is-visible");
+    dailyNoBuyMission.innerHTML = "";
+    return;
+  }
+  const isDone = Boolean(missionState.dailyMission?.completedAt);
+  const esc = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  dailyNoBuyMission.classList.add("is-visible");
+  dailyNoBuyMission.innerHTML = `
+    <div class="daily-no-buy-card${isDone ? " is-complete" : ""}">
+      <div class="daily-no-buy-copy">
+        <div class="daily-no-buy-kicker">Daily No-Buy Mission</div>
+        <div class="daily-no-buy-title-row">
+          <div class="daily-no-buy-title">${esc(mission.title)}</div>
+          <span class="daily-no-buy-status${isDone ? " is-complete" : ""}">${isDone ? "Done today" : "Today"}</span>
+        </div>
+        <div class="daily-no-buy-body">${esc(mission.body)}</div>
+        <div class="daily-no-buy-note">${esc(mission.note)}</div>
+      </div>
+      <div class="daily-no-buy-actions">
+        <button type="button" class="btn secondary" id="daily-no-buy-action" ${isDone ? "disabled" : ""}>${esc(isDone ? "Mission complete" : mission.button)}</button>
+      </div>
+    </div>
+  `;
+  const actionButton = dailyNoBuyMission.querySelector("#daily-no-buy-action");
+  if (!actionButton || isDone) return;
+  actionButton.addEventListener("click", () => {
+    if (mission.type === "review-recovery") {
+      const completed = completeNoBuyDailyMission(loadNoBuyGamifyState(), mission.type, "open-recovery-plan");
+      if (completed.changed) saveNoBuyGamifyStateAndSync(completed.state);
+      openNoBuyGameDialog(collectAllStats());
+      return;
+    }
+    if (mission.type === "start-cooldown") {
+      const next = startNoBuyCooldown(loadNoBuyGamifyState(), 24);
+      saveNoBuyGamifyStateAndSync(next);
+      renderDailyNoBuyMissionCard(collectAllStats(), next);
+      return;
+    }
+    if (mission.type === "open-prebuy") {
+      const completed = completeNoBuyDailyMission(loadNoBuyGamifyState(), mission.type, "open-prebuy");
+      if (completed.changed) saveNoBuyGamifyStateAndSync(completed.state);
+      openPreBuyCheckDialog(collectAllStats());
+      return;
+    }
+    const next = recordNoBuyCheckin(loadNoBuyGamifyState(), false, "");
+    saveNoBuyGamifyStateAndSync(next);
+    renderDailyNoBuyMissionCard(collectAllStats(), next);
+  });
 };
 
 const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
@@ -14085,6 +14316,8 @@ const openAdvancedStatsHelpDialog = () => openHelpDialog("Advanced Stats Help", 
 const openNoBuyHelpDialog = () => openHelpDialog("No-Buy Game Help", buildNoBuyHelpHtml());
 
 const openPreBuyCheckDialog = (sourceStats = null) => {
+  const completedMission = completeNoBuyDailyMission(loadNoBuyGamifyState(), "open-prebuy", "open-prebuy");
+  if (completedMission.changed) saveNoBuyGamifyStateAndSync(completedMission.state);
   let dialog = document.getElementById("pre-buy-check-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
@@ -17305,6 +17538,8 @@ const openInsightsDialog = (stats, options = {}) => {
 };
 
 const openNoBuyGameDialog = (stats) => {
+  const completedMission = completeNoBuyDailyMission(loadNoBuyGamifyState(), "review-recovery", "open-recovery-plan");
+  if (completedMission.changed) saveNoBuyGamifyStateAndSync(completedMission.state);
   let dialog = document.getElementById("no-buy-game-dialog");
   if (!dialog) {
     dialog = document.createElement("dialog");
