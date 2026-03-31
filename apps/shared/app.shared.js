@@ -2206,22 +2206,235 @@ const setRowCellValueByLabel = (row, columns, label, value) => {
   return true;
 };
 
-const addWishlistDraftFromPreBuy = (name, reason) => {
+const loadInventoryEntriesForPreBuy = () => {
+  const entries = [];
+  let inventoryTabs = [];
+  try {
+    const storedTabs = localStorage.getItem(TAB_STORAGE_KEY);
+    const parsedTabs = storedTabs ? JSON.parse(storedTabs) : null;
+    inventoryTabs = parsedTabs && Array.isArray(parsedTabs.tabs) ? parsedTabs.tabs : [];
+  } catch (error) {
+    inventoryTabs = [];
+  }
+
+  inventoryTabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let parsedState = null;
+    if (appMode === "inventory" && tabsState.activeTabId === tab.id) {
+      parsedState = serializeState();
+    } else {
+      try {
+        const storedState = localStorage.getItem(`${STORAGE_KEY}:${tab.id}`);
+        parsedState = storedState ? JSON.parse(storedState) : null;
+      } catch (error) {
+        parsedState = null;
+      }
+    }
+    if (!parsedState || !Array.isArray(parsedState.rows) || !Array.isArray(parsedState.columns)) return;
+    parsedState.rows.forEach((row) => {
+      if (!row || isBlankDataRow(row)) return;
+      const values = getRowValuesByLabel(row, parsedState.columns);
+      entries.push({
+        row,
+        columns: parsedState.columns,
+        tabId: String(tab.id || ""),
+        tabName: String(tab.name || ""),
+        values,
+        name: String(values.name || "").trim() || "Unnamed",
+        brand: String(values.brand || tab.name || "").trim(),
+        type: String(values.type || "").trim(),
+        fandom: String(values.fandom || "").trim(),
+        createdAt: String(row.createdAt || ""),
+        wearCount: Math.max(0, Number(row.wearCount || 0)),
+        lastWorn: String(row.lastWorn || ""),
+      });
+    });
+  });
+
+  return entries;
+};
+
+const getPreBuyFieldMatchDetails = (desiredValue, actualValue, label) => {
+  const desired = String(desiredValue || "").trim();
+  const actual = String(actualValue || "").trim();
+  const normalizedDesired = normalizeDuplicateCheckText(desired);
+  const normalizedActual = normalizeDuplicateCheckText(actual);
+  if (!normalizedDesired || !normalizedActual) {
+    return { matched: false, exact: false, score: 0, reason: "" };
+  }
+
+  const exactScore = label === "name" ? 45 : label === "brand" ? 30 : 20;
+  const partialScore = label === "name" ? 30 : label === "brand" ? 18 : 16;
+  const strongTokenScore = label === "name" ? 22 : 14;
+  const weakTokenScore = label === "name" ? 12 : 8;
+  const tokenOverlap = sharedTokenCount(normalizedDesired, normalizedActual);
+
+  if (normalizedDesired === normalizedActual) {
+    return {
+      matched: true,
+      exact: true,
+      score: exactScore,
+      reason: `same ${label}`,
+    };
+  }
+
+  if (normalizedDesired.length > 2 && normalizedActual.length > 2 && (normalizedDesired.includes(normalizedActual) || normalizedActual.includes(normalizedDesired))) {
+    return {
+      matched: true,
+      exact: false,
+      score: partialScore,
+      reason: label === "name" ? "very similar name" : `${label} family match`,
+    };
+  }
+
+  if (tokenOverlap >= 2) {
+    return {
+      matched: true,
+      exact: false,
+      score: strongTokenScore,
+      reason: `${tokenOverlap} shared ${label} words`,
+    };
+  }
+
+  if (tokenOverlap === 1) {
+    return {
+      matched: true,
+      exact: false,
+      score: weakTokenScore,
+      reason: `1 shared ${label} word`,
+    };
+  }
+
+  return { matched: false, exact: false, score: 0, reason: "" };
+};
+
+const buildPreBuyDuplicateSnapshot = (details, inventoryEntries) => {
+  const cleanName = String(details?.name || "").trim();
+  const cleanBrand = String(details?.brand || "").trim();
+  const cleanType = String(details?.type || "").trim();
+  if (!cleanName && !cleanBrand && !cleanType) return null;
+
+  const normalizedName = normalizeDuplicateCheckText(cleanName);
+  const source = Array.isArray(inventoryEntries) ? inventoryEntries : [];
+  const filledFieldCount = [cleanName, cleanBrand, cleanType].filter(Boolean).length;
+  const minimumScore = filledFieldCount >= 2 ? 14 : 8;
+
+  const matches = source.map((entry) => {
+    const nameMatch = getPreBuyFieldMatchDetails(cleanName, entry.name, "name");
+    const brandMatch = getPreBuyFieldMatchDetails(cleanBrand, entry.brand || entry.tabName, "brand");
+    const typeMatch = getPreBuyFieldMatchDetails(cleanType, entry.type, "type");
+    const reasons = [nameMatch.reason, brandMatch.reason, typeMatch.reason].filter(Boolean);
+    let score = nameMatch.score + brandMatch.score + typeMatch.score;
+
+    if (brandMatch.matched && typeMatch.matched) {
+      score += 8;
+      reasons.push("same brand lane");
+    }
+    if (nameMatch.matched && typeMatch.matched) {
+      score += 6;
+    }
+
+    if (score < minimumScore) return null;
+    return {
+      name: entry.name || "Unnamed",
+      brand: entry.brand || entry.tabName || "Unknown",
+      type: entry.type || "Unknown",
+      wearCount: entry.wearCount || 0,
+      createdAt: entry.createdAt || "",
+      score,
+      reasons: Array.from(new Set(reasons)),
+      nameMatch,
+      brandMatch,
+      typeMatch,
+    };
+  }).filter(Boolean).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const sameTypeCount = cleanType ? matches.filter((entry) => entry.typeMatch?.matched).length : 0;
+  const sameBrandCount = cleanBrand ? matches.filter((entry) => entry.brandMatch?.matched).length : 0;
+  const sameBrandTypeCount = cleanBrand && cleanType
+    ? matches.filter((entry) => entry.brandMatch?.matched && entry.typeMatch?.matched).length
+    : 0;
+  const exactNameCount = normalizedName
+    ? matches.filter((entry) => entry.nameMatch?.exact).length
+    : 0;
+  const strongest = matches[0] || null;
+  const riskLevel = exactNameCount > 0 || sameBrandTypeCount >= 3 || (strongest && strongest.score >= 55)
+    ? "High"
+    : sameBrandTypeCount >= 2 || sameTypeCount >= 4 || matches.length >= 2
+      ? "Medium"
+      : matches.length
+        ? "Watch"
+        : "Clearer";
+  const note = exactNameCount > 0
+    ? `You already own ${exactNameCount} item${exactNameCount === 1 ? "" : "s"} with this exact name.`
+    : sameBrandTypeCount >= 2
+      ? `You already own ${sameBrandTypeCount} ${cleanBrand || ""} ${cleanType || ""}`.replace(/\s+/g, " ").trim() + "."
+      : sameTypeCount >= 4
+        ? `${sameTypeCount} shirts already live in this type lane.`
+        : strongest
+          ? `${strongest.name} is the closest current match.`
+          : "This looks like a clearer lane than your usual duplicates.";
+
+  return {
+    riskLevel,
+    note,
+    exactNameCount,
+    sameTypeCount,
+    sameBrandCount,
+    sameBrandTypeCount,
+    similarCount: matches.length,
+    topMatches: matches.slice(0, 3),
+  };
+};
+
+const buildRecoveryMissionGuide = (inventoryEntries) => {
+  const eligible = (Array.isArray(inventoryEntries) ? inventoryEntries : []).filter((entry) => Number.isFinite(new Date(String(entry.createdAt || "")).getTime()));
+  const unwornCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 0).length;
+  const lowWearCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 1).length;
+  const suggested = eligible
+    .slice()
+    .sort((a, b) => (Number(a.wearCount || 0) - Number(b.wearCount || 0)) || (new Date(String(b.createdAt || 0)).getTime() - new Date(String(a.createdAt || 0)).getTime()) || String(a.name || "").localeCompare(String(b.name || "")))
+    .slice(0, 3)
+    .map((entry) => ({
+      name: entry.name || "Unnamed",
+      brand: entry.brand || entry.tabName || "Unknown",
+      type: entry.type || "Unknown",
+      wearCount: Number(entry.wearCount || 0),
+      createdAt: String(entry.createdAt || ""),
+    }));
+  return {
+    eligibleCount: eligible.length,
+    unwornCount,
+    lowWearCount,
+    suggested,
+  };
+};
+
+const addWishlistDraftFromPreBuy = ({ name, reason, brand, type }) => {
   if (appMode !== "wishlist") switchAppMode("wishlist");
   ensureRowCells();
   const row = (state.rows.length === 1 && isBlankDataRow(state.rows[0])) ? state.rows[0] : defaultRow();
   if (!state.rows.includes(row)) state.rows.push(row);
 
   const cleanName = String(name || "").trim();
+  const cleanBrand = String(brand || "").trim();
+  const cleanType = String(type || "").trim();
   const todayLabel = new Date().toLocaleDateString();
+  const holdUntil = new Date(Date.now() + (72 * 3600000)).toLocaleDateString();
   const reasonLabel = noBuyReasonLabel(reason || "other");
   const notesColumn = state.columns.find((col) => getColumnLabel(col).trim().toLowerCase() === "notes");
   const existingNotes = notesColumn ? String(row.cells[notesColumn.id] || "").trim() : "";
+  const holdLine = `Pre-Buy hold until ${holdUntil} (${reasonLabel}) - parked ${todayLabel}`;
 
   if (cleanName) setRowCellValueByLabel(row, state.columns, "name", cleanName);
+  if (cleanBrand) setRowCellValueByLabel(row, state.columns, "brand", cleanBrand);
+  if (cleanType) setRowCellValueByLabel(row, state.columns, "type", cleanType);
   if (!existingNotes) {
-    setRowCellValueByLabel(row, state.columns, "notes", `Pre-Buy hold (${reasonLabel}) - ${todayLabel}`);
+    setRowCellValueByLabel(row, state.columns, "notes", holdLine);
+  } else if (!existingNotes.includes(holdLine)) {
+    setRowCellValueByLabel(row, state.columns, "notes", `${existingNotes}\n${holdLine}`);
   }
+  row.tags = mergeTags(getRowTags(row), ["Held"]);
 
   updateShirtUpdateDate();
   saveState();
@@ -13704,57 +13917,80 @@ const buildNoBuyHelpHtml = () => {
   let html = "";
   html += buildHelpSection(
     "What the No-Buy Game is",
-    "This is a coaching layer for purchase restraint. The fast front door is the Pre-Buy Check, while the full game tracks streak protection, temptation logging, cooldowns, and recovery habits.",
+    "This is a coaching layer for purchase restraint. The fast front door is the Pre-Buy Check, while the full game is the deeper dashboard for streaks, pressure trends, cooldowns, and recovery after a buy.",
     [
       { label: "Important rule", value: "Buys are manual-only. The app does not auto-log a buy just because a streak changes." },
-      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, and completing recovery after a buy." },
+      { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, using delay before buying, and completing recovery after a buy." },
+      { label: "Two layers", value: "Pre-Buy Check is the in-the-moment interruption flow. Full No-Buy Game is the detailed coaching and history layer." },
     ]
   );
   html += buildHelpSection(
-    "Buttons and actions",
-    "These are the controls you can press inside the game window.",
+    "Pre-Buy Check",
+    "These are the faster, before-you-buy features that feed into the full game.",
     [
-      { label: "Pre-Buy Check", value: "A faster intercept flow for moments when you are about to shop. It asks for the trigger first, then pushes hold, wishlist, or reroute actions before a buy." },
+      { label: "Trigger buttons", value: "These label the pressure lane first, like Sale, FOMO, Boredom, Rare find, or New drop. The coaching copy changes based on which lane you pick." },
+      { label: "Item fields", value: "Name, Brand, and Type are optional helper inputs. Filling them in gives the duplicate read more context so it can find closer inventory matches." },
+      { label: "Duplicate friction", value: "This is a live fuzzy text read against your inventory using name, brand, and type. It shows a risk level, how many similar rows already exist, and the closest current matches." },
+      { label: "Closet friction", value: "This card summarizes pressure from your current closet, such as unworn backlog or wishlist buy-gate performance, so the cost of buying feels immediate instead of abstract." },
+      { label: "Recovery window live", value: "If a recovery mission is active, the strip under the cards reminds you that added shirts can count toward recovery and shows whether unworn added shirts are still available." },
+      { label: "Hold 72h", value: "Starts or extends a 72-hour cooldown and logs a successful anti-buy check-in." },
+      { label: "Park in Wishlist", value: "Moves the idea into Wishlist instead of your cart. It carries over the typed name, brand, and type when available, adds a Held tag, and writes a hold note into Notes." },
+      { label: "Wear Similar First", value: "Starts a shorter cooldown and bounces you back to Inventory so you can wear something close before you decide to buy." },
+      { label: "Buy anyway", value: "Logs the buy inside the no-buy game, resets the streak, and starts a recovery mission." },
+      { label: "Open Full No-Buy Game", value: "Jumps from the fast intercept flow into the deeper dashboard with trends, history, and recovery details." },
+    ]
+  );
+  html += buildHelpSection(
+    "Full Game Cards",
+    "These cards and sections explain the current buying-pressure picture in the full game dialog.",
+    [
+      { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
+      { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days and completing recovery." },
+      { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
+      { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
+      { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
+      { label: "Recovery mission", value: "A post-buy challenge with a 3-wear target and a 7-day deadline. The note also reflects whether added shirts are still unworn and available to help finish the mission." },
+      { label: "Clean badge", value: "A quick monthly and weekly cleanliness read. It blends this month’s buy count with last week’s temptation count." },
+      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into its larger pressure family." },
+      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now based on streak, pressure mix, cooldown, and recovery state." },
+      { label: "Recovery shortcuts", value: "When recovery is active, this section highlights how many added shirts are eligible to count and suggests low-wear added shirts to reach for first." },
+      { label: "Recent button log", value: "The latest 10 logged no-buy actions, including cooldowns, temptations, and buys." },
+      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
+      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
+      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and the current recovery state." },
+    ]
+  );
+  html += buildHelpSection(
+    "Full Game Actions",
+    "These are the controls you can press inside the full game dialog.",
+    [
       { label: "Start 24h cooldown", value: "Begins a one-day pause buffer before buying and logs a cooldown action." },
       { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one streak shield if you have one banked, and starts a recovery mission." },
       { label: "Tempted today", value: "Logs that you felt pressure to buy today and stores the trigger you selected." },
       { label: "No temptation today", value: "Marks the day as clear and removes that day’s temptation pressure." },
+      { label: "Temptation trigger", value: "This select controls which trigger gets stored when you press Tempted today." },
+      { label: "Buying reason", value: "This select controls which reason gets stored when you press Log buy now." },
       { label: "Export log JSON", value: "Downloads the full no-buy state for backup or personal analysis." },
       { label: "Open full history", value: "Shows the full in-app action history, newest first." },
-      { label: "Delete", value: "Removes an individual logged action from the recent list." },
+      { label: "Delete", value: "Removes an individual logged action from the recent list. This is for cleanup when you logged the wrong button action, not for editing closet wear history." },
+      { label: "Help", value: "Opens this explanation dialog." },
     ]
   );
   html += buildHelpSection(
     "Stat cards and sections",
-    "These numbers explain the current buying-pressure picture.",
+    "These are the older, core ideas the game still runs on behind all the newer UI.",
     [
-      { label: "Risk right now", value: "A short summary of the biggest current buying pressures." },
-      { label: "Current streak", value: "Your active run of no-buy days, plus the longest streak reached so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days." },
-      { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
-      { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
-      { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
-      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline, and only wears from shirts that were actually added in the app will count." },
-      { label: "Clean badge", value: "A quick read on whether the current month is buy-clean and whether the last week is temptation-clean." },
-      { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into a larger pressure family." },
-      { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now." },
-      { label: "Recent button log", value: "The latest 10 logged actions, including cooldowns, temptations, and buys." },
-      { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
-      { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
-      { label: "Status summary", value: "Quick reference for top trend, buys logged, streak killer, last buy reason, completed recoveries, and current recovery state." },
-    ]
-  );
-  html += buildHelpSection(
-    "Rules and definitions",
-    "These are the actual rules the current game logic follows.",
-    [
-      { label: "Daily XP", value: "When the app syncs a valid no-buy day, it grants XP once per day, with bonus XP at bigger streak bands." },
-      { label: "No-buy day banking", value: "Every successful no-buy day adds to lifetime banked no-buy days." },
+      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands." },
+      { label: "No-buy day banking", value: "Every successful no-buy day adds to your lifetime banked no-buy-day total." },
       { label: "Streak shields rule", value: "Every 10 banked no-buy days grants 1 streak shield." },
-      { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
-      { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
-      { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
-      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing. Shirts need an in-app add date (`createdAt`) to count toward recovery." },
+      { label: "Cooldown behavior", value: "Cooldown is a time buffer, not a lockout. Starting a longer cooldown can extend a shorter one that is already active." },
+      { label: "Buy logging rule", value: "Only the buy buttons inside the no-buy flow create a buy event inside the game." },
+      { label: "Temptation logging rule", value: "Temptation pressure only updates when you use Tempted today or the Pre-Buy Check flow." },
+      { label: "Impulse pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
+      { label: "Planned pressure", value: "Pressure driven by more deliberate shopping logic, like sale, good deal, rare find, marketed, or promo." },
+      { label: "Wear logging and recovery", value: "Both Worn today and row-level Log Wear feed the same recovery logic now, so either wear path can advance an active recovery mission." },
+      { label: "Recovery eligibility", value: "Recovery only counts wears from shirts that have an in-app add date (`createdAt`). Older rows without tracked add dates do not count." },
     ]
   );
   return html;
@@ -13791,6 +14027,11 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
   const content = dialog.querySelector("#pre-buy-check-content");
   if (!content) return;
   let selectedReason = "";
+  let candidateName = "";
+  let candidateBrand = "";
+  let candidateType = "";
+  const inventoryEntries = loadInventoryEntriesForPreBuy();
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
 
   const render = () => {
     const stats = sourceStats || collectAllStats();
@@ -13850,6 +14091,7 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;");
+    const recoveryActive = gamify.activeRecovery && !gamify.activeRecovery.completedAt;
 
     content.innerHTML = `
       <div class="stats-hint pre-buy-check-intro">Fast lane before checkout: name the urge, see the cost, and pick a slower move on purpose.</div>
@@ -13862,6 +14104,23 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
           aria-pressed="${selectedReason === option.value ? "true" : "false"}"
         >${esc(option.label)}</button>`).join("")}</div>
       <div class="stats-hint pre-buy-check-reason-read">${esc(reasonRead)}</div>
+
+      <div class="stats-section-title" style="margin-top:10px">What are you looking at?</div>
+      <div class="pre-buy-input-grid">
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Item name</span>
+          <input type="text" id="prebuy-item-name" class="pre-buy-input" placeholder="Optional, but useful" value="${esc(candidateName)}">
+        </label>
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Brand</span>
+          <input type="text" id="prebuy-item-brand" class="pre-buy-input" placeholder="Brand or tab" value="${esc(candidateBrand)}">
+        </label>
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Type</span>
+          <input type="text" id="prebuy-item-type" class="pre-buy-input" placeholder="Camp shirt, polo, flannel" value="${esc(candidateType)}">
+        </label>
+      </div>
+      <div id="prebuy-duplicate-read"></div>
 
       <div class="insights-score-grid" style="margin-top:10px">
         <div class="insights-score-card">
@@ -13896,6 +14155,8 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         </div>
       </div>
 
+      ${recoveryActive ? `<div class="pre-buy-recovery-strip">Recovery window live: any shirt with an in-app add date counts. ${recoveryGuide.unwornCount > 0 ? `${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? " is" : "s are"} still unworn.` : `You have ${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} available to count.`}</div>` : ""}
+
       <div class="stats-section-title" style="margin-top:10px">Best move today</div>
       <div class="stats-hint pre-buy-check-best-move">${esc(bestMove)}</div>
 
@@ -13916,6 +14177,39 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
       });
     });
 
+    const duplicateRead = content.querySelector("#prebuy-duplicate-read");
+    const itemNameInput = content.querySelector("#prebuy-item-name");
+    const itemBrandInput = content.querySelector("#prebuy-item-brand");
+    const itemTypeInput = content.querySelector("#prebuy-item-type");
+    const updateDuplicateRead = () => {
+      candidateName = String(itemNameInput?.value || "").trim();
+      candidateBrand = String(itemBrandInput?.value || "").trim();
+      candidateType = String(itemTypeInput?.value || "").trim();
+      if (!duplicateRead) return;
+      const duplicateSnapshot = buildPreBuyDuplicateSnapshot({ name: candidateName, brand: candidateBrand, type: candidateType }, inventoryEntries);
+      duplicateRead.innerHTML = duplicateSnapshot
+        ? `
+          <div class="pre-buy-duplicate-card risk-${String(duplicateSnapshot.riskLevel || "clear").toLowerCase()}">
+            <div class="pre-buy-duplicate-head">
+              <span class="pre-buy-duplicate-title">Duplicate friction</span>
+              <span class="pre-buy-duplicate-badge">${esc(duplicateSnapshot.riskLevel)}</span>
+            </div>
+            <div class="pre-buy-duplicate-note">${esc(duplicateSnapshot.note)}</div>
+            <div class="pre-buy-duplicate-meta">
+              <span>${duplicateSnapshot.sameTypeCount} same type</span>
+              <span>${duplicateSnapshot.sameBrandCount} same brand</span>
+              <span>${duplicateSnapshot.similarCount} close match${duplicateSnapshot.similarCount === 1 ? "" : "es"}</span>
+            </div>
+            ${duplicateSnapshot.topMatches.length ? `<div class="insights-action-list pre-buy-duplicate-list">${duplicateSnapshot.topMatches.map((match, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${match.name} (${match.brand}) - ${match.type}`)}</span><span class="stats-value">${match.wearCount} wear${match.wearCount === 1 ? "" : "s"} · ${esc(match.reasons.join(" · "))}</span></div>`).join("")}</div>` : ""}
+          </div>`
+        : `<div class="pre-buy-duplicate-card is-empty"><div class="pre-buy-duplicate-note">Add a name, brand, or type for a sharper duplicate read before you buy or park it.</div></div>`;
+    };
+    [itemNameInput, itemBrandInput, itemTypeInput].forEach((input) => {
+      if (!input) return;
+      input.addEventListener("input", updateDuplicateRead);
+    });
+    updateDuplicateRead();
+
     const holdButton = content.querySelector("#prebuy-hold");
     if (holdButton) {
       holdButton.addEventListener("click", () => {
@@ -13935,9 +14229,17 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         saveNoBuyGamifyStateAndSync(next);
         closeDialog(dialog);
         if (appMode !== "wishlist") switchAppMode("wishlist");
-        const itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
-        if (itemName !== null) {
-          addWishlistDraftFromPreBuy(itemName, selectedReason);
+        let itemName = String(candidateName || "").trim();
+        if (!itemName) {
+          itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
+        }
+        if (itemName !== null && String(itemName).trim()) {
+          addWishlistDraftFromPreBuy({
+            name: itemName,
+            reason: selectedReason,
+            brand: candidateBrand,
+            type: candidateType,
+          });
           if (PLATFORM === "mobile") showToast("Parked in Wishlist.");
         }
       });
@@ -16947,6 +17249,8 @@ const openNoBuyGameDialog = (stats) => {
 
   const sourceStats = stats || collectAllStats();
   const gamify = syncNoBuyGamifyStateFromStats(sourceStats);
+  const inventoryEntries = loadInventoryEntriesForPreBuy();
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
   const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
   const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
   const cooldownActive = isNoBuyCooldownActive(gamify);
@@ -16979,7 +17283,7 @@ const openNoBuyGameDialog = (stats) => {
   const recoveryUrgencyNote = recoveryActive
     ? recoveryDaysLeft <= 0
       ? "Recovery deadline is today"
-      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline`
+      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline · ${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? "" : "s"} still unworn`
     : "Complete to gain +50 XP";
   const nowMs = Date.now();
   const weekThreshold = nowMs - (7 * 86400000);
@@ -17103,6 +17407,16 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Best move today</div>
     <div class="stats-hint">${esc(bestMoveToday)}</div>
+
+    ${recoveryActive ? `
+      <div class="stats-section-title" style="margin-top:8px">Recovery shortcuts</div>
+      <div class="stats-hint">Any shirt with an in-app add date counts. Start with low-wear added shirts before you browse anything new.</div>
+      <div class="pre-buy-recovery-guide">
+        <div class="pre-buy-recovery-strip">${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} count right now · ${recoveryGuide.lowWearCount} are still at 0-1 wears</div>
+        ${recoveryGuide.suggested.length
+          ? `<div class="insights-action-list">${recoveryGuide.suggested.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${item.name} (${item.brand}) - ${item.type}`)}</span><span class="stats-value">${item.wearCount} wear${item.wearCount === 1 ? "" : "s"} · added ${esc(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "unknown")}</span></div>`).join("")}</div>`
+          : `<div class="stats-hint">No added shirts with tracked add dates are available yet. New adds will count once they have an in-app add date.</div>`}
+      </div>` : ""}
 
     <div class="stats-section-title" style="margin-top:8px">Actions</div>
     <div class="insights-controls no-buy-actions-row" style="margin-top:4px">
