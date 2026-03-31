@@ -2206,22 +2206,177 @@ const setRowCellValueByLabel = (row, columns, label, value) => {
   return true;
 };
 
-const addWishlistDraftFromPreBuy = (name, reason) => {
+const loadInventoryEntriesForPreBuy = () => {
+  const entries = [];
+  let inventoryTabs = [];
+  try {
+    const storedTabs = localStorage.getItem(TAB_STORAGE_KEY);
+    const parsedTabs = storedTabs ? JSON.parse(storedTabs) : null;
+    inventoryTabs = parsedTabs && Array.isArray(parsedTabs.tabs) ? parsedTabs.tabs : [];
+  } catch (error) {
+    inventoryTabs = [];
+  }
+
+  inventoryTabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let parsedState = null;
+    if (appMode === "inventory" && tabsState.activeTabId === tab.id) {
+      parsedState = serializeState();
+    } else {
+      try {
+        const storedState = localStorage.getItem(`${STORAGE_KEY}:${tab.id}`);
+        parsedState = storedState ? JSON.parse(storedState) : null;
+      } catch (error) {
+        parsedState = null;
+      }
+    }
+    if (!parsedState || !Array.isArray(parsedState.rows) || !Array.isArray(parsedState.columns)) return;
+    parsedState.rows.forEach((row) => {
+      if (!row || isBlankDataRow(row)) return;
+      const values = getRowValuesByLabel(row, parsedState.columns);
+      entries.push({
+        row,
+        columns: parsedState.columns,
+        tabId: String(tab.id || ""),
+        tabName: String(tab.name || ""),
+        values,
+        name: String(values.name || "").trim() || "Unnamed",
+        brand: String(values.brand || tab.name || "").trim(),
+        type: String(values.type || "").trim(),
+        fandom: String(values.fandom || "").trim(),
+        createdAt: String(row.createdAt || ""),
+        wearCount: Math.max(0, Number(row.wearCount || 0)),
+        lastWorn: String(row.lastWorn || ""),
+      });
+    });
+  });
+
+  return entries;
+};
+
+const buildPreBuyDuplicateSnapshot = (details, inventoryEntries) => {
+  const cleanName = String(details?.name || "").trim();
+  const cleanBrand = String(details?.brand || "").trim();
+  const cleanType = String(details?.type || "").trim();
+  if (!cleanName && !cleanBrand && !cleanType) return null;
+
+  const wishlistValues = { name: cleanName, brand: cleanBrand, type: cleanType, fandom: "" };
+  const wishlistRow = { tags: [] };
+  const normalizedName = normalizeDuplicateCheckText(cleanName);
+  const normalizedBrand = normalizeDuplicateCheckText(cleanBrand);
+  const normalizedType = normalizeDuplicateCheckText(cleanType);
+  const source = Array.isArray(inventoryEntries) ? inventoryEntries : [];
+
+  const matches = source.map((entry) => {
+    const textSignals = buildTextDuplicateSignals(
+      wishlistValues,
+      wishlistRow,
+      { name: entry.name, brand: entry.brand, type: entry.type, fandom: entry.fandom },
+      entry.row,
+      entry.brand
+    );
+    if (textSignals.score < 20) return null;
+    return {
+      name: entry.name || "Unnamed",
+      brand: entry.brand || entry.tabName || "Unknown",
+      type: entry.type || "Unknown",
+      wearCount: entry.wearCount || 0,
+      createdAt: entry.createdAt || "",
+      score: textSignals.score,
+      reasons: Array.from(new Set(textSignals.reasons)),
+    };
+  }).filter(Boolean).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const sameTypeCount = normalizedType
+    ? source.filter((entry) => normalizeDuplicateCheckText(entry.type) === normalizedType).length
+    : 0;
+  const sameBrandCount = normalizedBrand
+    ? source.filter((entry) => normalizeDuplicateCheckText(entry.brand) === normalizedBrand).length
+    : 0;
+  const sameBrandTypeCount = normalizedBrand && normalizedType
+    ? source.filter((entry) => normalizeDuplicateCheckText(entry.brand) === normalizedBrand && normalizeDuplicateCheckText(entry.type) === normalizedType).length
+    : 0;
+  const exactNameCount = normalizedName
+    ? source.filter((entry) => normalizeDuplicateCheckText(entry.name) === normalizedName).length
+    : 0;
+  const strongest = matches[0] || null;
+  const riskLevel = exactNameCount > 0 || sameBrandTypeCount >= 3 || (strongest && strongest.score >= 55)
+    ? "High"
+    : sameBrandTypeCount >= 2 || sameTypeCount >= 4 || matches.length >= 2
+      ? "Medium"
+      : matches.length
+        ? "Watch"
+        : "Clearer";
+  const note = exactNameCount > 0
+    ? `You already own ${exactNameCount} item${exactNameCount === 1 ? "" : "s"} with this exact name.`
+    : sameBrandTypeCount >= 2
+      ? `You already own ${sameBrandTypeCount} ${cleanBrand || ""} ${cleanType || ""}`.replace(/\s+/g, " ").trim() + "."
+      : sameTypeCount >= 4
+        ? `${sameTypeCount} shirts already live in this type lane.`
+        : strongest
+          ? `${strongest.name} is the closest current match.`
+          : "This looks like a clearer lane than your usual duplicates.";
+
+  return {
+    riskLevel,
+    note,
+    exactNameCount,
+    sameTypeCount,
+    sameBrandCount,
+    sameBrandTypeCount,
+    similarCount: matches.length,
+    topMatches: matches.slice(0, 3),
+  };
+};
+
+const buildRecoveryMissionGuide = (inventoryEntries) => {
+  const eligible = (Array.isArray(inventoryEntries) ? inventoryEntries : []).filter((entry) => Number.isFinite(new Date(String(entry.createdAt || "")).getTime()));
+  const unwornCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 0).length;
+  const lowWearCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 1).length;
+  const suggested = eligible
+    .slice()
+    .sort((a, b) => (Number(a.wearCount || 0) - Number(b.wearCount || 0)) || (new Date(String(b.createdAt || 0)).getTime() - new Date(String(a.createdAt || 0)).getTime()) || String(a.name || "").localeCompare(String(b.name || "")))
+    .slice(0, 3)
+    .map((entry) => ({
+      name: entry.name || "Unnamed",
+      brand: entry.brand || entry.tabName || "Unknown",
+      type: entry.type || "Unknown",
+      wearCount: Number(entry.wearCount || 0),
+      createdAt: String(entry.createdAt || ""),
+    }));
+  return {
+    eligibleCount: eligible.length,
+    unwornCount,
+    lowWearCount,
+    suggested,
+  };
+};
+
+const addWishlistDraftFromPreBuy = ({ name, reason, brand, type }) => {
   if (appMode !== "wishlist") switchAppMode("wishlist");
   ensureRowCells();
   const row = (state.rows.length === 1 && isBlankDataRow(state.rows[0])) ? state.rows[0] : defaultRow();
   if (!state.rows.includes(row)) state.rows.push(row);
 
   const cleanName = String(name || "").trim();
+  const cleanBrand = String(brand || "").trim();
+  const cleanType = String(type || "").trim();
   const todayLabel = new Date().toLocaleDateString();
+  const holdUntil = new Date(Date.now() + (72 * 3600000)).toLocaleDateString();
   const reasonLabel = noBuyReasonLabel(reason || "other");
   const notesColumn = state.columns.find((col) => getColumnLabel(col).trim().toLowerCase() === "notes");
   const existingNotes = notesColumn ? String(row.cells[notesColumn.id] || "").trim() : "";
+  const holdLine = `Pre-Buy hold until ${holdUntil} (${reasonLabel}) - parked ${todayLabel}`;
 
   if (cleanName) setRowCellValueByLabel(row, state.columns, "name", cleanName);
+  if (cleanBrand) setRowCellValueByLabel(row, state.columns, "brand", cleanBrand);
+  if (cleanType) setRowCellValueByLabel(row, state.columns, "type", cleanType);
   if (!existingNotes) {
-    setRowCellValueByLabel(row, state.columns, "notes", `Pre-Buy hold (${reasonLabel}) - ${todayLabel}`);
+    setRowCellValueByLabel(row, state.columns, "notes", holdLine);
+  } else if (!existingNotes.includes(holdLine)) {
+    setRowCellValueByLabel(row, state.columns, "notes", `${existingNotes}\n${holdLine}`);
   }
+  row.tags = mergeTags(getRowTags(row), ["Held"]);
 
   updateShirtUpdateDate();
   saveState();
@@ -13791,6 +13946,11 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
   const content = dialog.querySelector("#pre-buy-check-content");
   if (!content) return;
   let selectedReason = "";
+  let candidateName = "";
+  let candidateBrand = "";
+  let candidateType = "";
+  const inventoryEntries = loadInventoryEntriesForPreBuy();
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
 
   const render = () => {
     const stats = sourceStats || collectAllStats();
@@ -13850,6 +14010,7 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;");
+    const recoveryActive = gamify.activeRecovery && !gamify.activeRecovery.completedAt;
 
     content.innerHTML = `
       <div class="stats-hint pre-buy-check-intro">Fast lane before checkout: name the urge, see the cost, and pick a slower move on purpose.</div>
@@ -13862,6 +14023,23 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
           aria-pressed="${selectedReason === option.value ? "true" : "false"}"
         >${esc(option.label)}</button>`).join("")}</div>
       <div class="stats-hint pre-buy-check-reason-read">${esc(reasonRead)}</div>
+
+      <div class="stats-section-title" style="margin-top:10px">What are you looking at?</div>
+      <div class="pre-buy-input-grid">
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Item name</span>
+          <input type="text" id="prebuy-item-name" class="pre-buy-input" placeholder="Optional, but useful" value="${esc(candidateName)}">
+        </label>
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Brand</span>
+          <input type="text" id="prebuy-item-brand" class="pre-buy-input" placeholder="Brand or tab" value="${esc(candidateBrand)}">
+        </label>
+        <label class="pre-buy-input-card">
+          <span class="pre-buy-input-label">Type</span>
+          <input type="text" id="prebuy-item-type" class="pre-buy-input" placeholder="Camp shirt, polo, flannel" value="${esc(candidateType)}">
+        </label>
+      </div>
+      <div id="prebuy-duplicate-read"></div>
 
       <div class="insights-score-grid" style="margin-top:10px">
         <div class="insights-score-card">
@@ -13896,6 +14074,8 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         </div>
       </div>
 
+      ${recoveryActive ? `<div class="pre-buy-recovery-strip">Recovery window live: any shirt with an in-app add date counts. ${recoveryGuide.unwornCount > 0 ? `${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? " is" : "s are"} still unworn.` : `You have ${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} available to count.`}</div>` : ""}
+
       <div class="stats-section-title" style="margin-top:10px">Best move today</div>
       <div class="stats-hint pre-buy-check-best-move">${esc(bestMove)}</div>
 
@@ -13916,6 +14096,39 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
       });
     });
 
+    const duplicateRead = content.querySelector("#prebuy-duplicate-read");
+    const itemNameInput = content.querySelector("#prebuy-item-name");
+    const itemBrandInput = content.querySelector("#prebuy-item-brand");
+    const itemTypeInput = content.querySelector("#prebuy-item-type");
+    const updateDuplicateRead = () => {
+      candidateName = String(itemNameInput?.value || "").trim();
+      candidateBrand = String(itemBrandInput?.value || "").trim();
+      candidateType = String(itemTypeInput?.value || "").trim();
+      if (!duplicateRead) return;
+      const duplicateSnapshot = buildPreBuyDuplicateSnapshot({ name: candidateName, brand: candidateBrand, type: candidateType }, inventoryEntries);
+      duplicateRead.innerHTML = duplicateSnapshot
+        ? `
+          <div class="pre-buy-duplicate-card risk-${String(duplicateSnapshot.riskLevel || "clear").toLowerCase()}">
+            <div class="pre-buy-duplicate-head">
+              <span class="pre-buy-duplicate-title">Duplicate friction</span>
+              <span class="pre-buy-duplicate-badge">${esc(duplicateSnapshot.riskLevel)}</span>
+            </div>
+            <div class="pre-buy-duplicate-note">${esc(duplicateSnapshot.note)}</div>
+            <div class="pre-buy-duplicate-meta">
+              <span>${duplicateSnapshot.sameTypeCount} same type</span>
+              <span>${duplicateSnapshot.sameBrandCount} same brand</span>
+              <span>${duplicateSnapshot.similarCount} close match${duplicateSnapshot.similarCount === 1 ? "" : "es"}</span>
+            </div>
+            ${duplicateSnapshot.topMatches.length ? `<div class="insights-action-list pre-buy-duplicate-list">${duplicateSnapshot.topMatches.map((match, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${match.name} (${match.brand}) - ${match.type}`)}</span><span class="stats-value">${match.wearCount} wear${match.wearCount === 1 ? "" : "s"} · ${esc(match.reasons.join(" · "))}</span></div>`).join("")}</div>` : ""}
+          </div>`
+        : `<div class="pre-buy-duplicate-card is-empty"><div class="pre-buy-duplicate-note">Add a name, brand, or type for a sharper duplicate read before you buy or park it.</div></div>`;
+    };
+    [itemNameInput, itemBrandInput, itemTypeInput].forEach((input) => {
+      if (!input) return;
+      input.addEventListener("input", updateDuplicateRead);
+    });
+    updateDuplicateRead();
+
     const holdButton = content.querySelector("#prebuy-hold");
     if (holdButton) {
       holdButton.addEventListener("click", () => {
@@ -13935,9 +14148,17 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         saveNoBuyGamifyStateAndSync(next);
         closeDialog(dialog);
         if (appMode !== "wishlist") switchAppMode("wishlist");
-        const itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
-        if (itemName !== null) {
-          addWishlistDraftFromPreBuy(itemName, selectedReason);
+        let itemName = String(candidateName || "").trim();
+        if (!itemName) {
+          itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
+        }
+        if (itemName !== null && String(itemName).trim()) {
+          addWishlistDraftFromPreBuy({
+            name: itemName,
+            reason: selectedReason,
+            brand: candidateBrand,
+            type: candidateType,
+          });
           if (PLATFORM === "mobile") showToast("Parked in Wishlist.");
         }
       });
@@ -16947,6 +17168,8 @@ const openNoBuyGameDialog = (stats) => {
 
   const sourceStats = stats || collectAllStats();
   const gamify = syncNoBuyGamifyStateFromStats(sourceStats);
+  const inventoryEntries = loadInventoryEntriesForPreBuy();
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
   const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
   const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
   const cooldownActive = isNoBuyCooldownActive(gamify);
@@ -16979,7 +17202,7 @@ const openNoBuyGameDialog = (stats) => {
   const recoveryUrgencyNote = recoveryActive
     ? recoveryDaysLeft <= 0
       ? "Recovery deadline is today"
-      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline`
+      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline · ${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? "" : "s"} still unworn`
     : "Complete to gain +50 XP";
   const nowMs = Date.now();
   const weekThreshold = nowMs - (7 * 86400000);
@@ -17103,6 +17326,16 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Best move today</div>
     <div class="stats-hint">${esc(bestMoveToday)}</div>
+
+    ${recoveryActive ? `
+      <div class="stats-section-title" style="margin-top:8px">Recovery shortcuts</div>
+      <div class="stats-hint">Any shirt with an in-app add date counts. Start with low-wear added shirts before you browse anything new.</div>
+      <div class="pre-buy-recovery-guide">
+        <div class="pre-buy-recovery-strip">${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} count right now · ${recoveryGuide.lowWearCount} are still at 0-1 wears</div>
+        ${recoveryGuide.suggested.length
+          ? `<div class="insights-action-list">${recoveryGuide.suggested.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${item.name} (${item.brand}) - ${item.type}`)}</span><span class="stats-value">${item.wearCount} wear${item.wearCount === 1 ? "" : "s"} · added ${esc(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "unknown")}</span></div>`).join("")}</div>`
+          : `<div class="stats-hint">No added shirts with tracked add dates are available yet. New adds will count once they have an in-app add date.</div>`}
+      </div>` : ""}
 
     <div class="stats-section-title" style="margin-top:8px">Actions</div>
     <div class="insights-controls no-buy-actions-row" style="margin-top:4px">
