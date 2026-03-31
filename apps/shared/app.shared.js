@@ -6926,7 +6926,7 @@ const collectInventoryTagMaintenanceSnapshot = () => {
     });
   });
   const usedTags = Array.from(usedTagMap.values())
-    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+    .sort((a, b) => a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
   const suspiciousGroups = Array.from(duplicateGroups.entries())
     .map(([groupKey, group]) => {
       const variants = Array.from(group.values())
@@ -11663,9 +11663,9 @@ const openTagMaintenanceDialog = (options = {}) => {
               </div>
               <div class="tag-maintenance-actions">
                 <input type="text" id="tag-maintenance-target-${index}" data-tag-source="${esc(item.tag)}" placeholder="Rename or merge target">
-                <button type="button" class="btn secondary" data-tag-rename="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Rename</button>
-                <button type="button" class="btn secondary" data-tag-merge="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Merge</button>
-                <button type="button" class="btn secondary" data-tag-delete="${esc(item.tag)}">Delete</button>
+                <button type="button" class="btn" data-tag-rename="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Rename</button>
+                <button type="button" class="btn" data-tag-merge="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Merge</button>
+                <button type="button" class="btn" data-tag-delete="${esc(item.tag)}">Delete</button>
               </div>
             </div>`).join("") : `<div class="stats-hint">No used tags found yet.</div>`}
         </div>
@@ -11681,7 +11681,7 @@ const openTagMaintenanceDialog = (options = {}) => {
                 <div class="tag-maintenance-meta">${esc(group.variants.map((item) => `${item.tag} (${item.count})`).join(" · "))}</div>
               </div>
               <div class="tag-maintenance-actions tag-maintenance-actions-compact">
-                <button type="button" class="btn secondary" data-tag-merge-group="${index}">Merge into ${esc(group.preferredTag)}</button>
+                <button type="button" class="btn" data-tag-merge-group="${index}">Merge into ${esc(group.preferredTag)}</button>
               </div>
             </div>`).join("") : `<div class="stats-hint">No suspicious duplicate groups found right now.</div>`}
         </div>
@@ -11690,15 +11690,15 @@ const openTagMaintenanceDialog = (options = {}) => {
         <div class="stats-section-title">Untagged cleanup</div>
         <div class="stats-hint">Select untagged items, add one or more tags, and apply them across all selected rows in one step.</div>
         <div class="dialog-actions" style="margin-top:8px;">
-          <button type="button" class="btn secondary" id="tag-maintenance-select-all">Select all</button>
-          <button type="button" class="btn secondary" id="tag-maintenance-clear-selection">Clear selection</button>
+          <button type="button" class="btn" id="tag-maintenance-select-all">Select all</button>
+          <button type="button" class="btn" id="tag-maintenance-clear-selection">Clear selection</button>
         </div>
         <div class="tag-maintenance-actions" style="margin-top:8px;">
           <input type="text" id="tag-maintenance-untagged-input" placeholder="Examples: Floral, Holiday">
           <button type="button" class="btn" id="tag-maintenance-untagged-apply">Apply to selected</button>
         </div>
         <div class="tag-maintenance-suggestions">
-          ${topSuggestions.map((tag) => `<button type="button" class="btn secondary" data-tag-suggestion="${esc(tag)}">${esc(tag)}</button>`).join("")}
+          ${topSuggestions.map((tag) => `<button type="button" class="btn" data-tag-suggestion="${esc(tag)}">${esc(tag)}</button>`).join("")}
         </div>
         <div class="tag-maintenance-list">
           ${snapshot.untaggedItems.length ? snapshot.untaggedItems.map((item) => `
