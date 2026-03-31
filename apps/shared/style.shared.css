@@ -1464,6 +1464,55 @@ td[data-label="Preview"] {
   border-color: #999;
 }
 
+.cell-notes-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cell-notes-wrap .cell-notes {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cell-story-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 6px 9px;
+  font-family: "Work Sans", "Trebuchet MS", sans-serif;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cell-story-btn:hover {
+  background: #f3f3f3;
+  border-color: #b8b8b8;
+}
+
+.cell-story-btn.has-story {
+  background: #fff4d8;
+  border-color: #d4a64d;
+  color: #8a5a00;
+}
+
+.story-dialog-name {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+#story-input {
+  min-height: 220px;
+}
+
 .btn-move-confirm {
   background: #2e7d32;
   color: #fff;

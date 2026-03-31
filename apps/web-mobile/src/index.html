@@ -109,15 +109,9 @@
                           <button class="btn secondary" id="share-columns-button" type="button">Share Columns</button>
                         </td>
                         <td>
-                          <button class="btn secondary" id="pre-buy-check-button" type="button">Pre-Buy Check</button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>
                           <button class="btn secondary" id="copy-share-link" type="button">Copy Share Link</button>
                           <input class="public-share-input" id="public-share-link" type="text" readonly style="position:absolute; left:-9999px; opacity:0; width:0; height:0;">
                         </td>
-                        <td></td>
                       </tr>
                       <tr>
                         <td>
@@ -814,6 +808,21 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="text-prompt-cancel">Cancel</button>
         <button type="button" class="btn" id="text-prompt-save">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="story-dialog">
+      <div class="dialog-body">
+        <h3>Item Story</h3>
+        <div class="story-dialog-name" id="story-dialog-name"></div>
+        <div class="dialog-row">
+          <label for="story-input">Long-form story</label>
+          <textarea id="story-input" placeholder="Add the backstory, why you bought it, what makes it special, or anything else you want to remember."></textarea>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="story-cancel">Cancel</button>
+        <button type="button" class="btn" id="story-save">Save</button>
       </div>
     </dialog>
 

@@ -136,6 +136,7 @@ const defaultRow = () => ({
   cells: {},
   tags: [],
   createdAt: new Date().toISOString(),
+  story: "",
 });
 
 const PHOTO_DB = "shirt-tracker-photos";
@@ -634,6 +635,11 @@ const textPromptLabel = document.getElementById("text-prompt-label");
 const textPromptInput = document.getElementById("text-prompt-input");
 const textPromptCancelButton = document.getElementById("text-prompt-cancel");
 const textPromptSaveButton = document.getElementById("text-prompt-save");
+const storyDialog = document.getElementById("story-dialog");
+const storyDialogName = document.getElementById("story-dialog-name");
+const storyInput = document.getElementById("story-input");
+const storyCancelButton = document.getElementById("story-cancel");
+const storySaveButton = document.getElementById("story-save");
 const csvImportDialog = document.getElementById("csv-import-dialog");
 const csvImportColumns = document.getElementById("csv-import-columns");
 const csvImportCancelButton = document.getElementById("csv-import-cancel");
@@ -682,6 +688,7 @@ let sortTimer = null;
 let deleteSelectedButton = null;
 let pendingDeleteTabId = null;
 let activeTagsRowId = null;
+let activeStoryRowId = null;
 let lastClearSnapshot = null;
 let latestStatsSnapshot = null;
 const storageStatus = { ok: null };
@@ -1134,7 +1141,13 @@ const addToDeletedRows = (rows, fromTabId, fromTabName, mode) => {
   const now = new Date().toISOString();
   rows.forEach((row) => {
     entries.unshift({
-      row: { id: row.id, cells: { ...(row.cells || {}) }, tags: Array.isArray(row.tags) ? [...row.tags] : [] },
+      row: {
+        ...row,
+        cells: { ...(row.cells || {}) },
+        tags: Array.isArray(row.tags) ? [...row.tags] : [],
+        wearLog: Array.isArray(row.wearLog) ? row.wearLog.slice() : [],
+        story: getRowStory(row),
+      },
       deletedAt: now,
       fromTabId,
       fromTabName,
@@ -1258,6 +1271,11 @@ const getRowName = (row) => {
   const value = row.cells[nameColumnId];
   const name = String(value || "").trim();
   return name || "Untitled row";
+};
+
+const getRowStory = (row) => {
+  if (!row || typeof row.story !== "string") return "";
+  return row.story;
 };
 
 const truncateLogValue = (value, max = 60) => {
@@ -2530,6 +2548,44 @@ const showCsvImportDialog = (columns, tagsIndex) => {
     openDialog(csvImportDialog);
     resetDialogScroll(csvImportDialog);
   });
+};
+
+const closeStoryDialog = () => {
+  activeStoryRowId = null;
+  if (storyInput) storyInput.value = "";
+  if (storyDialogName) storyDialogName.textContent = "";
+  closeDialog(storyDialog);
+};
+
+const openStoryDialog = (rowId) => {
+  if (!storyDialog || !storyInput) return;
+  const row = state.rows.find((item) => item.id === rowId);
+  if (!row) return;
+  activeStoryRowId = rowId;
+  storyInput.value = getRowStory(row);
+  if (storyDialogName) storyDialogName.textContent = `Item: ${getRowName(row)}`;
+  resetDialogScroll(storyDialog);
+  openDialog(storyDialog);
+  window.setTimeout(() => {
+    storyInput.focus();
+    storyInput.setSelectionRange(storyInput.value.length, storyInput.value.length);
+  }, 0);
+};
+
+const saveStoryDialog = () => {
+  if (!activeStoryRowId || !storyInput) return;
+  const row = state.rows.find((item) => item.id === activeStoryRowId);
+  if (!row) {
+    closeStoryDialog();
+    return;
+  }
+  const nextStory = storyInput.value.replace(/\r\n/g, "\n");
+  row.story = nextStory.trim() ? nextStory : "";
+  updateShirtUpdateDate();
+  saveState();
+  closeStoryDialog();
+  renderRows();
+  renderFooter();
 };
 
 const openTagsDialog = (rowId) => {
@@ -4921,17 +4977,8 @@ const renderModeSwitcher = () => {
   if (!modeSwitcher) return;
   modeSwitcher.innerHTML = "";
   if (PLATFORM === "mobile") {
-    if (!currentUser) {
-      modeSwitcher.style.display = "none";
-      return;
-    }
-    Object.assign(modeSwitcher.style, {
-      display: "flex",
-      justifyContent: "center",
-      padding: "12px 0 4px",
-      margin: "0",
-      background: "linear-gradient(90deg, #eeeeee, #e1e1e1)",
-    });
+    modeSwitcher.style.display = "none";
+    return;
   } else {
     modeSwitcher.style.display = "none";
     const sheetHeader = document.querySelector(".sheet-header");
@@ -4966,30 +5013,7 @@ const renderModeSwitcher = () => {
     container.appendChild(btn);
   });
   if (PLATFORM === "mobile") {
-    modeSwitcher.appendChild(container);
-    if (preBuyCheckButton) {
-      preBuyCheckButton.classList.remove("btn-stats-inline");
-      preBuyCheckButton.style.width = "100%";
-      preBuyCheckButton.style.maxWidth = "320px";
-      preBuyCheckButton.style.marginTop = "10px";
-      modeSwitcher.appendChild(preBuyCheckButton);
-    }
-    const filterRow = document.querySelector(".filter-row");
-    if (filterRow) {
-      Object.assign(filterRow.style, {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "12px",
-      });
-      const topActions = filterRow.querySelector(".top-table-actions");
-      if (topActions) {
-        Object.assign(topActions.style, {
-          order: "2",
-          alignSelf: "flex-start",
-        });
-      }
-    }
+    return;
   } else {
     const sheetHeader = document.querySelector(".sheet-header");
     if (sheetHeader) {
@@ -5488,7 +5512,13 @@ const moveRowToInventory = async (rowId) => {
     if (stored) invState = JSON.parse(stored);
   } catch (error) { /* ignore */ }
   if (!invState || !Array.isArray(invState.columns)) return;
-  const newRow = { id: createId(), cells: {}, tags: row.tags ? row.tags.slice() : [], createdAt: new Date().toISOString() };
+  const newRow = {
+    id: createId(),
+    cells: {},
+    tags: row.tags ? row.tags.slice() : [],
+    createdAt: new Date().toISOString(),
+    story: getRowStory(row),
+  };
   let invColOverrides = null;
   try {
     const s = localStorage.getItem(COLUMNS_KEY);
@@ -6752,11 +6782,11 @@ const sortRows = () => {
     if (aEmpty) return 1;
     if (bEmpty) return -1;
     if (isNumeric) {
-      const aNum = parseFloat(aVal);
-      const bNum = parseFloat(bVal);
-      if (Number.isNaN(aNum) && Number.isNaN(bNum)) return 0;
-      if (Number.isNaN(aNum)) return 1;
-      if (Number.isNaN(bNum)) return -1;
+      const aNum = parseCurrency(aVal);
+      const bNum = parseCurrency(bVal);
+      if (aNum === null && bNum === null) return 0;
+      if (aNum === null) return 1;
+      if (bNum === null) return -1;
       return (aNum - bNum) * dir;
     }
     return String(aVal).localeCompare(String(bVal)) * dir;
@@ -6851,6 +6881,8 @@ const createCellInput = (row, column) => {
   }
 
   if (column.type === "notes") {
+    const wrapper = document.createElement("div");
+    wrapper.className = "cell-notes-wrap";
     const input = document.createElement("input");
     input.type = "text";
     input.className = "cell-notes";
@@ -6861,7 +6893,18 @@ const createCellInput = (row, column) => {
     input.dataset.rowId = row.id;
     input.dataset.columnId = column.id;
     applyReadOnlyToInput(input);
-    return input;
+    if (!state.readOnly) {
+      const storyButton = document.createElement("button");
+      storyButton.type = "button";
+      storyButton.className = "cell-story-btn" + (getRowStory(row) ? " has-story" : "");
+      storyButton.textContent = "Story";
+      storyButton.title = getRowStory(row) ? "Edit saved story" : "Add a longer story";
+      storyButton.setAttribute("aria-label", `${getRowStory(row) ? "Edit" : "Add"} story for ${getRowName(row)}`);
+      storyButton.addEventListener("click", () => openStoryDialog(row.id));
+      wrapper.appendChild(storyButton);
+    }
+    wrapper.appendChild(input);
+    return wrapper;
   }
 
   if (column.type === "photo") {
@@ -9700,6 +9743,25 @@ columnForm.addEventListener("submit", (event) => {
 closePhotoDialogButton.addEventListener("click", () => {
   closeDialog(photoDialog);
 });
+
+if (storyCancelButton) {
+  storyCancelButton.addEventListener("click", () => {
+    closeStoryDialog();
+  });
+}
+
+if (storySaveButton) {
+  storySaveButton.addEventListener("click", () => {
+    saveStoryDialog();
+  });
+}
+
+if (storyDialog) {
+  storyDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeStoryDialog();
+  });
+}
 
 clearPhotoDialogButton.addEventListener("click", () => {
   if (!activePhotoTarget) return;
@@ -18343,7 +18405,7 @@ sheetBody.addEventListener("focusout", (event) => {
 
 try {
   const savedMode = localStorage.getItem(APP_MODE_KEY);
-  if (savedMode === "wishlist") appMode = "wishlist";
+  if (savedMode === "wishlist" && PLATFORM !== "mobile") appMode = "wishlist";
 } catch (error) { /* ignore */ }
 if (appMode === "wishlist") {
   initWishlistMode();
