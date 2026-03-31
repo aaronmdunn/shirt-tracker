@@ -2652,6 +2652,13 @@ dialog {
   background: transparent;
 }
 
+#tag-maintenance-dialog .tag-maintenance-primary {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .stats-section {
   margin-bottom: 16px;
   padding: 12px 14px 14px;
