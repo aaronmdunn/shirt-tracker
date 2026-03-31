@@ -988,6 +988,80 @@ const getStorageKey = (tabId) => {
   return `${prefix}:${tabId || "default"}`;
 };
 
+const getCellValueFromColumns = (row, columns, columnName) => {
+  const target = String(columnName || "").trim().toLowerCase();
+  const column = Array.isArray(columns)
+    ? columns.find((item) => String(item?.name || "").trim().toLowerCase() === target)
+    : null;
+  return column && row && row.cells ? String(row.cells[column.id] || "").trim() : "";
+};
+
+const sameTagList = (left, right) => {
+  const a = canonicalizeTagList(left);
+  const b = canonicalizeTagList(right);
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (String(a[i] || "") !== String(b[i] || "")) return false;
+  }
+  return true;
+};
+
+const mutateInventoryRowsAcrossTabs = (mutateRow) => {
+  if (appMode !== "inventory" || typeof mutateRow !== "function") {
+    return { changed: false, changedRows: 0, changedTabs: 0 };
+  }
+  let changed = false;
+  let changedRows = 0;
+  let changedTabs = 0;
+  let activeChanged = false;
+  const tabs = Array.isArray(tabsState.tabs) ? tabsState.tabs : [];
+  tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    const isActive = tab.id === tabsState.activeTabId;
+    let payload = null;
+    if (isActive) {
+      payload = { rows: state.rows, columns: state.columns };
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        payload = stored ? JSON.parse(stored) : null;
+      } catch (error) {
+        payload = null;
+      }
+      if (!payload || !Array.isArray(payload.rows) || !Array.isArray(payload.columns)) return;
+    }
+    let tabChanged = false;
+    payload.rows.forEach((row) => {
+      const didChange = mutateRow({ row, columns: payload.columns, tabId: tab.id, tabName: tab.name || "", isActive });
+      if (!didChange) return;
+      tabChanged = true;
+      changedRows += 1;
+    });
+    if (!tabChanged) return;
+    changed = true;
+    changedTabs += 1;
+    if (isActive) {
+      activeChanged = true;
+      return;
+    }
+    try {
+      localStorage.setItem(getStorageKey(tab.id), JSON.stringify(payload));
+    } catch (error) {
+      // ignore
+    }
+  });
+  if (!changed) return { changed: false, changedRows: 0, changedTabs: 0 };
+  updateShirtUpdateDate();
+  if (activeChanged) {
+    saveState();
+    renderRows();
+    renderFooter();
+  } else {
+    scheduleSync();
+  }
+  return { changed: true, changedRows, changedTabs };
+};
+
 const getActiveTabKey = () => appMode === "wishlist" ? WISHLIST_TAB_STORAGE_KEY : TAB_STORAGE_KEY;
 const getActiveColumnsKey = () => appMode === "wishlist" ? WISHLIST_COLUMNS_KEY : COLUMNS_KEY;
 
@@ -6777,6 +6851,105 @@ const mergeTags = (currentTags, incomingTags) => {
   return Array.from(merged.values());
 };
 
+const buildNearDuplicateTagKey = (tag) => {
+  const base = String(canonicalizeTagLabel(tag) || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  return base;
+};
+
+const syncCustomTagsAfterGlobalTagChange = ({ removeTags = [], ensureTags = [] } = {}) => {
+  const removeSet = new Set((Array.isArray(removeTags) ? removeTags : []).map((tag) => String(canonicalizeTagLabel(tag) || "").toLowerCase()).filter(Boolean));
+  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((tag) => String(tag || "").toLowerCase()));
+  const merged = new Map();
+  loadCustomTags().forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (!key || removeSet.has(key)) return;
+    if (!merged.has(key)) merged.set(key, canonical);
+  });
+  (Array.isArray(ensureTags) ? ensureTags : []).forEach((tag) => {
+    const canonical = canonicalizeTagLabel(tag);
+    const key = canonical.toLowerCase();
+    if (!key || baseLower.has(key)) return;
+    if (!merged.has(key)) merged.set(key, canonical);
+  });
+  saveCustomTags(Array.from(merged.values()));
+};
+
+const collectInventoryTagMaintenanceSnapshot = () => {
+  const usedTagMap = new Map();
+  const duplicateGroups = new Map();
+  const untaggedItems = [];
+  const tabs = Array.isArray(tabsState.tabs) ? tabsState.tabs : [];
+  tabs.forEach((tab) => {
+    if (!tab || !tab.id) return;
+    let rows = [];
+    let columns = [];
+    if (tab.id === tabsState.activeTabId) {
+      rows = state.rows;
+      columns = state.columns;
+    } else {
+      try {
+        const stored = localStorage.getItem(getStorageKey(tab.id));
+        const parsed = stored ? JSON.parse(stored) : null;
+        rows = Array.isArray(parsed?.rows) ? parsed.rows : [];
+        columns = Array.isArray(parsed?.columns) ? parsed.columns : [];
+      } catch (error) {
+        rows = [];
+        columns = [];
+      }
+    }
+    rows.forEach((row) => {
+      const name = getCellValueFromColumns(row, columns, "Name") || "Unnamed";
+      const type = getCellValueFromColumns(row, columns, "Type") || "Unknown";
+      const tags = getRowTags(row);
+      if (!tags.length) {
+        untaggedItems.push({ rowId: row.id, tabId: tab.id, tab: tab.name || "", name, type });
+        return;
+      }
+      tags.forEach((tag) => {
+        const canonical = canonicalizeTagLabel(tag);
+        const key = canonical.toLowerCase();
+        if (!key) return;
+        if (!usedTagMap.has(key)) {
+          usedTagMap.set(key, { tag: canonical, count: 0 });
+        }
+        usedTagMap.get(key).count += 1;
+        const dupKey = buildNearDuplicateTagKey(canonical);
+        if (!dupKey || dupKey.length < 3) return;
+        if (!duplicateGroups.has(dupKey)) duplicateGroups.set(dupKey, new Map());
+        const group = duplicateGroups.get(dupKey);
+        if (!group.has(key)) group.set(key, { tag: canonical, count: 0 });
+        group.get(key).count += 1;
+      });
+    });
+  });
+  const usedTags = Array.from(usedTagMap.values())
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+  const suspiciousGroups = Array.from(duplicateGroups.entries())
+    .map(([groupKey, group]) => {
+      const variants = Array.from(group.values())
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, undefined, { sensitivity: "base" }));
+      if (variants.length < 2) return null;
+      return {
+        key: groupKey,
+        variants,
+        preferredTag: variants[0].tag,
+        totalCount: variants.reduce((sum, item) => sum + item.count, 0),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.totalCount - a.totalCount || a.preferredTag.localeCompare(b.preferredTag, undefined, { sensitivity: "base" }));
+  return {
+    usedTags,
+    duplicateGroups: suspiciousGroups,
+    untaggedItems,
+    totalUsedTags: usedTags.length,
+    totalTaggedAssignments: usedTags.reduce((sum, item) => sum + item.count, 0),
+  };
+};
+
 const getAllTags = () => {
   const merged = new Map();
   BASE_TAG_SUGGESTIONS.forEach((tag) => {
@@ -7012,49 +7185,44 @@ const showTagsMainView = () => {
 };
 
 const deleteGlobalTag = (tag) => {
-  const tagLower = String(tag).toLowerCase();
-  const custom = loadCustomTags().filter((t) => t.toLowerCase() !== tagLower);
-  saveCustomTags(custom);
-  state.rows.forEach((row) => {
+  const canonicalTag = canonicalizeTagLabel(tag);
+  const tagLower = String(canonicalTag || "").toLowerCase();
+  if (!tagLower) return false;
+  syncCustomTagsAfterGlobalTagChange({ removeTags: [canonicalTag] });
+  const summary = mutateInventoryRowsAcrossTabs(({ row }) => {
     const current = getRowTags(row);
-    if (current.some((t) => t.toLowerCase() === tagLower)) {
-      const next = current.filter((t) => t.toLowerCase() !== tagLower);
-      setRowTags(row.id, next, "manage-delete");
-    }
+    if (!current.some((item) => String(item || "").toLowerCase() === tagLower)) return false;
+    const next = current.filter((item) => String(item || "").toLowerCase() !== tagLower);
+    if (sameTagList(current, next)) return false;
+    row.tags = next;
+    return true;
   });
-  addEventLog("Deleted tag", tag);
+  if (!summary.changed) return false;
+  addEventLog("Deleted tag", `${canonicalTag} (${summary.changedRows} row${summary.changedRows === 1 ? "" : "s"})`);
+  return true;
 };
 
 const renameGlobalTag = (oldTag, newTag) => {
-  const oldLower = String(oldTag).toLowerCase();
-  const newTrimmed = String(newTag || "").trim();
-  if (!newTrimmed || newTrimmed.toLowerCase() === oldLower) return;
-  const baseLower = new Set(BASE_TAG_SUGGESTIONS.map((t) => t.toLowerCase()));
-  const custom = loadCustomTags();
-  if (baseLower.has(oldLower)) {
-    const alreadyExists = custom.some((t) => t.toLowerCase() === newTrimmed.toLowerCase());
-    if (!alreadyExists) custom.push(newTrimmed);
-  } else {
-    const idx = custom.findIndex((t) => t.toLowerCase() === oldLower);
-    if (idx !== -1) {
-      custom[idx] = newTrimmed;
-    } else {
-      custom.push(newTrimmed);
-    }
-  }
-  const dupeCheck = new Map();
-  custom.forEach((t) => { const k = t.toLowerCase(); if (!dupeCheck.has(k)) dupeCheck.set(k, t); });
-  saveCustomTags(Array.from(dupeCheck.values()));
-  state.rows.forEach((row) => {
+  const fromTag = canonicalizeTagLabel(oldTag);
+  const toTag = canonicalizeTagLabel(newTag);
+  const oldLower = String(fromTag || "").toLowerCase();
+  const newLower = String(toTag || "").toLowerCase();
+  if (!newLower || newLower === oldLower) return false;
+  syncCustomTagsAfterGlobalTagChange({ removeTags: [fromTag], ensureTags: [toTag] });
+  const summary = mutateInventoryRowsAcrossTabs(({ row }) => {
     const current = getRowTags(row);
-    if (current.some((t) => t.toLowerCase() === oldLower)) {
-      const next = current.map((t) => t.toLowerCase() === oldLower ? newTrimmed : t);
-      setRowTags(row.id, next, "manage-rename");
-    }
+    if (!current.some((item) => String(item || "").toLowerCase() === oldLower)) return false;
+    const next = canonicalizeTagList(current.map((item) => String(item || "").toLowerCase() === oldLower ? toTag : item));
+    if (sameTagList(current, next)) return false;
+    row.tags = next;
+    return true;
   });
-  addEventLog("Renamed tag", `${oldTag} → ${newTrimmed}`);
-  scheduleSync();
+  if (!summary.changed) return false;
+  addEventLog("Renamed tag", `${fromTag} → ${toTag} (${summary.changedRows} row${summary.changedRows === 1 ? "" : "s"})`);
+  return true;
 };
+
+const mergeGlobalTag = (fromTag, intoTag) => renameGlobalTag(fromTag, intoTag);
 
 const renderManageTagsView = () => {
   if (!tagsManageList) return;
@@ -11423,6 +11591,249 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
   return didSave;
 };
 
+const openTagMaintenanceDialog = (options = {}) => {
+  let dialog = document.getElementById("tag-maintenance-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "tag-maintenance-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Tag Maintenance</h3>
+        <div id="tag-maintenance-status" class="stats-hint"></div>
+        <div id="tag-maintenance-content" class="advanced-stats-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="tag-maintenance-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#tag-maintenance-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#tag-maintenance-content");
+  const status = dialog.querySelector("#tag-maintenance-status");
+  if (!content || !status) return;
+
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const setStatus = (message) => {
+    status.textContent = String(message || "");
+  };
+  const notifyUpdate = (message) => {
+    if (typeof options.onUpdated === "function") options.onUpdated();
+    if (PLATFORM === "mobile" && message) showToast(message);
+  };
+  const appendTagValue = (input, tag) => {
+    if (!input) return;
+    const nextTag = canonicalizeTagLabel(tag);
+    const existing = normalizeTagsInput(input.value);
+    const merged = mergeTags(existing, [nextTag]);
+    input.value = merged.join(", ");
+    input.focus();
+  };
+  const render = () => {
+    const snapshot = collectInventoryTagMaintenanceSnapshot();
+    const topSuggestions = snapshot.usedTags.slice(0, 16).map((item) => item.tag);
+    content.innerHTML = `
+      <div class="stats-section">
+        <div class="stats-section-title">Overview</div>
+        <div class="stats-hint">Manage tags across all inventory tabs from one place. Rename, merge, and delete work closet-wide by default.</div>
+        <div class="stats-row stats-sub"><span class="stats-label">Used tags</span><span class="stats-value">${snapshot.totalUsedTags}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tag assignments</span><span class="stats-value">${snapshot.totalTaggedAssignments}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Possible duplicate groups</span><span class="stats-value">${snapshot.duplicateGroups.length}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Untagged items</span><span class="stats-value">${snapshot.untaggedItems.length}</span></div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Cleanup tags</div>
+        <div class="stats-hint">Rename or merge one tag family at a time. Delete removes the tag from every inventory tab.</div>
+        <div class="tag-maintenance-list">
+          ${snapshot.usedTags.length ? snapshot.usedTags.map((item, index) => `
+            <div class="tag-maintenance-item">
+              <div class="tag-maintenance-main">
+                <div class="tag-maintenance-label">${esc(item.tag)}</div>
+                <div class="tag-maintenance-meta">${item.count} item${item.count === 1 ? "" : "s"}</div>
+              </div>
+              <div class="tag-maintenance-actions">
+                <input type="text" id="tag-maintenance-target-${index}" data-tag-source="${esc(item.tag)}" placeholder="Rename or merge target">
+                <button type="button" class="btn secondary" data-tag-rename="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Rename</button>
+                <button type="button" class="btn secondary" data-tag-merge="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Merge</button>
+                <button type="button" class="btn secondary" data-tag-delete="${esc(item.tag)}">Delete</button>
+              </div>
+            </div>`).join("") : `<div class="stats-hint">No used tags found yet.</div>`}
+        </div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Possible duplicates</div>
+        <div class="stats-hint">These are conservative suggestions based on casing, punctuation/spacing, and light plural normalization. Review before merging.</div>
+        <div class="tag-maintenance-list">
+          ${snapshot.duplicateGroups.length ? snapshot.duplicateGroups.map((group, index) => `
+            <div class="tag-maintenance-item">
+              <div class="tag-maintenance-main">
+                <div class="tag-maintenance-label">Keep ${esc(group.preferredTag)}</div>
+                <div class="tag-maintenance-meta">${esc(group.variants.map((item) => `${item.tag} (${item.count})`).join(" · "))}</div>
+              </div>
+              <div class="tag-maintenance-actions tag-maintenance-actions-compact">
+                <button type="button" class="btn secondary" data-tag-merge-group="${index}">Merge into ${esc(group.preferredTag)}</button>
+              </div>
+            </div>`).join("") : `<div class="stats-hint">No suspicious duplicate groups found right now.</div>`}
+        </div>
+      </div>
+      <div class="stats-section">
+        <div class="stats-section-title">Untagged cleanup</div>
+        <div class="stats-hint">Select untagged items, add one or more tags, and apply them across all selected rows in one step.</div>
+        <div class="dialog-actions" style="margin-top:8px;">
+          <button type="button" class="btn secondary" id="tag-maintenance-select-all">Select all</button>
+          <button type="button" class="btn secondary" id="tag-maintenance-clear-selection">Clear selection</button>
+        </div>
+        <div class="tag-maintenance-actions" style="margin-top:8px;">
+          <input type="text" id="tag-maintenance-untagged-input" placeholder="Examples: Floral, Holiday">
+          <button type="button" class="btn" id="tag-maintenance-untagged-apply">Apply to selected</button>
+        </div>
+        <div class="tag-maintenance-suggestions">
+          ${topSuggestions.map((tag) => `<button type="button" class="btn secondary" data-tag-suggestion="${esc(tag)}">${esc(tag)}</button>`).join("")}
+        </div>
+        <div class="tag-maintenance-list">
+          ${snapshot.untaggedItems.length ? snapshot.untaggedItems.map((item) => `
+            <label class="tag-maintenance-checkbox">
+              <input type="checkbox" data-untagged-row="${esc(`${item.tabId}::${item.rowId}`)}">
+              <span>${esc(`${item.name} (${item.tab}) - ${item.type}`)}</span>
+            </label>`).join("") : `<div class="stats-hint">No untagged items right now.</div>`}
+        </div>
+      </div>`;
+
+    content.querySelectorAll("[data-tag-rename]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-rename") || "");
+        const input = document.getElementById(String(button.getAttribute("data-target-input") || ""));
+        const targetTag = input ? input.value : "";
+        const didChange = renameGlobalTag(sourceTag, targetTag);
+        if (!didChange) {
+          setStatus(`Rename skipped for ${sourceTag}. Enter a different target name.`);
+          return;
+        }
+        setStatus(`Renamed ${sourceTag} to ${canonicalizeTagLabel(targetTag)} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-merge]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-merge") || "");
+        const input = document.getElementById(String(button.getAttribute("data-target-input") || ""));
+        const targetTag = input ? input.value : "";
+        const didChange = mergeGlobalTag(sourceTag, targetTag);
+        if (!didChange) {
+          setStatus(`Merge skipped for ${sourceTag}. Enter a different existing or new target tag.`);
+          return;
+        }
+        setStatus(`Merged ${sourceTag} into ${canonicalizeTagLabel(targetTag)} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-delete]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const sourceTag = String(button.getAttribute("data-tag-delete") || "");
+        const didChange = deleteGlobalTag(sourceTag);
+        if (!didChange) {
+          setStatus(`Delete skipped for ${sourceTag}.`);
+          return;
+        }
+        setStatus(`Deleted ${sourceTag} across inventory.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+    content.querySelectorAll("[data-tag-merge-group]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const index = Number(button.getAttribute("data-tag-merge-group") || -1);
+        const group = snapshot.duplicateGroups[index];
+        if (!group) return;
+        let changed = false;
+        group.variants.forEach((item) => {
+          if (item.tag === group.preferredTag) return;
+          changed = mergeGlobalTag(item.tag, group.preferredTag) || changed;
+        });
+        if (!changed) {
+          setStatus(`No duplicate merge was needed for ${group.preferredTag}.`);
+          return;
+        }
+        setStatus(`Merged duplicate variants into ${group.preferredTag}.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    });
+
+    const untaggedInput = content.querySelector("#tag-maintenance-untagged-input");
+    const selectAllButton = content.querySelector("#tag-maintenance-select-all");
+    const clearSelectionButton = content.querySelector("#tag-maintenance-clear-selection");
+    const applyButton = content.querySelector("#tag-maintenance-untagged-apply");
+    if (selectAllButton) {
+      selectAllButton.addEventListener("click", () => {
+        content.querySelectorAll("[data-untagged-row]").forEach((input) => {
+          input.checked = true;
+        });
+      });
+    }
+    if (clearSelectionButton) {
+      clearSelectionButton.addEventListener("click", () => {
+        content.querySelectorAll("[data-untagged-row]").forEach((input) => {
+          input.checked = false;
+        });
+      });
+    }
+    content.querySelectorAll("[data-tag-suggestion]").forEach((button) => {
+      button.addEventListener("click", () => {
+        appendTagValue(untaggedInput, button.getAttribute("data-tag-suggestion") || "");
+      });
+    });
+    if (applyButton && untaggedInput) {
+      applyButton.addEventListener("click", () => {
+        const nextTags = normalizeTagsInput(untaggedInput.value);
+        const selectedKeys = new Set(Array.from(content.querySelectorAll("[data-untagged-row]:checked")).map((input) => String(input.getAttribute("data-untagged-row") || "")).filter(Boolean));
+        if (!selectedKeys.size) {
+          setStatus("Select at least one untagged item first.");
+          return;
+        }
+        if (!nextTags.length) {
+          setStatus("Enter one or more tags to apply.");
+          return;
+        }
+        persistNewTags(nextTags);
+        const summary = mutateInventoryRowsAcrossTabs(({ row, tabId }) => {
+          const selectionKey = `${tabId}::${row.id}`;
+          if (!selectedKeys.has(selectionKey)) return false;
+          const current = getRowTags(row);
+          const next = mergeTags(current, nextTags);
+          if (sameTagList(current, next)) return false;
+          row.tags = next;
+          return true;
+        });
+        if (!summary.changed) {
+          setStatus("Those tags were already applied to the selected items.");
+          return;
+        }
+        addEventLog("Added tags", `Tag Maintenance (${summary.changedRows} rows): ${nextTags.join(", ")}`);
+        setStatus(`Applied ${nextTags.join(", ")} to ${summary.changedRows} selected row${summary.changedRows === 1 ? "" : "s"}.`);
+        notifyUpdate("Tag maintenance updated");
+        render();
+      });
+    }
+  };
+
+  render();
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const openAdvancedStatsDialog = (stats) => {
   let dialog = document.getElementById("advanced-stats-dialog");
   if (!dialog) {
@@ -11435,6 +11846,7 @@ const openAdvancedStatsDialog = (stats) => {
       </div>
       <div class="dialog-actions">
         <button type="button" id="advanced-stats-type-rules" class="btn secondary">Type Rules</button>
+        <button type="button" id="advanced-stats-tag-maintenance" class="btn secondary">Tag Maintenance</button>
         <button type="button" id="advanced-stats-help" class="btn secondary">Help</button>
         <button type="button" id="advanced-stats-close" class="btn">Close</button>
       </div>
@@ -11442,6 +11854,7 @@ const openAdvancedStatsDialog = (stats) => {
     document.body.appendChild(dialog);
 
     const typeRulesButton = dialog.querySelector("#advanced-stats-type-rules");
+    const tagMaintenanceButton = dialog.querySelector("#advanced-stats-tag-maintenance");
     const helpButton = dialog.querySelector("#advanced-stats-help");
     const closeButton = dialog.querySelector("#advanced-stats-close");
     if (typeRulesButton) {
@@ -11452,6 +11865,17 @@ const openAdvancedStatsDialog = (stats) => {
             latestStatsSnapshot = refreshed;
             openAdvancedStatsDialog(refreshed);
             if (PLATFORM === "mobile") showToast("Collector type rules updated");
+          },
+        });
+      });
+    }
+    if (tagMaintenanceButton) {
+      tagMaintenanceButton.addEventListener("click", () => {
+        openTagMaintenanceDialog({
+          onUpdated: () => {
+            const refreshed = collectAllStats();
+            latestStatsSnapshot = refreshed;
+            openAdvancedStatsDialog(refreshed);
           },
         });
       });
@@ -13167,6 +13591,7 @@ const buildAdvancedStatsHelpHtml = () => {
     [
       { label: "Collector DNA", value: "Separates basic tagging coverage from the custom tags that actually shape analytics, then summarizes known-tag count, average tags per analyzed item, and the strongest tag identities in the closet." },
       { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation. Import/export/reset tools affect only your custom rules." },
+      { label: "Tag Maintenance", value: "Use the Tag Maintenance button to rename, merge, or delete tags across all inventory tabs, review suspicious near-duplicates, and batch-tag untagged items from one workspace." },
       { label: "Currently excluded by rules", value: "Shows which real closet types are currently outside the collector-stats universe, how many items they remove, and which built-in or custom rule matched them." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },

@@ -2616,6 +2616,7 @@ dialog {
 #stats-dialog .dialog-actions .btn,
 #collector-type-rules-dialog .dialog-actions .btn,
 #advanced-stats-dialog .dialog-actions .btn,
+#tag-maintenance-dialog .dialog-actions .btn,
 #stats-coaching-help-dialog .dialog-actions .btn,
 #no-buy-game-dialog .dialog-actions .btn,
 #insights-dialog .dialog-actions .btn {
@@ -3248,6 +3249,10 @@ input[type="date"].stats-date-input {
   .insights-queue-control-group {
     width: 100%;
   }
+
+  .tag-maintenance-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3626,6 +3631,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-body,
 #all-added-dialog .dialog-body,
 #advanced-stats-dialog .dialog-body,
+#tag-maintenance-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
 #stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
@@ -3644,6 +3650,7 @@ input[type="date"].stats-date-input {
 #unworn-six-months-dialog .dialog-actions,
 #all-added-dialog .dialog-actions,
 #advanced-stats-dialog .dialog-actions,
+#tag-maintenance-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
 #stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
@@ -3723,6 +3730,73 @@ input[type="date"].stats-date-input {
 .advanced-stats-content {
   display: grid;
   gap: 8px;
+}
+
+.tag-maintenance-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tag-maintenance-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.tag-maintenance-main {
+  display: grid;
+  gap: 4px;
+}
+
+.tag-maintenance-label {
+  color: var(--ink);
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.tag-maintenance-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+  word-break: break-word;
+}
+
+.tag-maintenance-actions {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-maintenance-actions-compact {
+  grid-template-columns: auto;
+  justify-content: flex-start;
+}
+
+.tag-maintenance-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.tag-maintenance-checkbox input {
+  margin-top: 2px;
+}
+
+.tag-maintenance-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .wear-history-list {
