@@ -2602,7 +2602,19 @@ dialog {
   background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
 }
 
+#collector-type-rules-dialog .dialog-actions {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 8px 20px 16px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 4%, #f9fafb);
+}
+
 #stats-dialog .dialog-actions .btn,
+#collector-type-rules-dialog .dialog-actions .btn,
 #advanced-stats-dialog .dialog-actions .btn,
 #stats-coaching-help-dialog .dialog-actions .btn,
 #no-buy-game-dialog .dialog-actions .btn,
