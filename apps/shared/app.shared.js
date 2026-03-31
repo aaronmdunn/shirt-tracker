@@ -668,7 +668,6 @@ const statsInsightsButton = document.getElementById("stats-insights");
 const statsNoBuyButton = document.getElementById("stats-no-buy");
 const preBuyCheckButton = document.getElementById("pre-buy-check-button");
 const statsButton = document.getElementById("stats-button");
-const dailyNoBuyMission = document.getElementById("daily-no-buy-mission");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
 const recycleBinEmpty = document.getElementById("recycle-bin-empty");
@@ -13347,6 +13346,18 @@ const getNoBuyNextMilestone = (streak) => {
   return next || null;
 };
 
+const getDailyNoBuyMissionContainer = (createIfMissing = false) => {
+  if (PLATFORM !== "desktop") return null;
+  let container = document.getElementById("daily-no-buy-mission");
+  if (container || !createIfMissing) return container;
+  const sheetHeader = document.querySelector(".sheet > .sheet-header");
+  if (!sheetHeader || !sheetHeader.parentNode) return null;
+  container = document.createElement("div");
+  container.id = "daily-no-buy-mission";
+  sheetHeader.insertAdjacentElement("afterend", container);
+  return container;
+};
+
 const chooseNoBuyDailyMissionType = (state, stats) => {
   const safe = normalizeNoBuyGamifyState(state || {});
   const topTrigger = getNoBuyTriggerSummary(safe, 14)[0] || null;
@@ -13466,12 +13477,13 @@ const buildNoBuyDailyMission = (state, stats) => {
 };
 
 const renderDailyNoBuyMissionCard = (sourceStats = null, sourceMissionState = null) => {
-  if (PLATFORM !== "desktop" || !dailyNoBuyMission) return;
+  if (PLATFORM !== "desktop") return;
+  const dailyNoBuyMission = getDailyNoBuyMissionContainer(Boolean(currentUser && !isViewerSession && !state.readOnly));
   if (!currentUser || isViewerSession || state.readOnly || document.body.getAttribute("data-auth") !== "signed-in") {
-    dailyNoBuyMission.classList.remove("is-visible");
-    dailyNoBuyMission.innerHTML = "";
+    if (dailyNoBuyMission) dailyNoBuyMission.remove();
     return;
   }
+  if (!dailyNoBuyMission) return;
   const stats = sourceStats || collectAllStats();
   let missionState = normalizeNoBuyGamifyState(sourceMissionState || loadNoBuyGamifyState());
   const ensured = ensureTodayNoBuyDailyMission(missionState, stats);
