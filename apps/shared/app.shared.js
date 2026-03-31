@@ -9661,10 +9661,10 @@ const collectAllStats = () => {
   collectorStatsRows.forEach((entry) => {
     const name = getCellValue(entry, "Name");
     if (!name) return;
-    name.split(/[\s\-\/\(\)\[\]:,]+/).forEach((word) => {
-      const w = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (w.length < 2 || stopWords.has(w)) return;
-      wordCounts[w] = (wordCounts[w] || 0) + 1;
+    const words = String(name).toLowerCase().match(/[a-z0-9]+/g) || [];
+    words.forEach((word) => {
+      if (word.length < 2 || stopWords.has(word)) return;
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
     });
   });
   const topWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -12718,7 +12718,7 @@ const buildMainStatsHelpHtml = (stats) => {
     [
       { label: isInventory ? "Collection diversity" : "Wishlist diversity", value: "A balance score for how evenly your items are spread across types and fandoms. Low means a strong favorite lane. High means more variety." },
       { label: "Specialist / Balanced / Generalist", value: "These labels summarize whether the closet leans hard into a few lanes, sits in the middle, or spreads broadly across many lanes." },
-      { label: "Common words in names", value: "Desktop only. Surfaces repeated naming patterns so you can see when a few themes or product lines dominate the closet." },
+      { label: "Common words in names", value: "Desktop only. Counts whole name words so repeated themes or product lines stand out without punctuation fusing fragments into fake words." },
       { label: "Whales", value: "High-value or special collector-anchor items tagged Whale. The section shows how many exist and whether they are active or intentionally parked." },
     ]
   );
@@ -12809,7 +12809,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Adaptive queue profile", value: "Learns from actual queue acceptance rates and suggests what to amplify or cool down." },
       { label: "7-day reactivation plan", value: "A one-week action plan built from comeback pressure, queue friction, and value-recovery needs." },
       { label: "Top 5 to sell", value: "The five strongest sell candidates after multi-factor scoring, while protecting recent additions and special collector pieces. Use the dismiss action to hide an item for 30 days." },
-      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many are still keepers, and how much drag they create." },
+      { label: "Marketplace tags / keepers / drag", value: "Shows how much value is tied up in marketplace-marked items, how many still look like real keepers, and how much slow-moving drag they create." },
       { label: "Work-ready / Formal coverage", value: "Tracks how deep these special-purpose lanes are and whether they are actually being worn." },
     ]
   );
@@ -12825,7 +12825,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Outfit confidence low-signal items", value: "Items whose repeat-wear confidence currently looks weak." },
       { label: "Adaptive queue recommendations", value: "Type-level boost or cool suggestions learned from real queue behavior." },
       { label: "7-day reactivation playbook", value: "An ordered short plan for waking dormant value back up." },
-      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength." },
+      { label: "Marketplace tag details", value: "Per-marketplace breakdown of count, idle load, value, average wears, and keeper strength. A keeper currently means 2+ wears plus either activity in the last 365 days or strong queue confidence." },
       { label: "Bench pressure watchlist", value: "Specific queued items that repeatedly get skipped, snoozed, or soft-passed." },
     ]
   );
@@ -12860,7 +12860,7 @@ const buildAdvancedStatsHelpHtml = () => {
     "Collector snapshot and health",
     "These sections describe the overall state of the collection at a higher level.",
     [
-      { label: "Collector snapshot", value: "A broad summary of total size, current yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
+      { label: "Collector snapshot", value: "A plain-language overview of closet size, yearly reach, parked value, active brands, fresh activation, and special-purpose lanes." },
       { label: "Closet health score", value: "A 0-100 summary based on yearly reach, never-worn share, parked value, and cost-per-wear efficiency. Higher is healthier." },
       { label: "Worn in last 365 days", value: "The percent of wearable items touched in the last year." },
       { label: "Items <= $20 CPW", value: "The share of items that have already delivered relatively efficient value based on cost per wear." },
@@ -12892,7 +12892,7 @@ const buildAdvancedStatsHelpHtml = () => {
     "Tags and occasions",
     "These sections explain how labels and purpose lanes are performing.",
     [
-      { label: "Collector DNA", value: "Separates broad tag coverage from the non-default tags used for analytics, then summarizes known-tag count, average tags per analyzed item, and the top tag identities shaping the closet." },
+      { label: "Collector DNA", value: "Separates basic tagging coverage from the custom tags that actually shape analytics, then summarizes known-tag count, average tags per analyzed item, and the strongest tag identities in the closet." },
       { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
@@ -12904,7 +12904,7 @@ const buildAdvancedStatsHelpHtml = () => {
       { label: "Trending tags", value: "Highlights tags whose add-plus-wear activity spiked over the last 30 days compared with the prior 30-day window." },
       { label: "Rarity index", value: "Calls out shirts whose exact tag combinations are unusually rare compared with the rest of the closet." },
       { label: "Time-series tagging", value: "Maps tag-linked wear usage month by month so seasonal swings are visible." },
-      { label: "Tag eras", value: "Tracks consecutive day, week, and month runs where one tag clearly dominated wear activity." },
+      { label: "Tag eras", value: "Tracks stretches where one tag clearly led your wear history across day, week, or month windows." },
       { label: "Occasion lanes", value: "Shows depth and activity for special-purpose tagged lanes like Work Appropriate, Formal, and other occasion-focused categories." },
     ]
   );
@@ -13704,7 +13704,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       }
       bucket.wearSamples.push(wearCount);
       const confidenceHit = confidenceByKey[getInsightsQueueKey(item)] || null;
-      if (wearCount >= 3 && ((daysSince !== null && daysSince <= 365) || (confidenceHit && confidenceHit.confidenceScore >= 60))) {
+      if (wearCount >= 2 && ((daysSince !== null && daysSince <= 365) || (confidenceHit && confidenceHit.confidenceScore >= 60))) {
         bucket.strongKeepers += 1;
       }
     });
@@ -15342,7 +15342,7 @@ const openInsightsDialog = (stats, options = {}) => {
        ${renderDnaCard(`${monthLabel} Wrapped`, monthDna)}
        ${renderDnaCard(`${yearLabel} Wrapped`, yearDna)}
      </div>
-     <div class="insights-story-launch">
+     <div class="dialog-actions insights-story-launch">
        <button type="button" class="btn secondary" id="insights-story-play">Play story</button>
      </div>
      <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
