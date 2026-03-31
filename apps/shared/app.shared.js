@@ -703,6 +703,36 @@ const normalizeCollectorTypeRuleToken = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, "");
 
+const copyTextToClipboard = async (value, fallbackInput = null) => {
+  const text = String(value || "");
+  if (!text) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    if (fallbackInput && typeof fallbackInput.select === "function") {
+      fallbackInput.focus();
+      fallbackInput.select();
+      return document.execCommand("copy");
+    }
+  } catch (error) {
+    return false;
+  }
+  return false;
+};
+
+const readTextFromClipboard = async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      return await navigator.clipboard.readText();
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+};
+
 const loadCollectorStatsTypeRulesRaw = () => {
   if (!canUseLocalStorage()) return "";
   try {
@@ -727,6 +757,34 @@ const parseCollectorStatsTypeRules = (rawValue) => {
   const exact = new Set(DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
   const contains = new Set(DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.map(normalizeCollectorTypeRuleToken).filter(Boolean));
   const customLines = [];
+  const exactRules = [];
+  const containsRules = [];
+  const customExact = [];
+  const customContains = [];
+  const seenExact = new Set();
+  const seenContains = new Set();
+  const addRule = (mode, value, source) => {
+    const cleanValue = String(value || "").trim();
+    const normalized = normalizeCollectorTypeRuleToken(cleanValue);
+    if (!normalized) return;
+    if (mode === "contains") {
+      contains.add(normalized);
+      if (!seenContains.has(normalized)) {
+        containsRules.push({ mode, value: cleanValue, normalized, source, label: `contains:${cleanValue}` });
+        seenContains.add(normalized);
+      }
+      if (source === "custom") customContains.push(cleanValue);
+      return;
+    }
+    exact.add(normalized);
+    if (!seenExact.has(normalized)) {
+      exactRules.push({ mode: "exact", value: cleanValue, normalized, source, label: cleanValue });
+      seenExact.add(normalized);
+    }
+    if (source === "custom") customExact.push(cleanValue);
+  };
+  DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.forEach((value) => addRule("exact", value, "default"));
+  DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.forEach((value) => addRule("contains", value, "default"));
   String(rawValue || "")
     .split(/[\n,]+/)
     .map((line) => line.trim())
@@ -743,24 +801,31 @@ const parseCollectorStatsTypeRules = (rawValue) => {
       }
       const normalized = normalizeCollectorTypeRuleToken(value);
       if (!normalized) return;
-      if (mode === "contains") contains.add(normalized);
-      else exact.add(normalized);
+      addRule(mode, value, "custom");
       customLines.push(mode === "contains" ? `contains:${value}` : value);
     });
-  return { exact, contains, customLines };
+  return { exact, contains, customLines, exactRules, containsRules, customExact, customContains };
 };
 
 const getCollectorStatsTypeRuleSet = () => parseCollectorStatsTypeRules(loadCollectorStatsTypeRulesRaw());
 
-const isCollectorStatsExcludedType = (typeValue, ruleSet = null) => {
+const describeCollectorStatsTypeExclusion = (typeValue, ruleSet = null) => {
   const normalizedType = normalizeCollectorTypeRuleToken(typeValue);
-  if (!normalizedType) return false;
+  if (!normalizedType) return null;
   const rules = ruleSet || getCollectorStatsTypeRuleSet();
-  if (rules.exact.has(normalizedType)) return true;
-  for (const token of rules.contains) {
-    if (token && normalizedType.includes(token)) return true;
+  const exactMatch = Array.isArray(rules.exactRules)
+    ? rules.exactRules.find((rule) => rule.normalized === normalizedType)
+    : null;
+  if (exactMatch) return exactMatch;
+  if (Array.isArray(rules.containsRules)) {
+    const containsMatch = rules.containsRules.find((rule) => rule.normalized && normalizedType.includes(rule.normalized));
+    if (containsMatch) return containsMatch;
   }
-  return false;
+  return null;
+};
+
+const isCollectorStatsExcludedType = (typeValue, ruleSet = null) => {
+  return Boolean(describeCollectorStatsTypeExclusion(typeValue, ruleSet));
 };
 
 const isShirtNameColumn = (column) => {
@@ -9437,6 +9502,36 @@ const collectAllStats = () => {
   const collectorStatsRuleSet = getCollectorStatsTypeRuleSet();
   const isCollectorStatsEntry = (entry) => !isCollectorStatsExcludedType(getCellValue(entry, "Type"), collectorStatsRuleSet);
   const collectorStatsRows = allRows.filter(isCollectorStatsEntry);
+  const excludedTypeMatchMap = new Map();
+  allRows.forEach((entry) => {
+    const rawType = getCellValue(entry, "Type");
+    const type = String(rawType || "").trim() || "Unknown";
+    const match = describeCollectorStatsTypeExclusion(type, collectorStatsRuleSet);
+    if (!match) return;
+    const existing = excludedTypeMatchMap.get(type);
+    if (existing) {
+      existing.count += 1;
+      return;
+    }
+    excludedTypeMatchMap.set(type, {
+      type,
+      count: 1,
+      ruleLabel: match.label,
+      ruleSource: match.source,
+      ruleMode: match.mode,
+    });
+  });
+  const excludedTypeMatches = Array.from(excludedTypeMatchMap.values())
+    .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+  const collectorTypeRulesSummary = {
+    builtInExact: DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST.slice(),
+    builtInContains: DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST.slice(),
+    customExact: Array.isArray(collectorStatsRuleSet.customExact) ? collectorStatsRuleSet.customExact.slice() : [],
+    customContains: Array.isArray(collectorStatsRuleSet.customContains) ? collectorStatsRuleSet.customContains.slice() : [],
+    excludedTypeMatches,
+    excludedTypeCount: excludedTypeMatches.length,
+    excludedItemCount: excludedTypeMatches.reduce((sum, item) => sum + item.count, 0),
+  };
   const collectorPerTabRows = perTabRows
     .map((tab) => ({
       ...tab,
@@ -10437,6 +10532,7 @@ const collectAllStats = () => {
     tagSeasonalityByMonth,
     tagEras,
     collectorDna,
+    collectorTypeRules: collectorTypeRulesSummary,
     untaggedItems,
     closetHealth: {
       score: closetHealthScore,
@@ -11136,6 +11232,13 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
         <label for="collector-type-rules-input">Custom denylist additions</label>
         <textarea id="collector-type-rules-input" placeholder="Examples:&#10;Thermal Pants&#10;contains:beanie"></textarea>
         <div class="stats-hint">Use one rule per line or commas. Matching is case- and punctuation-insensitive. Use <code>contains:</code> for whole families; plain entries are exact-match rules.</div>
+        <div class="dialog-actions" style="justify-content:flex-start; margin-top:8px;">
+          <button type="button" id="collector-type-rules-import" class="btn secondary">Import clipboard</button>
+          <button type="button" id="collector-type-rules-export" class="btn secondary">Export custom rules</button>
+        </div>
+        <div id="collector-type-rules-status" class="stats-hint"></div>
+        <div id="collector-type-rules-summary" class="stats-section" style="margin-top:8px"></div>
+        <div id="collector-type-rules-matches" class="stats-section"></div>
       </div>
       <div class="dialog-actions">
         <button type="button" id="collector-type-rules-reset" class="btn secondary">Clear custom rules</button>
@@ -11150,9 +11253,101 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
   const saveButton = dialog.querySelector("#collector-type-rules-save");
   const cancelButton = dialog.querySelector("#collector-type-rules-cancel");
   const resetButton = dialog.querySelector("#collector-type-rules-reset");
-  if (!input || !saveButton || !cancelButton || !resetButton) return false;
+  const importButton = dialog.querySelector("#collector-type-rules-import");
+  const exportButton = dialog.querySelector("#collector-type-rules-export");
+  const status = dialog.querySelector("#collector-type-rules-status");
+  const summary = dialog.querySelector("#collector-type-rules-summary");
+  const matches = dialog.querySelector("#collector-type-rules-matches");
+  if (!input || !saveButton || !cancelButton || !resetButton || !importButton || !exportButton || !status || !summary || !matches) return false;
 
   input.value = loadCollectorStatsTypeRulesRaw();
+
+  const esc = (str) => String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+  const setStatus = (message) => {
+    status.textContent = String(message || "");
+  };
+  const activeSummary = collectAllStats()?.advanced?.collectorTypeRules || {
+    builtInExact: DEFAULT_COLLECTOR_STATS_EXACT_TYPE_DENYLIST,
+    builtInContains: DEFAULT_COLLECTOR_STATS_CONTAINS_TYPE_DENYLIST,
+    customExact: [],
+    customContains: [],
+    excludedTypeMatches: [],
+    excludedTypeCount: 0,
+    excludedItemCount: 0,
+  };
+  const sourceEntries = (() => {
+    const tabs = tabsState.tabs;
+    const entries = [];
+    tabs.forEach((tab) => {
+      let rows;
+      let cols;
+      if (tab.id === tabsState.activeTabId) {
+        rows = state.rows;
+        cols = state.columns;
+      } else {
+        try {
+          const stored = localStorage.getItem(getStorageKey(tab.id));
+          if (!stored) return;
+          const parsed = JSON.parse(stored);
+          rows = Array.isArray(parsed.rows) ? parsed.rows : [];
+          cols = Array.isArray(parsed.columns) ? parsed.columns : [];
+        } catch (error) {
+          return;
+        }
+      }
+      (Array.isArray(rows) ? rows : []).forEach((row) => {
+        entries.push({ row, columns: Array.isArray(cols) ? cols : [], tabName: tab.name || "", tabId: tab.id });
+      });
+    });
+    return entries;
+  })();
+  const findColumn = (cols, name) =>
+    cols.find((c) => (c.name || "").trim().toLowerCase() === name.toLowerCase());
+  const getEntryType = (entry) => {
+    const col = findColumn(entry.columns, "Type");
+    return col && entry.row && entry.row.cells ? String(entry.row.cells[col.id] || "").trim() : "";
+  };
+  const renderRuleMeta = () => {
+    const draftRules = parseCollectorStatsTypeRules(input.value);
+    const draftExcludedTypeMap = new Map();
+    sourceEntries.forEach((entry) => {
+      const type = getEntryType(entry) || "Unknown";
+      const match = describeCollectorStatsTypeExclusion(type, draftRules);
+      if (!match) return;
+      const existing = draftExcludedTypeMap.get(type);
+      if (existing) {
+        existing.count += 1;
+        return;
+      }
+      draftExcludedTypeMap.set(type, {
+        type,
+        count: 1,
+        ruleLabel: match.label,
+        ruleSource: match.source,
+      });
+    });
+    const draftExcludedTypeMatches = Array.from(draftExcludedTypeMap.values())
+      .sort((a, b) => b.count - a.count || a.type.localeCompare(b.type));
+    const draftExcludedItemCount = draftExcludedTypeMatches.reduce((sum, item) => sum + item.count, 0);
+    summary.innerHTML = `
+      <div class="stats-section-title">Current rule summary</div>
+      <div class="stats-row stats-sub"><span class="stats-label">Built-in exact rules</span><span class="stats-value">${esc((activeSummary.builtInExact || []).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Built-in contains rules</span><span class="stats-value">${esc((activeSummary.builtInContains || []).map((value) => `contains:${value}`).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Draft custom exact rules</span><span class="stats-value">${esc((draftRules.customExact || []).join(", ") || "none")}</span></div>
+      <div class="stats-row stats-sub"><span class="stats-label">Draft custom contains rules</span><span class="stats-value">${esc((draftRules.customContains || []).map((value) => `contains:${value}`).join(", ") || "none")}</span></div>
+      <div class="stats-hint">Built-in rules always stay active. Import/export/reset affects only your custom additions.</div>`;
+    matches.innerHTML = `
+      <div class="stats-section-title">Excluded with current draft</div>
+      <div class="stats-hint">${draftExcludedTypeMatches.length || 0} excluded type${draftExcludedTypeMatches.length === 1 ? "" : "s"} removing ${draftExcludedItemCount || 0} item${draftExcludedItemCount === 1 ? "" : "s"} from collector-facing stats if you save this draft.</div>
+      ${draftExcludedTypeMatches.length
+        ? draftExcludedTypeMatches.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(item.type)}</span><span class="stats-value">${item.count} item${item.count === 1 ? "" : "s"} · ${esc(item.ruleLabel)} (${item.ruleSource === "default" ? "built-in" : "custom"})</span></div>`).join("")
+        : `<div class="stats-hint">No current closet types are being excluded.</div>`}`;
+  };
+  renderRuleMeta();
 
   const didSave = await new Promise((resolve) => {
     let settled = false;
@@ -11162,6 +11357,9 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
       saveButton.removeEventListener("click", onSave);
       cancelButton.removeEventListener("click", onCancel);
       resetButton.removeEventListener("click", onReset);
+      importButton.removeEventListener("click", onImport);
+      exportButton.removeEventListener("click", onExport);
+      input.removeEventListener("input", onInput);
       dialog.removeEventListener("cancel", onCancelEvent);
     };
     const onSave = () => {
@@ -11177,6 +11375,33 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
     };
     const onReset = () => {
       input.value = "";
+      setStatus("Draft custom rules cleared. Save to apply the reset.");
+      renderRuleMeta();
+    };
+    const onImport = async () => {
+      const importedText = await readTextFromClipboard();
+      if (typeof importedText !== "string") {
+        setStatus("Clipboard import is unavailable here. Paste your rules into the box manually.");
+        input.focus();
+        return;
+      }
+      input.value = importedText.trim();
+      setStatus("Clipboard rules loaded into the editor. Save to apply them.");
+      renderRuleMeta();
+      input.focus();
+    };
+    const onExport = async () => {
+      if (!String(input.value || "").trim()) {
+        setStatus("No custom rules to export yet.");
+        return;
+      }
+      const didCopy = await copyTextToClipboard(input.value, input);
+      setStatus(didCopy ? "Custom rules copied to clipboard." : "Copy failed here. Select the text manually to export it.");
+      if (!didCopy) input.focus();
+    };
+    const onInput = () => {
+      if (status.textContent) setStatus("");
+      renderRuleMeta();
     };
     const onCancelEvent = (event) => {
       event.preventDefault();
@@ -11185,6 +11410,9 @@ const openCollectorTypeRulesDialog = async (options = {}) => {
     saveButton.addEventListener("click", onSave);
     cancelButton.addEventListener("click", onCancel);
     resetButton.addEventListener("click", onReset);
+    importButton.addEventListener("click", onImport);
+    exportButton.addEventListener("click", onExport);
+    input.addEventListener("input", onInput);
     dialog.addEventListener("cancel", onCancelEvent);
     openDialog(dialog);
     resetDialogScroll(dialog);
@@ -11485,12 +11713,30 @@ const openAdvancedStatsDialog = (stats) => {
     let body = "";
     const mostOver = adv.typeRotationBalance.slice().sort((a, b) => b.deltaPct - a.deltaPct)[0] || null;
     const mostUnder = adv.typeRotationBalance.slice().sort((a, b) => a.deltaPct - b.deltaPct)[0] || null;
-    body += hint(`Most overrepresented in wear: ${mostOver ? `${mostOver.type} (${mostOver.deltaPct >= 0 ? "+" : ""}${mostOver.deltaPct.toFixed(1)}%)` : "n/a"}. Most underused: ${mostUnder ? `${mostUnder.type} (${mostUnder.deltaPct.toFixed(1)}%)` : "n/a"}.`);
-    adv.typeRotationBalance.slice(0, 10).forEach((t) => {
+    body += hint(`Most overrepresented in wear: ${mostOver ? `${mostOver.type} (${mostOver.deltaPct >= 0 ? "+" : ""}${mostOver.deltaPct.toFixed(1)}%)` : "n/a"}. Most underused: ${mostUnder ? `${mostUnder.type} (${mostUnder.deltaPct.toFixed(1)}%)` : "n/a"}. All included collector types are listed below, even when current wear share is 0%.`);
+    adv.typeRotationBalance.forEach((t) => {
       const delta = `${t.deltaPct >= 0 ? "+" : ""}${t.deltaPct.toFixed(1)}%`;
       body += sub(t.type, `inventory ${t.inventoryPct.toFixed(1)}% vs wear ${t.wearPct.toFixed(1)}% (${delta})`);
     });
     html += section("Type rotation balance", body);
+  }
+
+  if (adv.collectorTypeRules) {
+    const rules = adv.collectorTypeRules;
+    let body = hint(`Collector-facing stats exclude ${rules.excludedTypeCount || 0} current type${rules.excludedTypeCount === 1 ? "" : "s"} across ${rules.excludedItemCount || 0} item${rules.excludedItemCount === 1 ? "" : "s"}. Built-in rules stay active; custom rules are local additions from the Type Rules button.`);
+    body += row("Built-in exact rules", (rules.builtInExact || []).join(", ") || "none");
+    body += row("Built-in contains rules", (rules.builtInContains || []).map((value) => `contains:${value}`).join(", ") || "none");
+    body += row("Custom exact rules", (rules.customExact || []).join(", ") || "none");
+    body += row("Custom contains rules", (rules.customContains || []).map((value) => `contains:${value}`).join(", ") || "none");
+    if (Array.isArray(rules.excludedTypeMatches) && rules.excludedTypeMatches.length) {
+      rules.excludedTypeMatches.slice(0, 8).forEach((item, index) => {
+        body += sub(`${index + 1}. ${item.type}`, `${item.count} item${item.count === 1 ? "" : "s"} · ${item.ruleLabel} (${item.ruleSource === "default" ? "built-in" : "custom"})`);
+      });
+      if (rules.excludedTypeMatches.length > 8) {
+        body += `<div class="stats-hint">${rules.excludedTypeMatches.length - 8} more excluded type${rules.excludedTypeMatches.length - 8 === 1 ? "" : "s"} are listed in the Type Rules dialog.</div>`;
+      }
+    }
+    html += section("Collector type rules", body);
   }
 
   if (adv.inactiveCapital) {
@@ -12920,7 +13166,8 @@ const buildAdvancedStatsHelpHtml = () => {
     "These sections explain how labels and purpose lanes are performing.",
     [
       { label: "Collector DNA", value: "Separates basic tagging coverage from the custom tags that actually shape analytics, then summarizes known-tag count, average tags per analyzed item, and the strongest tag identities in the closet." },
-      { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation." },
+      { label: "Type Rules", value: "Use the Type Rules button in Advanced Stats to add custom collector-stats exclusions without coding. Plain lines are exact matches, and `contains:` lines exclude whole type families. Matching ignores case and punctuation. Import/export/reset tools affect only your custom rules." },
+      { label: "Currently excluded by rules", value: "Shows which real closet types are currently outside the collector-stats universe, how many items they remove, and which built-in or custom rule matched them." },
       { label: "Collector DNA archetype", value: "Gives the closet a playful title based on its strongest tag signals while keeping the underlying percentages and coverage metrics intact." },
       { label: "Untagged items", value: "Lists every inventory item that still has no non-default tags so you can quickly clean up missing metadata." },
       { label: "Tag performance", value: "Lists every known tag with item count, average wears, average cost per wear, financial footprint, co-tags, 30-day trend, rarity share, and seasonal peak. Each expanded tag also includes a link to view all items carrying that tag." },
