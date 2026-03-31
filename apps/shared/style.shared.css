@@ -1509,6 +1509,16 @@ td[data-label="Preview"] {
   font-size: 0.8rem;
 }
 
+#story-label {
+  display: block;
+  width: 100%;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #story-input {
   min-height: 220px;
 }

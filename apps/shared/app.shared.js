@@ -637,6 +637,7 @@ const textPromptCancelButton = document.getElementById("text-prompt-cancel");
 const textPromptSaveButton = document.getElementById("text-prompt-save");
 const storyDialog = document.getElementById("story-dialog");
 const storyDialogName = document.getElementById("story-dialog-name");
+const storyLabel = document.getElementById("story-label");
 const storyInput = document.getElementById("story-input");
 const storyCancelButton = document.getElementById("story-cancel");
 const storySaveButton = document.getElementById("story-save");
@@ -1276,6 +1277,24 @@ const getRowName = (row) => {
 const getRowStory = (row) => {
   if (!row || typeof row.story !== "string") return "";
   return row.story;
+};
+
+const formatStoryLabel = (row) => {
+  const createdAt = row && row.createdAt ? new Date(row.createdAt) : null;
+  if (!createdAt || Number.isNaN(createdAt.getTime())) return "Unraveling the Thread";
+  const addedDate = createdAt.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const addedTime = createdAt.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+  return `Unraveling the Thread (Added ${addedDate} at ${addedTime})`;
 };
 
 const truncateLogValue = (value, max = 60) => {
@@ -2554,6 +2573,7 @@ const closeStoryDialog = () => {
   activeStoryRowId = null;
   if (storyInput) storyInput.value = "";
   if (storyDialogName) storyDialogName.textContent = "";
+  if (storyLabel) storyLabel.textContent = "Unraveling the Thread";
   closeDialog(storyDialog);
 };
 
@@ -2563,7 +2583,8 @@ const openStoryDialog = (rowId) => {
   if (!row) return;
   activeStoryRowId = rowId;
   storyInput.value = getRowStory(row);
-  if (storyDialogName) storyDialogName.textContent = `Item: ${getRowName(row)}`;
+  if (storyDialogName) storyDialogName.textContent = "";
+  if (storyLabel) storyLabel.textContent = formatStoryLabel(row);
   resetDialogScroll(storyDialog);
   openDialog(storyDialog);
   window.setTimeout(() => {
