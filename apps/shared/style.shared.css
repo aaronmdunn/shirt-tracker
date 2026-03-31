@@ -2102,7 +2102,7 @@ input[type="date"].wear-date-input {
   display: flex;
   justify-content: center;
   padding: 14px 20px 10px;
-  background: transparent;
+  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
 }
 
 .daily-no-buy-card {
