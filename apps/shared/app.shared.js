@@ -2273,7 +2273,7 @@ const buildPreBuyDuplicateSnapshot = (details, inventoryEntries) => {
       wishlistRow,
       { name: entry.name, brand: entry.brand, type: entry.type, fandom: entry.fandom },
       entry.row,
-      entry.brand
+      cleanBrand
     );
     if (textSignals.score < 20) return null;
     return {
