@@ -4754,6 +4754,13 @@ const renderModeSwitcher = () => {
   });
   if (PLATFORM === "mobile") {
     modeSwitcher.appendChild(container);
+    if (preBuyCheckButton) {
+      preBuyCheckButton.classList.remove("btn-stats-inline");
+      preBuyCheckButton.style.width = "100%";
+      preBuyCheckButton.style.maxWidth = "320px";
+      preBuyCheckButton.style.marginTop = "10px";
+      modeSwitcher.appendChild(preBuyCheckButton);
+    }
     const filterRow = document.querySelector(".filter-row");
     if (filterRow) {
       Object.assign(filterRow.style, {
@@ -4782,6 +4789,13 @@ const renderModeSwitcher = () => {
       if (statsButton) {
         statsButton.classList.add("btn-stats-inline");
         modeRow.appendChild(statsButton);
+      }
+      if (preBuyCheckButton) {
+        preBuyCheckButton.classList.add("btn-stats-inline");
+        preBuyCheckButton.style.width = "";
+        preBuyCheckButton.style.maxWidth = "";
+        preBuyCheckButton.style.marginTop = "";
+        modeRow.appendChild(preBuyCheckButton);
       }
       sheetHeader.prepend(modeRow);
     }
