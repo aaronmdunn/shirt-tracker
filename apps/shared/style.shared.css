@@ -2613,41 +2613,6 @@ dialog {
   white-space: nowrap;
 }
 
-#stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot),
-#advanced-stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot),
-#stats-coaching-help-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot),
-#no-buy-game-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot),
-#insights-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot) {
-  border: 1px solid var(--accent);
-  background: transparent;
-  color: var(--accent);
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 0.72rem;
-  line-height: 1.2;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: none;
-  text-decoration: none;
-}
-
-#stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):hover,
-#advanced-stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):hover,
-#stats-coaching-help-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):hover,
-#no-buy-game-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):hover,
-#insights-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):hover {
-  background: rgba(176, 0, 32, 0.07);
-}
-
-#stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):active,
-#advanced-stats-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):active,
-#stats-coaching-help-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):active,
-#no-buy-game-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):active,
-#insights-dialog button:not(.btn):not(.insights-heat-cell):not(.insights-story-dot):active {
-  background: var(--accent-2);
-  color: var(--accent);
-}
-
 .stats-section {
   margin-bottom: 16px;
   padding: 12px 14px 14px;
@@ -2976,10 +2941,14 @@ input[type="date"].stats-date-input {
 
 .stats-link-button {
   width: fit-content;
-  color: var(--accent);
-  padding: 5px 9px;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 42%, #355d9c);
+  padding: 0;
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .stats-export-options {
@@ -3128,13 +3097,19 @@ input[type="date"].stats-date-input {
 }
 
 .insights-story-period {
-  color: var(--accent);
+  border: 1px solid var(--line);
+  background: #f7f7f7;
+  color: var(--muted);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  cursor: pointer;
 }
 
 .insights-story-period.is-active {
-  background: color-mix(in srgb, var(--accent) 12%, #fff7f8);
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--line));
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, #f7f7f7);
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--line));
+  color: var(--ink);
 }
 
 .insights-story-shell {
@@ -3459,7 +3434,13 @@ input[type="date"].stats-date-input {
 }
 
 .insights-queue-snooze {
+  border: none;
+  background: transparent;
   color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.74rem;
 }
 
 .insights-queue-explain {
@@ -3527,8 +3508,13 @@ input[type="date"].stats-date-input {
 }
 
 .insights-month-summary {
+  border: none;
+  background: transparent;
   color: var(--accent);
+  cursor: pointer;
+  padding: 0;
   font: inherit;
+  text-decoration: underline;
 }
 
 .insights-heatmap-weekdays,
