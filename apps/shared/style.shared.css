@@ -2109,9 +2109,9 @@ input[type="date"].wear-date-input {
 
 .daily-no-buy-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
 }
 
 .daily-no-buy-copy {
@@ -2174,7 +2174,7 @@ input[type="date"].wear-date-input {
 
 .daily-no-buy-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .daily-no-buy-actions .btn {
