@@ -3884,6 +3884,10 @@ input[type="date"].stats-date-input {
   font-weight: 600;
 }
 
+.pre-buy-check-footer {
+  margin-top: 12px;
+}
+
 .advanced-stats-content {
   display: grid;
   gap: 8px;
