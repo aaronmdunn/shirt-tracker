@@ -11254,6 +11254,7 @@ const openAdvancedStatsDialog = (stats) => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const hint = (text) => `<div class="stats-hint">${esc(text)}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const formatDateKeyLabel = (key) => {
     const d = new Date(`${key}T00:00:00`);
     return Number.isNaN(d.getTime()) ? key : d.toLocaleDateString();
@@ -11382,13 +11383,13 @@ const openAdvancedStatsDialog = (stats) => {
       `<div class="insights-score-grid">
          <div class="insights-score-card"><div class="insights-score-title">Total items</div><div class="insights-score-value">${s.totalItems}</div><div class="insights-score-note">Across ${s.perTab.length} ${s.perTab.length === 1 ? "brand tab" : "brand tabs"}</div></div>
          <div class="insights-score-card"><div class="insights-score-title">Worn this year</div><div class="insights-score-value">${uniqueWornThisYear}</div><div class="insights-score-note">Unique wearable items touched in ${new Date().getFullYear()}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Work-ready lane</div><div class="insights-score-value">${workLane.total} items · ${workLane.activePct}% active</div><div class="insights-score-note">Top brand: ${workLane.topBrand} · top type: ${workLane.topType}</div></div>
-         <div class="insights-score-card"><div class="insights-score-title">Formal lane</div><div class="insights-score-value">${formalLane.total} items · ${formalLane.activePct}% active</div><div class="insights-score-note">Top brand: ${formalLane.topBrand} · top type: ${formalLane.topType}</div></div>
-       </div>`
+         <div class="insights-score-card"><div class="insights-score-title">Never worn</div><div class="insights-score-value">${s.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0}</div><div class="insights-score-note">Items still waiting for a first wear</div>${adv.newItemAdoption ? detailButton("advanced-detail-adoption") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Parked value</div><div class="insights-score-value">${formatCurrency(parkedValue)}</div><div class="insights-score-note">${parkedItems.length} wearable item${parkedItems.length === 1 ? "" : "s"} parked over 365d</div>${adv.inactiveCapital ? detailButton("advanced-detail-parked") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Active brands</div><div class="insights-score-value">${activeBrandsThisYear}</div><div class="insights-score-note">${topBrandEntry ? `${topBrandEntry[0]} leads current wear activity.` : "No brand wear data yet."}</div>${Array.isArray(adv.brandUtilization) && adv.brandUtilization.length ? detailButton("advanced-detail-brand-rotation") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Fresh activation</div><div class="insights-score-value">${recentActivationPct}%</div><div class="insights-score-note">${activeRecentAdds}/${recentAddsTotal} recent additions already entered rotation.</div>${adv.newItemAdoption ? detailButton("advanced-detail-adoption") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Work-ready lane</div><div class="insights-score-value">${workLane.total} items · ${workLane.activePct}% active</div><div class="insights-score-note">Top brand: ${workLane.topBrand} · top type: ${workLane.topType}</div>${(workLane.total || formalLane.total || holidayLane.total) ? detailButton("advanced-detail-occasion-lanes") : ""}</div>
+         <div class="insights-score-card"><div class="insights-score-title">Formal lane</div><div class="insights-score-value">${formalLane.total} items · ${formalLane.activePct}% active</div><div class="insights-score-note">Top brand: ${formalLane.topBrand} · top type: ${formalLane.topType}</div>${(workLane.total || formalLane.total || holidayLane.total) ? detailButton("advanced-detail-occasion-lanes") : ""}</div>
+        </div>`
     );
   }
 
@@ -11440,7 +11441,7 @@ const openAdvancedStatsDialog = (stats) => {
         body += sub(`${idx + 1}. ${item.name} (${item.tab}) - ${item.type}`, "Unworn");
       });
     }
-    html += section("New item adoption", body);
+    html += section("New item adoption", `<div id="advanced-detail-adoption"></div>${body}`);
   }
 
   if (Array.isArray(adv.monthlySpendVsWear) && adv.monthlySpendVsWear.length) {
@@ -11477,7 +11478,7 @@ const openAdvancedStatsDialog = (stats) => {
       const cpw = brand.avgCpw === null ? "n/a" : formatCurrency(brand.avgCpw);
       body += sub(brand.brand, `${brand.utilizationPct}% active (365d) | ${brand.inventory} items | ${brand.totalWears} wears | avg CPW ${cpw}`);
     });
-    html += section("Brand rotation reach", body);
+    html += section("Brand rotation reach", `<div id="advanced-detail-brand-rotation"></div>${body}`);
   }
 
   if (Array.isArray(adv.typeRotationBalance) && adv.typeRotationBalance.length) {
@@ -11498,7 +11499,7 @@ const openAdvancedStatsDialog = (stats) => {
       row("Parked >180d", `${adv.inactiveCapital.inactive180Count} items | ${formatCurrency(adv.inactiveCapital.inactive180Value)}`) +
       row("Parked >365d", `${adv.inactiveCapital.inactive365Count} items | ${formatCurrency(adv.inactiveCapital.inactive365Value)}`) +
       row("Total wearable value", formatCurrency(adv.inactiveCapital.totalWearableValue));
-    html += section("Parked value", body);
+    html += section("Parked value", `<div id="advanced-detail-parked"></div>${body}`);
   }
 
   if (adv.repeatWearStreaks) {
@@ -11653,10 +11654,11 @@ const openAdvancedStatsDialog = (stats) => {
       body += row("Holiday lane", `${holidayLane.total} items | ${holidayLane.active365} active in 365d | ${holidayLane.neverWorn} never worn`);
       body += sub("Holiday leaders", `${holidayLane.topBrand} brand | ${holidayLane.topType} type`);
     }
-    html += section("Occasion lanes", body);
+    html += section("Occasion lanes", `<div id="advanced-detail-occasion-lanes"></div>${body}`);
   }
 
   content.innerHTML = html || `<div class="stats-hint">Not enough data yet to calculate advanced stats.</div>`;
+  bindDetailJumpLinks(content);
 
   const firstWearLagLink = content.querySelector("#advanced-first-wear-lag-link");
   if (firstWearLagLink) {
@@ -12646,6 +12648,19 @@ const buildHelpSection = (title, intro = "", items = []) => `
   </div>
 `;
 
+const bindDetailJumpLinks = (container) => {
+  if (!container) return;
+  container.querySelectorAll("[data-detail-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const targetId = String(button.getAttribute("data-detail-target") || "").trim();
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+};
+
 const openHelpDialog = (title, bodyHtml) => {
   let dialog = document.getElementById("stats-coaching-help-dialog");
   if (!dialog) {
@@ -12690,6 +12705,7 @@ const buildMainStatsHelpHtml = (stats) => {
       { label: "Top summary rows", value: "Quick facts, not grades. Use them to spot patterns, not to judge the closet." },
       { label: "Bar charts", value: "Longer bars mean a category appears more often. They help you see what is dominant at a glance." },
       { label: "Lists", value: "Ranked lists surface the strongest examples first, like the most expensive pieces, highest rotation scores, or most recent additions." },
+      { label: "View details links", value: "Small View details links jump to the matching deeper section or list inside the same stats dialog when more context is available." },
     ]
   );
   html += buildHelpSection(
@@ -12784,6 +12800,7 @@ const buildInsightsHelpHtml = () => {
     [
       { label: "Use it for", value: "Finding patterns, spotting neglected value, and understanding why the queue recommends what it recommends." },
       { label: "Do not use it as", value: "A guilt machine. Most cards are signals, not failures." },
+      { label: "View details links", value: "Cards with deeper breakdowns can jump straight to the matching detail section in the same dialog." },
     ]
   );
   html += buildHelpSection(
@@ -12863,6 +12880,7 @@ const buildAdvancedStatsHelpHtml = () => {
     [
       { label: "Best use", value: "Use this window when you want to understand adoption lag, parked value, tag performance, and whether the closet is actually rotating in a healthy way." },
       { label: "Mindset", value: "These numbers are coaching signals. They are not moral judgments and they are not based on fast-rotation closet assumptions." },
+      { label: "View details links", value: "Snapshot cards with deeper reads can jump straight to the matching section lower in the same dialog." },
     ]
   );
   html += buildHelpSection(
@@ -15010,6 +15028,7 @@ const openInsightsDialog = (stats, options = {}) => {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
   const section = (title, bodyHtml) => `<div class="stats-section"><div class="stats-section-title">${esc(title)}</div>${bodyHtml}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const toneClass = (tone) => (tone === "good" ? "tone-good" : tone === "bad" ? "tone-bad" : "");
   const insightValue = (valueHtml, tone) => `<div class="insights-score-value${toneClass(tone) ? ` ${toneClass(tone)}` : ""}">${valueHtml}</div>`;
 
@@ -15309,24 +15328,28 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">Excludes <120d adds, Whale/sentimental/archive items, and out-of-season exempt pieces.</div>
           <div class="insights-score-note">Grace window items (not penalized yet): ${rotationModel.graceCount}.</div>
           <div class="insights-score-note">Target pace is learned from your recent collector cadence, not a generic closet rule.</div>
+          ${detailButton("insights-detail-rotation-model")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Theme fatigue detector</div>
           ${insightValue(`${fatigue.count} fading theme${fatigue.count === 1 ? "" : "s"}`, fatigueTone)}
           <div class="insights-score-note">Lead fade: ${esc(fatigueLead)}</div>
           <div class="insights-score-note">Signals where previously strong fandom/tag themes are cooling off in recent wear windows.</div>
+          ${detailButton("insights-detail-fatigue")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Decision friction</div>
           ${insightValue(`${friction.avgAcceptance}% queue acceptance`, frictionTone)}
           <div class="insights-score-note">${friction.highFrictionDays} high-friction day${friction.highFrictionDays === 1 ? "" : "s"} in last ${friction.totalDays} tracked days</div>
           <div class="insights-score-note">Worst day: ${esc(frictionWorstLabel)}</div>
+          ${detailButton("insights-detail-friction")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">7-day recovery plan</div>
           ${insightValue(`${playbookCount} planned wear${playbookCount === 1 ? "" : "s"}`, recoveryTone)}
           <div class="insights-score-note">Projected recovery load: ${valueRecovery.totalRecoveryWears} wears · cadence ${valueRecovery.cadencePerDay.toFixed(2)}/day</div>
           <div class="insights-score-note">Lead recovery target: ${esc(recoveryLead)}</div>
+          ${detailButton("insights-detail-recovery")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Outfit confidence curve</div>
@@ -15344,18 +15367,21 @@ const openInsightsDialog = (stats, options = {}) => {
           ${insightValue(`${adaptive.sampleSize} type signals`, adaptiveTone)}
           <div class="insights-score-note">Top boost: ${esc(adaptiveBoostLabel)}</div>
           <div class="insights-score-note">Uses actual queue selection rates to suggest what to amplify or cool down.</div>
+          ${detailButton("insights-detail-adaptive")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Top 5 to sell</div>
           ${insightValue(`${sellSuggestions.length} candidate${sellSuggestions.length === 1 ? "" : "s"}`, sellTone)}
           <div class="insights-score-note">Top pick: ${esc(sellLead)}</div>
           <div class="insights-score-note">Blend of inactivity, bench pressure, confidence risk, and cost-per-wear drag, while protecting recent additions from the shortlist.</div>
+          ${detailButton("insights-detail-sell")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
           <div class="insights-score-note">Tracks inventory load, inactivity, and value tied up in marketplace-marked items.</div>
+          ${detailButton("insights-detail-marketplace")}
         </div>
         <div class="insights-score-card">
           <div class="insights-score-title">Marketplace keepers</div>
@@ -15378,7 +15404,7 @@ const openInsightsDialog = (stats, options = {}) => {
           <div class="insights-score-note">${formalLane.neverWorn} never worn · top brand ${esc(formalLane.topBrand)} · top type ${esc(formalLane.topType)}</div>
         </div>
       </div>
-      <div class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
+      <div id="insights-detail-rotation-model" class="stats-section-title" style="margin-top:8px">Collector-normal rotation model</div>
       <div class="stats-hint">These metrics are calibrated for large low-frequency closets (1-2 wears per item/year) instead of daily-use assumptions.</div>
       <div class="insights-action-list">
         <div class="stats-row stats-sub"><span class="stats-label">Tier A (worn last 365d)</span><span class="stats-value">${rotationModel.tierA.count} items (${rotationModel.tierA.pct}%)</span></div>
@@ -15393,17 +15419,17 @@ const openInsightsDialog = (stats, options = {}) => {
       ${comeback.length
     ? `<div class="insights-action-list">${comeback.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.daysSince}d idle · ${item.wearCount} wears</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong comeback candidates yet. This list appears after an item has both solid history and a cooldown gap.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
+      <div id="insights-detail-fatigue" class="stats-section-title" style="margin-top:8px">Theme fatigue watchlist</div>
       <div class="stats-hint">Detects fandom/tag themes that were strong earlier but dropped in recent wear share.</div>
       ${Array.isArray(fatigue.themes) && fatigue.themes.length
     ? `<div class="insights-action-list">${fatigue.themes.map((theme, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(theme.label)} (${esc(theme.family)})</span><span class="stats-value">${theme.priorShare}% -> ${theme.recentShare}% (${theme.drop}pt drop)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong fatigue signals yet. This fills in once a theme was previously dominant and then cooled.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
+      <div id="insights-detail-friction" class="stats-section-title" style="margin-top:8px">Decision friction heatmap (last 28 days)</div>
       <div class="stats-hint">Shows where queue suggestions and actual choices diverge, by acceptance rate and weekday hotspots.</div>
       ${Array.isArray(friction.weekdayRows) && friction.weekdayRows.length
     ? `<div class="insights-action-list">${friction.weekdayRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)} friction hotspot</span><span class="stats-value">${row.acceptance}% acceptance (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Not enough queue telemetry yet for friction hotspots. This populates as queue exposures and selections accumulate.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">7-day recovery plan</div>
+      <div id="insights-detail-recovery" class="stats-section-title" style="margin-top:8px">7-day recovery plan</div>
       <div class="stats-hint">Combines the old reactivation and value-recovery lists into one 7-day plan. Each day blends comeback timing, queue pressure, and cost-per-wear recovery so the next wears feel useful instead of repetitive.</div>
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
     ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => {
@@ -15420,17 +15446,17 @@ const openInsightsDialog = (stats, options = {}) => {
       ${Array.isArray(confidence.lowConfidence) && confidence.lowConfidence.length
     ? `<div class="insights-action-list">${confidence.lowConfidence.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">Confidence ${item.confidenceScore} · ${esc(item.reasonText || "low signal")} · ${item.daysSince === null ? "no recent wear" : `${item.daysSince}d since wear`}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Confidence curve is healthy. Low-signal list appears when a worn item drifts into weak repeat confidence.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
+      <div id="insights-detail-adaptive" class="stats-section-title" style="margin-top:8px">Adaptive queue recommendations</div>
       <div class="stats-hint">Type-level boost/cool suggestions derived from actual queue exposure vs selection outcomes.</div>
       ${(Array.isArray(adaptive.boosts) && adaptive.boosts.length) || (Array.isArray(adaptive.suppressions) && adaptive.suppressions.length)
     ? `<div class="insights-action-list">${(adaptive.boosts || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Boost ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}${(adaptive.suppressions || []).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Cool ${idx + 1}: ${esc(row.type)}</span><span class="stats-value">${Math.round(row.rate * 100)}% pick rate (${row.exposures} exposures)</span></div>`).join("")}</div>`
     : `<div class="stats-hint">Need more queue telemetry for adaptive tuning. Keep using Wear-next and Worn today to train this section.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
+      <div id="insights-detail-sell" class="stats-section-title" style="margin-top:8px">Top 5 to sell</div>
       <div class="stats-hint">Multi-factor sell candidates combining inactivity, confidence risk, pressure, and CPW drag. Recent additions are protected, along with archive, sentimental, and Whale pieces. Use "No, I'm not selling this" to hide an item for 30 days, and the list will immediately backfill with the next eligible candidate.</div>
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
-      <div class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
+      <div id="insights-detail-marketplace" class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
       <div class="insights-action-list insights-marketplace-details">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>
       <div class="stats-section-title" style="margin-top:8px">Bench pressure watchlist</div>
@@ -15623,6 +15649,7 @@ const openInsightsDialog = (stats, options = {}) => {
   );
 
   content.innerHTML = html;
+  bindDetailJumpLinks(content);
 
   const snoozeButtons = content.querySelectorAll("[data-insights-snooze]");
   snoozeButtons.forEach((button) => {
@@ -16276,6 +16303,7 @@ const openStatsDialog = () => {
   const row = (label, value) => `<div class="stats-row"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const sub = (label, value) => `<div class="stats-row stats-sub"><span class="stats-label">${esc(label)}</span><span class="stats-value">${esc(value)}</span></div>`;
   const section = (content) => `<div class="stats-section">${content}</div>`;
+  const detailButton = (targetId, label = "View details") => `<button type="button" class="stats-link-button stats-card-detail-link" data-detail-target="${esc(targetId)}">${esc(label)}</button>`;
   const toLocalDateKey = (dateObj) => `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 
   const barChart = (tally, maxItems) => {
@@ -16297,9 +16325,9 @@ const openStatsDialog = () => {
     }).join("")}</div>`;
   };
 
-  const renderTallySection = (title, tally, maxItems) => {
+  const renderTallySection = (title, tally, maxItems, targetId = "") => {
     if (!tally.length) return "";
-    return section(`<div class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
+    return section(`<div${targetId ? ` id="${esc(targetId)}"` : ""} class="stats-section-title">${esc(title)}</div>${barChart(tally, maxItems)}`);
   };
 
   const renderCollapsibleSection = (title, valueLabel, bodyHtml) => {
@@ -16323,6 +16351,7 @@ const openStatsDialog = () => {
       block += row("Std deviation", formatCurrency(stats.priceStdDev));
     }
     block += `<div class="stats-hint" style="margin-top:8px">${topValueShare >= 35 ? `A few grails are carrying ${topValueShare}% of total closet value.` : "Closet value is spread fairly evenly across the collection."}</div>`;
+    block += detailButton("stats-detail-price-distribution", "View distribution");
     block += `<div class="stats-section-title" style="margin-top:8px">Top 10 most expensive</div>`;
     stats.top5Expensive.forEach((item, i) => {
       const brand = item.tab || "Unknown";
@@ -16408,14 +16437,14 @@ const openStatsDialog = () => {
 
     // --- Price distribution histogram (Inventory) ---
     if (s.isInventory && s.priceBuckets.some((b) => b.count > 0)) {
-      html += section(`<div class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
+      html += section(`<div id="stats-detail-price-distribution" class="stats-section-title">Price distribution</div>${bucketChart(s.priceBuckets)}`);
     }
   }
 
   // --- Bar charts for aggregate tallies ---
   if (s.isInventory) html += renderTallySection("Condition breakdown", s.conditionTally);
-  html += renderTallySection("Top types", s.typeTally, 5);
-  html += renderTallySection("Top fandoms", s.fandomTally, 5);
+  html += renderTallySection("Top types", s.typeTally, 5, "stats-detail-top-types");
+  html += renderTallySection("Top fandoms", s.fandomTally, 5, "stats-detail-top-fandoms");
   html += renderTallySection("Size breakdown", s.sizeTally);
 
   // --- Tag coverage (inventory only) ---
@@ -16441,6 +16470,7 @@ const openStatsDialog = () => {
         divBlock += row("Fandoms", `${s.fandomDiversity}% \u2014 ${fandomLabel}`);
         divBlock += progressBar(s.fandomDiversity, "");
       }
+      divBlock += detailButton("stats-detail-top-types", "View type/fandom breakdown");
       html += section(divBlock);
     }
 
@@ -16670,6 +16700,7 @@ const openStatsDialog = () => {
   }
 
   statsContent.innerHTML = html;
+  bindDetailJumpLinks(statsContent);
 
   const wornDateInput = statsContent.querySelector("#stats-worn-date-input");
   const wornDateResults = statsContent.querySelector("#stats-worn-date-results");

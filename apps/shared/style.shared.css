@@ -2951,6 +2951,11 @@ input[type="date"].stats-date-input {
   cursor: pointer;
 }
 
+.stats-card-detail-link {
+  display: inline-block;
+  margin-top: 6px;
+}
+
 .stats-export-options {
   display: grid;
   gap: 8px;
