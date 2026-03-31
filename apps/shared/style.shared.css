@@ -3312,6 +3312,14 @@ input[type="date"].stats-date-input {
   margin: 0 auto;
 }
 
+#insights-dialog #insights-queue-sim-today,
+#insights-dialog #insights-queue-refresh {
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .insights-queue-sim-controls .insights-sim-label {
   text-align: center;
 }
