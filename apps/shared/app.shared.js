@@ -7551,7 +7551,12 @@ const renderRows = () => {
           targetRow.wearCount = logBtn._prevCount;
           targetRow.lastWorn = logBtn._prevLastWorn;
           targetRow.wearLog = logBtn._prevWearLog;
+          if (logBtn._prevNoBuyState) {
+            saveNoBuyGamifyStateAndSync(cloneNoBuyGamifyState(logBtn._prevNoBuyState));
+          }
+          updateShirtUpdateDate();
           saveState();
+          renderFooter();
           renderRows();
           return;
         }
@@ -7559,6 +7564,7 @@ const renderRows = () => {
         logBtn._prevCount = targetRow.wearCount || 0;
         logBtn._prevLastWorn = targetRow.lastWorn || null;
         logBtn._prevWearLog = targetRow.wearLog ? targetRow.wearLog.slice() : [];
+        logBtn._prevNoBuyState = cloneNoBuyGamifyState(loadNoBuyGamifyState());
         // Apply wear
         const chosen = dateInput.value || new Date().toISOString().slice(0, 10);
         const wornDate = new Date(chosen + "T12:00:00").toISOString();
@@ -7568,12 +7574,11 @@ const renderRows = () => {
           tab: getActiveTabName(),
           type: getTypeValueForRow(targetRow),
         });
-        targetRow.wearCount = (targetRow.wearCount || 0) + 1;
-        targetRow.lastWorn = wornDate;
-        // Append to wearLog (lifetime — no trim)
-        if (!targetRow.wearLog) targetRow.wearLog = [];
-        targetRow.wearLog.push(wornDate);
+        applyWearToRow(targetRow, wornDate);
+        updateShirtUpdateDate();
         saveState();
+        progressNoBuyRecoveryOnWear(targetRow, wornDate);
+        renderFooter();
         // Update display inline (avoid full re-render during undo window)
         countStat.querySelector(".wear-stat-value").textContent = String(targetRow.wearCount);
         dateStat.querySelector(".wear-stat-value").textContent = new Date(wornDate).toLocaleDateString();
@@ -12773,7 +12778,7 @@ const normalizeNoBuyGamifyState = (value) => {
     activeRecovery: raw.activeRecovery && typeof raw.activeRecovery === "object" && !Array.isArray(raw.activeRecovery)
       ? {
           startedAt: String(raw.activeRecovery.startedAt || ""),
-          goalType: String(raw.activeRecovery.goalType || "wear_items"),
+          goalType: String(raw.activeRecovery.goalType || "wear_added_items"),
           target: Math.max(1, Number(raw.activeRecovery.target || 3)),
           progress: Math.max(0, Number(raw.activeRecovery.progress || 0)),
           deadline: String(raw.activeRecovery.deadline || ""),
@@ -13136,13 +13141,25 @@ const createNoBuyRecoveryMission = (state, nowIso) => {
   deadline.setDate(deadline.getDate() + 7);
   safe.activeRecovery = {
     startedAt: start.toISOString(),
-    goalType: "wear_idle_items",
+    goalType: "wear_added_items",
     target: 3,
     progress: 0,
     deadline: deadline.toISOString(),
     completedAt: "",
   };
   return safe;
+};
+
+const cloneNoBuyGamifyState = (value) => JSON.parse(JSON.stringify(normalizeNoBuyGamifyState(value || {})));
+
+const isRecoveryWearEligible = (recovery, row, wornDateIso) => {
+  if (!recovery || recovery.completedAt || !row) return false;
+  const deadlineMs = new Date(String(recovery.deadline || "")).getTime();
+  const createdMs = new Date(String(row.createdAt || "")).getTime();
+  const wornMs = new Date(String(wornDateIso || "")).getTime();
+  if (!Number.isFinite(deadlineMs) || !Number.isFinite(createdMs) || !Number.isFinite(wornMs)) return false;
+  if (deadlineMs < Date.now()) return false;
+  return wornMs <= deadlineMs;
 };
 
 const isNoBuyCooldownActive = (state) => {
@@ -13717,7 +13734,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
-      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline." },
+      { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline, and only wears from shirts that were actually added in the app will count." },
       { label: "Clean badge", value: "A quick read on whether the current month is buy-clean and whether the last week is temptation-clean." },
       { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into a larger pressure family." },
       { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now." },
@@ -13737,7 +13754,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
       { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
       { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
-      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing." },
+      { label: "Recovery mission rule", value: "After a logged buy, the app starts a mission asking for 3 wears before the 7-day deadline so attention shifts back to wearing, not browsing. Shirts need an in-app add date (`createdAt`) to count toward recovery." },
     ]
   );
   return html;
@@ -14021,12 +14038,15 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   return pushNoBuySnapshot(markNoBuyStateUpdated(safe), "delete-log");
 };
 
-const progressNoBuyRecoveryOnWear = () => {
+const progressNoBuyRecoveryOnWear = (row, wornDateIso) => {
   const safe = loadNoBuyGamifyState();
   if (!safe.activeRecovery || safe.activeRecovery.completedAt) return;
   const deadlineMs = new Date(safe.activeRecovery.deadline).getTime();
   if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
-    saveNoBuyGamifyState(safe);
+    saveNoBuyGamifyStateAndSync(safe);
+    return;
+  }
+  if (!isRecoveryWearEligible(safe.activeRecovery, row, wornDateIso)) {
     return;
   }
   safe.activeRecovery.progress = Math.min(safe.activeRecovery.target, (safe.activeRecovery.progress || 0) + 1);
@@ -14036,7 +14056,16 @@ const progressNoBuyRecoveryOnWear = () => {
     safe.xp += 50;
     safe.level = computeNoBuyLevel(safe.xp);
   }
-  saveNoBuyGamifyState(markNoBuyStateUpdated(safe));
+  saveNoBuyGamifyStateAndSync(markNoBuyStateUpdated(safe));
+};
+
+const applyWearToRow = (row, wornDate) => {
+  if (!row) return false;
+  row.wearCount = (row.wearCount || 0) + 1;
+  row.lastWorn = wornDate;
+  if (!Array.isArray(row.wearLog)) row.wearLog = [];
+  row.wearLog.push(wornDate);
+  return true;
 };
 
 const safePercent = (numerator, denominator) => {
@@ -15487,44 +15516,36 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
 const markQueueItemWornToday = (queueItem) => {
   if (!queueItem || !queueItem.tabId || !queueItem.rowId) return false;
   const wornDate = new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00`).toISOString();
-  const applyWearToRow = (row) => {
-    if (!row) return false;
-    row.wearCount = (row.wearCount || 0) + 1;
-    row.lastWorn = wornDate;
-    if (!Array.isArray(row.wearLog)) row.wearLog = [];
-    row.wearLog.push(wornDate);
-    return true;
-  };
 
   const rowLabel = `${queueItem.name || "Unnamed"} (${queueItem.tab || "Unknown"}) - ${queueItem.type || "Unknown"}`;
 
   if (tabsState.activeTabId === queueItem.tabId) {
     const target = state.rows.find((row) => row.id === queueItem.rowId);
-    if (!applyWearToRow(target)) return false;
+    if (!applyWearToRow(target, wornDate)) return false;
     updateShirtUpdateDate();
     saveState();
     renderRows();
     renderFooter();
     addEventLog("Logged wear", rowLabel);
-    progressNoBuyRecoveryOnWear();
+    progressNoBuyRecoveryOnWear(target, wornDate);
     return true;
   }
 
-  try {
-    const stored = localStorage.getItem(getStorageKey(queueItem.tabId));
-    if (!stored) return false;
-    const parsed = JSON.parse(stored);
-    if (!parsed || !Array.isArray(parsed.rows)) return false;
-    const target = parsed.rows.find((row) => row.id === queueItem.rowId);
-    if (!applyWearToRow(target)) return false;
-    localStorage.setItem(getStorageKey(queueItem.tabId), JSON.stringify(parsed));
-    updateShirtUpdateDate();
-    scheduleSync();
-    addEventLog("Logged wear", rowLabel);
-    progressNoBuyRecoveryOnWear();
-    return true;
-  } catch (error) {
-    return false;
+    try {
+      const stored = localStorage.getItem(getStorageKey(queueItem.tabId));
+      if (!stored) return false;
+      const parsed = JSON.parse(stored);
+      if (!parsed || !Array.isArray(parsed.rows)) return false;
+      const target = parsed.rows.find((row) => row.id === queueItem.rowId);
+      if (!applyWearToRow(target, wornDate)) return false;
+      localStorage.setItem(getStorageKey(queueItem.tabId), JSON.stringify(parsed));
+      updateShirtUpdateDate();
+      scheduleSync();
+      addEventLog("Logged wear", rowLabel);
+      progressNoBuyRecoveryOnWear(target, wornDate);
+      return true;
+    } catch (error) {
+      return false;
   }
 };
 
