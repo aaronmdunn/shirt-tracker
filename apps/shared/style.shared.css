@@ -2179,6 +2179,9 @@ input[type="date"].wear-date-input {
 
 .daily-no-buy-actions .btn {
   white-space: nowrap;
+  font-size: 0.68rem;
+  padding: 5px 9px;
+  min-height: 0;
 }
 
 .daily-no-buy-card.is-complete {
