@@ -6897,7 +6897,7 @@ const createCellInput = (row, column) => {
       const storyButton = document.createElement("button");
       storyButton.type = "button";
       storyButton.className = "cell-story-btn" + (getRowStory(row) ? " has-story" : "");
-      storyButton.textContent = "Story";
+      storyButton.textContent = "👕📖";
       storyButton.title = getRowStory(row) ? "Edit saved story" : "Add a longer story";
       storyButton.setAttribute("aria-label", `${getRowStory(row) ? "Edit" : "Add"} story for ${getRowName(row)}`);
       storyButton.addEventListener("click", () => openStoryDialog(row.id));
