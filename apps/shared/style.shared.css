@@ -2626,7 +2626,7 @@ dialog {
   white-space: nowrap;
 }
 
-#tag-maintenance-dialog .btn {
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary) {
   background: transparent;
   color: var(--accent);
   border: 1px solid var(--accent);
@@ -2637,18 +2637,18 @@ dialog {
   white-space: nowrap;
 }
 
-#tag-maintenance-dialog .btn:hover {
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):hover {
   background: rgba(176, 0, 32, 0.07);
   box-shadow: none;
 }
 
-#tag-maintenance-dialog .btn:active {
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):active {
   background: var(--accent-2);
   color: var(--accent);
   box-shadow: none;
 }
 
-#tag-maintenance-dialog .btn:disabled:hover {
+#tag-maintenance-dialog .btn:not(.tag-maintenance-primary):disabled:hover {
   background: transparent;
 }
 

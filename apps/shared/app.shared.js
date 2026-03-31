@@ -11603,7 +11603,7 @@ const openTagMaintenanceDialog = (options = {}) => {
         <div id="tag-maintenance-content" class="advanced-stats-content"></div>
       </div>
       <div class="dialog-actions">
-        <button type="button" id="tag-maintenance-close" class="btn">Close</button>
+        <button type="button" id="tag-maintenance-close" class="btn tag-maintenance-primary">Close</button>
       </div>
     `;
     document.body.appendChild(dialog);
@@ -11665,7 +11665,7 @@ const openTagMaintenanceDialog = (options = {}) => {
                 <input type="text" id="tag-maintenance-target-${index}" data-tag-source="${esc(item.tag)}" placeholder="Rename or merge target">
                 <button type="button" class="btn" data-tag-rename="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Rename</button>
                 <button type="button" class="btn" data-tag-merge="${esc(item.tag)}" data-target-input="tag-maintenance-target-${index}">Merge</button>
-                <button type="button" class="btn" data-tag-delete="${esc(item.tag)}">Delete</button>
+                <button type="button" class="btn tag-maintenance-primary" data-tag-delete="${esc(item.tag)}">Delete</button>
               </div>
             </div>`).join("") : `<div class="stats-hint">No used tags found yet.</div>`}
         </div>
@@ -11691,11 +11691,11 @@ const openTagMaintenanceDialog = (options = {}) => {
         <div class="stats-hint">Select untagged items, add one or more tags, and apply them across all selected rows in one step.</div>
         <div class="dialog-actions" style="margin-top:8px;">
           <button type="button" class="btn" id="tag-maintenance-select-all">Select all</button>
-          <button type="button" class="btn" id="tag-maintenance-clear-selection">Clear selection</button>
+          <button type="button" class="btn tag-maintenance-primary" id="tag-maintenance-clear-selection">Clear selection</button>
         </div>
         <div class="tag-maintenance-actions" style="margin-top:8px;">
           <input type="text" id="tag-maintenance-untagged-input" placeholder="Examples: Floral, Holiday">
-          <button type="button" class="btn" id="tag-maintenance-untagged-apply">Apply to selected</button>
+          <button type="button" class="btn tag-maintenance-primary" id="tag-maintenance-untagged-apply">Apply to selected</button>
         </div>
         <div class="tag-maintenance-suggestions">
           ${topSuggestions.map((tag) => `<button type="button" class="btn" data-tag-suggestion="${esc(tag)}">${esc(tag)}</button>`).join("")}
