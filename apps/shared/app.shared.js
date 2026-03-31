@@ -13810,25 +13810,40 @@ const buildBehaviorInsights = (stats, queue = []) => {
     const cleanKey = String(key || "");
     if (!cleanKey || protectedKeySet.has(cleanKey) || seasonalExemptKeySet.has(cleanKey)) return;
     if (!playbookSeedMap[cleanKey]) {
-      playbookSeedMap[cleanKey] = { key: cleanKey, score: 0, reasons: [], currentCpw: null, additionalWears: null, etaDays: null };
+      playbookSeedMap[cleanKey] = {
+        key: cleanKey,
+        score: 0,
+        reasons: [],
+        currentCpw: null,
+        additionalWears: null,
+        etaDays: null,
+        daysSince: null,
+        pressureScore: null,
+      };
     }
     playbookSeedMap[cleanKey].score += Math.max(0, Number(score || 0));
     if (reason && !playbookSeedMap[cleanKey].reasons.includes(reason)) playbookSeedMap[cleanKey].reasons.push(reason);
     if (extra.currentCpw !== undefined && extra.currentCpw !== null) playbookSeedMap[cleanKey].currentCpw = extra.currentCpw;
     if (extra.additionalWears !== undefined && extra.additionalWears !== null) playbookSeedMap[cleanKey].additionalWears = extra.additionalWears;
     if (extra.etaDays !== undefined && extra.etaDays !== null) playbookSeedMap[cleanKey].etaDays = extra.etaDays;
+    if (extra.daysSince !== undefined && extra.daysSince !== null) playbookSeedMap[cleanKey].daysSince = extra.daysSince;
+    if (extra.pressureScore !== undefined && extra.pressureScore !== null) playbookSeedMap[cleanKey].pressureScore = extra.pressureScore;
   };
   comebackCandidates.forEach((item) => {
     if (!item?.key) return;
-    addPlaybookSeed(item.key, `Comeback ${item.daysSince}d idle`, 50 + Math.min(40, Number(item.daysSince || 0) * 0.12));
+    addPlaybookSeed(item.key, "Comeback", 50 + Math.min(40, Number(item.daysSince || 0) * 0.12), {
+      daysSince: item.daysSince,
+    });
   });
   benchPressure.slice(0, 7).forEach((item) => {
     if (!item?.key) return;
-    addPlaybookSeed(item.key, `Bench pressure ${item.pressureScore}`, Math.min(80, Number(item.pressureScore || 0)));
+    addPlaybookSeed(item.key, "Bench pressure", Math.min(80, Number(item.pressureScore || 0)), {
+      pressureScore: item.pressureScore,
+    });
   });
   valueRecoveryCandidates.slice(0, 7).forEach((item) => {
     if (!item?.key) return;
-    addPlaybookSeed(item.key, `Recovery ${Math.round(item.currentCpw)}/wear`, Number(item.recoveryPressure || 0), {
+    addPlaybookSeed(item.key, "Recovery", Number(item.recoveryPressure || 0), {
       currentCpw: item.currentCpw,
       additionalWears: item.additionalWears,
       etaDays: item.etaDays,
@@ -13847,6 +13862,8 @@ const buildBehaviorInsights = (stats, queue = []) => {
         reason: seed.reasons.slice(0, 2).join(" · "),
         score: Math.round(seed.score),
         currentCpw: seed.currentCpw,
+        daysSince: seed.daysSince,
+        pressureScore: seed.pressureScore,
         additionalWears: seed.additionalWears,
         etaDays: seed.etaDays,
       };
@@ -15389,7 +15406,14 @@ const openInsightsDialog = (stats, options = {}) => {
       <div class="stats-section-title" style="margin-top:8px">7-day recovery plan</div>
       <div class="stats-hint">Combines the old reactivation and value-recovery lists into one 7-day plan. Each day blends comeback timing, queue pressure, and cost-per-wear recovery so the next wears feel useful instead of repetitive.</div>
       ${Array.isArray(reactivation.playbook) && reactivation.playbook.length
-    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}${item.currentCpw ? ` · ${Math.round(item.currentCpw)}/wear` : ""}</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${reactivation.playbook.map((item, idx) => {
+      const recoveryStats = [];
+      if (item.daysSince !== null && item.daysSince !== undefined) recoveryStats.push(`${item.daysSince}d idle`);
+      if (item.pressureScore !== null && item.pressureScore !== undefined) recoveryStats.push(`pressure ${item.pressureScore}`);
+      if (item.currentCpw) recoveryStats.push(`${Math.round(item.currentCpw)}/wear`);
+      recoveryStats.push(`priority ${item.score}`);
+      return `<div class="stats-row stats-sub"><span class="stats-label">Day ${idx + 1}: ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.reason)}${recoveryStats.length ? ` · ${esc(recoveryStats.join(" · "))}` : ""}</span></div>`;
+    }).join("")}</div>`
     : `<div class="stats-hint">No recovery plan generated yet. It appears once comeback, queue pressure, or value-recovery signals have enough weight.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Outfit confidence low-signal items</div>
       <div class="stats-hint">Items with weak repeat confidence based on actual repeat evidence, very long gaps, and explicit queue push-away signals. Collector-normal yearly spacing is treated more gently here.</div>
