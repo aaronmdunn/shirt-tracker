@@ -1466,8 +1466,9 @@ td[data-label="Preview"] {
 
 .cell-notes-wrap {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
@@ -1478,16 +1479,15 @@ td[data-label="Preview"] {
 }
 
 .cell-story-btn {
-  flex: 0 0 auto;
+  align-self: center;
   border: 1px solid var(--line);
   background: #ffffff;
   border-radius: 999px;
   padding: 6px 9px;
   font-family: "Work Sans", "Trebuchet MS", sans-serif;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--muted);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;

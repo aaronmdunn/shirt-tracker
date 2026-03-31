@@ -6893,17 +6893,17 @@ const createCellInput = (row, column) => {
     input.dataset.rowId = row.id;
     input.dataset.columnId = column.id;
     applyReadOnlyToInput(input);
+    wrapper.appendChild(input);
     if (!state.readOnly) {
       const storyButton = document.createElement("button");
       storyButton.type = "button";
       storyButton.className = "cell-story-btn" + (getRowStory(row) ? " has-story" : "");
-      storyButton.textContent = "👕📖";
+      storyButton.textContent = "🧶 The Yarn";
       storyButton.title = getRowStory(row) ? "Edit saved story" : "Add a longer story";
       storyButton.setAttribute("aria-label", `${getRowStory(row) ? "Edit" : "Add"} story for ${getRowName(row)}`);
       storyButton.addEventListener("click", () => openStoryDialog(row.id));
       wrapper.appendChild(storyButton);
     }
-    wrapper.appendChild(input);
     return wrapper;
   }
 
