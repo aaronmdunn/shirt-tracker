@@ -659,6 +659,7 @@ const statsHelpButton = document.getElementById("stats-help");
 const statsExportButton = document.getElementById("stats-export");
 const statsInsightsButton = document.getElementById("stats-insights");
 const statsNoBuyButton = document.getElementById("stats-no-buy");
+const preBuyCheckButton = document.getElementById("pre-buy-check-button");
 const statsButton = document.getElementById("stats-button");
 const recycleBinDialog = document.getElementById("recycle-bin-dialog");
 const recycleBinList = document.getElementById("recycle-bin-list");
@@ -2172,6 +2173,61 @@ const showTextPrompt = (title, label, defaultValue) => {
     textPromptInput.focus();
     textPromptInput.select();
   });
+};
+
+const PRE_BUY_REASON_OPTIONS = [
+  { value: "sale", label: "Sale" },
+  { value: "gooddeal", label: "Good deal" },
+  { value: "rarefind", label: "Rare find" },
+  { value: "fomo", label: "FOMO" },
+  { value: "boredom", label: "Boredom" },
+  { value: "drop", label: "New drop" },
+  { value: "other", label: "Other" },
+];
+
+const saveNoBuyGamifyStateAndSync = (nextState) => {
+  saveNoBuyGamifyState(nextState);
+  if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
+};
+
+const isBlankDataRow = (row) => {
+  if (!row || typeof row !== "object") return true;
+  const hasCellValue = row.cells && Object.values(row.cells).some((value) => String(value || "").trim());
+  const hasTags = Array.isArray(row.tags) && row.tags.length > 0;
+  return !hasCellValue && !hasTags;
+};
+
+const setRowCellValueByLabel = (row, columns, label, value) => {
+  if (!row || !Array.isArray(columns)) return false;
+  const normalizedLabel = String(label || "").trim().toLowerCase();
+  const column = columns.find((col) => getColumnLabel(col).trim().toLowerCase() === normalizedLabel);
+  if (!column) return false;
+  row.cells[column.id] = value;
+  return true;
+};
+
+const addWishlistDraftFromPreBuy = (name, reason) => {
+  if (appMode !== "wishlist") switchAppMode("wishlist");
+  ensureRowCells();
+  const row = (state.rows.length === 1 && isBlankDataRow(state.rows[0])) ? state.rows[0] : defaultRow();
+  if (!state.rows.includes(row)) state.rows.push(row);
+
+  const cleanName = String(name || "").trim();
+  const todayLabel = new Date().toLocaleDateString();
+  const reasonLabel = noBuyReasonLabel(reason || "other");
+  const notesColumn = state.columns.find((col) => getColumnLabel(col).trim().toLowerCase() === "notes");
+  const existingNotes = notesColumn ? String(row.cells[notesColumn.id] || "").trim() : "";
+
+  if (cleanName) setRowCellValueByLabel(row, state.columns, "name", cleanName);
+  if (!existingNotes) {
+    setRowCellValueByLabel(row, state.columns, "notes", `Pre-Buy hold (${reasonLabel}) - ${todayLabel}`);
+  }
+
+  updateShirtUpdateDate();
+  saveState();
+  sortRows();
+  renderRows();
+  renderFooter();
 };
 
 const clearNode = (node) => {
@@ -13084,12 +13140,15 @@ const isNoBuyCooldownActive = (state) => {
 
 const startNoBuyCooldown = (state, hours = 24) => {
   const safe = normalizeNoBuyGamifyState(state);
-  if (isNoBuyCooldownActive(safe)) return safe;
+  const requestedHours = Math.max(1, Number(hours) || 24);
   const nowIso = new Date().toISOString();
   const until = new Date();
-  until.setHours(until.getHours() + Math.max(1, Number(hours) || 24));
+  until.setHours(until.getHours() + requestedHours);
+  const existingMs = new Date(safe.cooldownUntil).getTime();
+  const requestedMs = until.getTime();
+  if (Number.isFinite(existingMs) && existingMs >= requestedMs) return safe;
   safe.cooldownUntil = until.toISOString();
-  safe.actionLog.push({ at: nowIso, type: "cooldown", reason: `${Math.max(1, Number(hours) || 24)}h` });
+  safe.actionLog.push({ at: nowIso, type: "cooldown", reason: `${requestedHours}h` });
   safe.actionLog = safe.actionLog.slice(-300);
   return markNoBuyStateUpdated(safe);
 };
@@ -13614,7 +13673,7 @@ const buildNoBuyHelpHtml = () => {
   let html = "";
   html += buildHelpSection(
     "What the No-Buy Game is",
-    "This is a coaching layer for purchase restraint. It turns streak protection, temptation logging, cooldowns, and recovery habits into a simple game loop.",
+    "This is a coaching layer for purchase restraint. The fast front door is the Pre-Buy Check, while the full game tracks streak protection, temptation logging, cooldowns, and recovery habits.",
     [
       { label: "Important rule", value: "Buys are manual-only. The app does not auto-log a buy just because a streak changes." },
       { label: "What counts as progress", value: "Protecting no-buy days, resisting temptation, and completing recovery after a buy." },
@@ -13624,8 +13683,9 @@ const buildNoBuyHelpHtml = () => {
     "Buttons and actions",
     "These are the controls you can press inside the game window.",
     [
+      { label: "Pre-Buy Check", value: "A faster intercept flow for moments when you are about to shop. It asks for the trigger first, then pushes hold, wishlist, or reroute actions before a buy." },
       { label: "Start 24h cooldown", value: "Begins a one-day pause buffer before buying and logs a cooldown action." },
-      { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one buy credit if available, and starts a recovery mission." },
+      { label: "Log buy now", value: "Records a buy, resets the current streak to zero, clears cooldown, spends one streak shield if you have one banked, and starts a recovery mission." },
       { label: "Tempted today", value: "Logs that you felt pressure to buy today and stores the trigger you selected." },
       { label: "No temptation today", value: "Marks the day as clear and removes that day’s temptation pressure." },
       { label: "Export log JSON", value: "Downloads the full no-buy state for backup or personal analysis." },
@@ -13640,7 +13700,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Risk right now", value: "A short summary of the biggest current buying pressures." },
       { label: "Current streak", value: "Your active run of no-buy days, plus the longest streak reached so far." },
       { label: "XP and level", value: "Gamified progress earned from protecting no-buy days." },
-      { label: "Buy credits", value: "Credits earned every 10 banked no-buy days." },
+      { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next streak checkpoint: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Whether a cooldown is active and how much time remains." },
       { label: "Recovery mission", value: "A post-buy challenge. After a logged buy, the app starts a 3-wear recovery mission with a 7-day deadline." },
@@ -13659,7 +13719,7 @@ const buildNoBuyHelpHtml = () => {
     [
       { label: "Daily XP", value: "When the app syncs a valid no-buy day, it grants XP once per day, with bonus XP at bigger streak bands." },
       { label: "No-buy day banking", value: "Every successful no-buy day adds to lifetime banked no-buy days." },
-      { label: "Buy credits rule", value: "Every 10 banked no-buy days grants 1 buy credit." },
+      { label: "Streak shields rule", value: "Every 10 banked no-buy days grants 1 streak shield." },
       { label: "Buy logging rule", value: "Only the Log buy now button creates a buy event inside the game." },
       { label: "Planned Pressure", value: "Pressure coming from more deliberate shopping logic, like sale, good deal, rare find, got paid or extra money, marketed, or promo. It means you are building a reasoned case for buying instead of reacting instantly." },
       { label: "Impulse Pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
@@ -13673,6 +13733,220 @@ const openStatsHelpDialog = (stats) => openHelpDialog("Main Stats Help", buildMa
 const openInsightsHelpDialog = () => openHelpDialog("Insights Help", buildInsightsHelpHtml());
 const openAdvancedStatsHelpDialog = () => openHelpDialog("Advanced Stats Help", buildAdvancedStatsHelpHtml());
 const openNoBuyHelpDialog = () => openHelpDialog("No-Buy Game Help", buildNoBuyHelpHtml());
+
+const openPreBuyCheckDialog = (sourceStats = null) => {
+  let dialog = document.getElementById("pre-buy-check-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "pre-buy-check-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>Thinking About Buying?</h3>
+        <div id="pre-buy-check-content"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="pre-buy-check-close">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#pre-buy-check-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const content = dialog.querySelector("#pre-buy-check-content");
+  if (!content) return;
+  let selectedReason = "";
+
+  const render = () => {
+    const stats = sourceStats || collectAllStats();
+    const gamify = syncNoBuyGamifyStateFromStats(stats);
+    const topTrigger = getNoBuyTriggerSummary(gamify, 14)[0] || null;
+    const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
+    const daysToMilestone = nextMilestone ? Math.max(0, nextMilestone - gamify.currentStreak) : 0;
+    const cooldownActive = isNoBuyCooldownActive(gamify);
+    const cooldownHours = cooldownActive
+      ? Math.max(1, Math.ceil((new Date(gamify.cooldownUntil).getTime() - Date.now()) / 3600000))
+      : 0;
+    const currentMonthStart = new Date();
+    currentMonthStart.setDate(1);
+    currentMonthStart.setHours(0, 0, 0, 0);
+    const monthBuys = Array.isArray(gamify.actionLog)
+      ? gamify.actionLog.filter((entry) => {
+          if (String(entry?.type || "") !== "purchase") return false;
+          const ms = new Date(String(entry?.at || "")).getTime();
+          return Number.isFinite(ms) && ms >= currentMonthStart.getTime();
+        }).length
+      : 0;
+    const backlogCount = stats.isInventory
+      ? Number(stats.advanced?.newItemAdoption?.neverWornSinceAddedTotal || 0)
+      : null;
+    const closetHealth = stats.isInventory
+      ? Number(stats.advanced?.closetHealth?.score || 0)
+      : null;
+    const funnel = !stats.isInventory && stats.wishlistConversion ? stats.wishlistConversion : null;
+    const clearRepeatWear = funnel && Number.isFinite(funnel.clearRepeatWearPct) ? funnel.clearRepeatWearPct : null;
+    const flaggedRepeatWear = funnel && Number.isFinite(funnel.flaggedRepeatWearPct) ? funnel.flaggedRepeatWearPct : null;
+    const reasonLabel = selectedReason ? noBuyReasonLabel(selectedReason) : "Pick the pull first";
+    const reasonGroup = selectedReason ? noBuyReasonGroup(selectedReason) : "";
+    const reasonRead = !selectedReason
+      ? "Name the pressure first. One honest tap beats ten rationalizations."
+      : reasonGroup === "impulse"
+        ? `${reasonLabel} usually hits fast. The right move is delay, not debate.`
+        : reasonGroup === "planned"
+          ? `${reasonLabel} is a story your brain can polish for hours. Park it before it becomes a court case.`
+          : `${reasonLabel} still counts as buying pressure. Give Future You some veto power.`;
+    const bestMove = cooldownActive
+      ? `Cooldown is already live for ${cooldownHours}h. Let the hold do the heavy lifting.`
+      : reasonGroup === "impulse"
+        ? "Best move: hit Hold 72h and do not open feeds again today."
+        : reasonGroup === "planned"
+          ? "Best move: park it in Wishlist so desire has to survive time, not adrenaline."
+          : "Best move: choose a hold action before you let the browser keep selling you the shirt.";
+    const backlogNote = backlogCount === null
+      ? (funnel && clearRepeatWear !== null && flaggedRepeatWear !== null
+          ? `Clear wishlist buys repeat-wear at ${clearRepeatWear}%. Flagged buys repeat-wear at ${flaggedRepeatWear}%.`
+          : "Wishlist mode is for parking wants, not promoting them to purchases.")
+      : backlogCount === 0
+        ? "Closet backlog is quiet right now. Protect that advantage."
+        : `${backlogCount} item${backlogCount === 1 ? " is" : "s are"} still waiting for a first wear.`;
+    const actionsDisabled = selectedReason ? "" : "disabled";
+    const esc = (str) => String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;");
+
+    content.innerHTML = `
+      <div class="stats-hint pre-buy-check-intro">Fast lane before checkout: name the urge, see the cost, and pick a slower move on purpose.</div>
+      <div class="stats-section-title" style="margin-top:8px">What is pulling you in?</div>
+      <div class="pre-buy-reason-grid">${PRE_BUY_REASON_OPTIONS.map((option) => `
+        <button
+          type="button"
+          class="btn secondary pre-buy-reason-btn${selectedReason === option.value ? " is-selected" : ""}"
+          data-prebuy-reason="${esc(option.value)}"
+          aria-pressed="${selectedReason === option.value ? "true" : "false"}"
+        >${esc(option.label)}</button>`).join("")}</div>
+      <div class="stats-hint pre-buy-check-reason-read">${esc(reasonRead)}</div>
+
+      <div class="insights-score-grid" style="margin-top:10px">
+        <div class="insights-score-card">
+          <div class="insights-score-title">Streak at risk</div>
+          <div class="insights-score-value${gamify.currentStreak >= 14 ? " tone-good" : ""}">${gamify.currentStreak} days</div>
+          <div class="insights-score-note">Longest run: ${gamify.longestStreak} days</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Next checkpoint</div>
+          <div class="insights-score-value">${nextMilestone ? `${nextMilestone}d` : "Capped"}</div>
+          <div class="insights-score-note">${nextMilestone ? `${daysToMilestone} day${daysToMilestone === 1 ? "" : "s"} away` : "Every listed milestone reached"}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Cooldown</div>
+          <div class="insights-score-value">${cooldownActive ? `${cooldownHours}h live` : "Off"}</div>
+          <div class="insights-score-note">Use delay as a feature, not a punishment.</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">This month</div>
+          <div class="insights-score-value${monthBuys === 0 ? " tone-good" : " tone-bad"}">${monthBuys} buy${monthBuys === 1 ? "" : "s"}</div>
+          <div class="insights-score-note">Top trigger: ${esc(topTrigger ? noBuyReasonLabel(topTrigger.label) : "Quiet")}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Closet friction</div>
+          <div class="insights-score-value">${backlogCount === null ? esc(reasonLabel) : backlogCount}</div>
+          <div class="insights-score-note">${esc(backlogNote)}</div>
+        </div>
+        <div class="insights-score-card">
+          <div class="insights-score-title">Rotation read</div>
+          <div class="insights-score-value">${closetHealth === null ? (funnel && funnel.buyGateReviewedCount ? `${funnel.buyGateReviewedCount} tracked buys` : "Park it first") : `${closetHealth}/100`}</div>
+          <div class="insights-score-note">${closetHealth === null ? "Wishlist is your holding zone. Make the shirt earn time before money." : "Closet health drops when intake outruns actual wear."}</div>
+        </div>
+      </div>
+
+      <div class="stats-section-title" style="margin-top:10px">Best move today</div>
+      <div class="stats-hint pre-buy-check-best-move">${esc(bestMove)}</div>
+
+      <div class="stats-section-title" style="margin-top:10px">Choose the slower move</div>
+      <div class="pre-buy-action-grid">
+        <button type="button" class="btn secondary" id="prebuy-hold" ${actionsDisabled}>Hold 72h</button>
+        <button type="button" class="btn secondary" id="prebuy-wishlist" ${actionsDisabled}>Park in Wishlist</button>
+        <button type="button" class="btn secondary" id="prebuy-wear-first" ${actionsDisabled}>Wear Similar First</button>
+        <button type="button" class="btn danger" id="prebuy-buy-anyway" ${actionsDisabled}>Buy anyway</button>
+      </div>
+      <div class="stats-hint pre-buy-check-footer">Need the deeper stats layer after this? <button type="button" class="stats-link-button" id="prebuy-open-full-game">Open Full No-Buy Game</button></div>
+    `;
+
+    content.querySelectorAll("[data-prebuy-reason]").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectedReason = String(button.getAttribute("data-prebuy-reason") || "");
+        render();
+      });
+    });
+
+    const holdButton = content.querySelector("#prebuy-hold");
+    if (holdButton) {
+      holdButton.addEventListener("click", () => {
+        let next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, selectedReason);
+        next = startNoBuyCooldown(next, 72);
+        saveNoBuyGamifyStateAndSync(next);
+        closeDialog(dialog);
+        if (PLATFORM === "mobile") showToast("72-hour hold started.");
+      });
+    }
+
+    const wishlistButton = content.querySelector("#prebuy-wishlist");
+    if (wishlistButton) {
+      wishlistButton.addEventListener("click", async () => {
+        let next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, selectedReason);
+        next = startNoBuyCooldown(next, 72);
+        saveNoBuyGamifyStateAndSync(next);
+        closeDialog(dialog);
+        if (appMode !== "wishlist") switchAppMode("wishlist");
+        const itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
+        if (itemName !== null) {
+          addWishlistDraftFromPreBuy(itemName, selectedReason);
+          if (PLATFORM === "mobile") showToast("Parked in Wishlist.");
+        }
+      });
+    }
+
+    const wearFirstButton = content.querySelector("#prebuy-wear-first");
+    if (wearFirstButton) {
+      wearFirstButton.addEventListener("click", () => {
+        let next = recordNoBuyCheckin(loadNoBuyGamifyState(), true, selectedReason);
+        next = startNoBuyCooldown(next, 24);
+        saveNoBuyGamifyStateAndSync(next);
+        closeDialog(dialog);
+        if (appMode !== "inventory") switchAppMode("inventory");
+        if (PLATFORM === "mobile") showToast("Switched to Inventory. Wear something close first.");
+      });
+    }
+
+    const buyAnywayButton = content.querySelector("#prebuy-buy-anyway");
+    if (buyAnywayButton) {
+      buyAnywayButton.addEventListener("click", () => {
+        const next = logNoBuyBuyEvent(loadNoBuyGamifyState(), selectedReason || "other");
+        saveNoBuyGamifyStateAndSync(next);
+        closeDialog(dialog);
+        if (PLATFORM === "mobile") showToast("Buy logged. Recovery mission started.");
+      });
+    }
+
+    const fullGameButton = content.querySelector("#prebuy-open-full-game");
+    if (fullGameButton) {
+      fullGameButton.addEventListener("click", () => {
+        closeDialog(dialog);
+        openNoBuyGameDialog(stats);
+      });
+    }
+  };
+
+  render();
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
 
 const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   const safe = normalizeNoBuyGamifyState(state || {});
@@ -16743,7 +17017,7 @@ const openNoBuyGameDialog = (stats) => {
     .replace(/\"/g, "&quot;");
 
   content.innerHTML = `
-    <div class="stats-hint">Daily anti-buy loop: build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
+    <div class="stats-hint">Daily anti-buy loop: use Pre-Buy Check before marketplace browsing, build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
     <div class="insights-score-grid">
       <div class="insights-score-card">
         <div class="insights-score-title">Risk right now</div>
@@ -16761,9 +17035,9 @@ const openNoBuyGameDialog = (stats) => {
         <div class="insights-score-note">Total no-buy days banked: ${gamify.noBuyDaysTotal}</div>
       </div>
       <div class="insights-score-card">
-        <div class="insights-score-title">Buy credits</div>
+        <div class="insights-score-title">Streak shields</div>
         <div class="insights-score-value">${gamify.buyCredits}</div>
-        <div class="insights-score-note">Earn 1 credit per 10 no-buy days</div>
+        <div class="insights-score-note">Bank 1 shield per 10 no-buy days</div>
       </div>
       <div class="insights-score-card">
         <div class="insights-score-title">Next milestone</div>
@@ -17553,6 +17827,12 @@ if (statsCloseButton) {
 if (statsButton) {
   statsButton.addEventListener("click", () => {
     openStatsDialog();
+  });
+}
+
+if (preBuyCheckButton) {
+  preBuyCheckButton.addEventListener("click", () => {
+    openPreBuyCheckDialog(collectAllStats());
   });
 }
 

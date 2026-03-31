@@ -3650,6 +3650,7 @@ input[type="date"].stats-date-input {
 #advanced-stats-dialog,
 #tag-maintenance-dialog,
 #first-wear-lag-dialog,
+#pre-buy-check-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
@@ -3669,6 +3670,7 @@ input[type="date"].stats-date-input {
 #first-wear-lag-dialog .dialog-body,
 #stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
+#pre-buy-check-dialog .dialog-body,
 #no-buy-game-dialog .dialog-body,
 #insights-dialog .dialog-body {
   padding: 20px 24px 12px;
@@ -3688,6 +3690,7 @@ input[type="date"].stats-date-input {
 #first-wear-lag-dialog .dialog-actions,
 #stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
+#pre-buy-check-dialog .dialog-actions,
 #no-buy-game-dialog .dialog-actions,
 #insights-dialog .dialog-actions,
 #stats-export-dialog .dialog-actions {
@@ -3759,6 +3762,42 @@ input[type="date"].stats-date-input {
 
 #no-buy-game-dialog .insights-queue-sim-controls .insights-queue-sim-date {
   margin-bottom: 4px;
+}
+
+.pre-buy-reason-grid,
+.pre-buy-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.pre-buy-action-grid {
+  margin-top: 6px;
+}
+
+.pre-buy-reason-btn {
+  min-height: 42px;
+}
+
+.pre-buy-reason-btn.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 66%, #6f93bf);
+  background: linear-gradient(180deg, rgba(116, 162, 255, 0.14) 0%, rgba(255, 255, 255, 0.98) 100%);
+  box-shadow: 0 8px 18px rgba(57, 93, 145, 0.12);
+}
+
+.pre-buy-check-intro,
+.pre-buy-check-reason-read,
+.pre-buy-check-best-move,
+.pre-buy-check-footer {
+  text-align: center;
+}
+
+.pre-buy-check-reason-read {
+  margin-top: 8px;
+}
+
+.pre-buy-check-best-move {
+  font-weight: 600;
 }
 
 .advanced-stats-content {
