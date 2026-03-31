@@ -3561,11 +3561,12 @@ const SYNC_DEBOUNCE_MS = 1200;
 const SYNC_RETRY_MS = 6000;
 
 let insightsRefreshTimer = null;
-const rerenderInsightsDialog = (simDateKey) => {
+const rerenderInsightsDialog = (viewState = {}) => {
   const dialog = document.getElementById("insights-dialog");
   const body = dialog ? dialog.querySelector(".dialog-body") : null;
   const previousScrollTop = body ? body.scrollTop : 0;
-  openInsightsDialog(collectAllStats(), { simDateKey, preserveScroll: true, scrollTop: previousScrollTop });
+  const nextOptions = typeof viewState === "string" ? { simDateKey: viewState } : (viewState || {});
+  openInsightsDialog(collectAllStats(), { ...nextOptions, preserveState: true, preserveScroll: true, scrollTop: previousScrollTop });
 };
 
 const requestInsightsRefreshIfOpen = () => {
@@ -3574,7 +3575,15 @@ const requestInsightsRefreshIfOpen = () => {
     const dialog = document.getElementById("insights-dialog");
     if (!dialog || !dialog.open) return;
     const simDateKey = String(dialog.getAttribute("data-sim-date-key") || localDateKeyFromDate(new Date()));
-    rerenderInsightsDialog(simDateKey);
+    const queueTypeFilter = String(dialog.getAttribute("data-queue-type-filter") || "all");
+    let queueExcludedKeys = [];
+    try {
+      queueExcludedKeys = JSON.parse(dialog.getAttribute("data-queue-excluded-keys") || "[]");
+    } catch (error) {
+      queueExcludedKeys = [];
+    }
+    const queueRefreshNonce = Number(dialog.getAttribute("data-queue-refresh-nonce") || 0);
+    rerenderInsightsDialog({ simDateKey, queueTypeFilter, queueExcludedKeys, queueRefreshNonce });
   }, 120);
 };
 
@@ -12839,7 +12848,7 @@ const buildInsightsHelpHtml = () => {
       { label: "Backlog risk", value: "How many items are still waiting for a first wear." },
       { label: "365-day rotation", value: "How much of the wearable closet has been touched within the last year." },
       { label: "No-buy streak", value: "Current and longest no-buy run, shown because buying pressure changes closet health too." },
-      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate date previews another day, lane labels explain the reason family, Why this ranked shows score math, Worn today logs the pick, Not today is a soft pass, and Snooze hides the item longer." },
+      { label: "Wear Next Queue", value: "A date-aware recommendation list. Simulate another day, filter to one exact type, or ask for another 10 suggestions. Why this ranked shows score math. Worn today logs a wear. Not today hides an item until tomorrow and only adds a soft-pass signal, while Snooze hides it for 30 days and adds a stronger queue-avoidance signal. Neither action logs a wear or changes your closet totals." },
       { label: "Wear calendar heatmap", value: "A calendar view of wear intensity. The year and brand filters change the view, and clicking dates or months drills into history." },
     ]
   );
@@ -14060,6 +14069,9 @@ const getHanukkahStartDate = (year) => {
 const buildWearNextQueue = (stats, snoozes, options = {}) => {
   const items = Array.isArray(stats?.wearableItems) ? stats.wearableItems : [];
   const activeSnoozes = snoozes || {};
+  const activeTypeFilter = String(options?.typeFilter || "all");
+  const excludedQueueKeys = new Set(Array.isArray(options?.excludedKeys) ? options.excludedKeys.map((key) => String(key || "")) : []);
+  const refreshNonce = Math.max(0, Number(options?.refreshNonce || 0));
   const defaultNow = new Date();
   const simDateKey = options && /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
@@ -14169,7 +14181,17 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
     },
   ];
 
-  return items
+  const deterministicJitter = (seedText) => {
+    let hash = 2166136261;
+    const text = String(seedText || "");
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return ((hash >>> 0) % 1000) / 1000;
+  };
+
+  const candidates = items
     .map((item) => {
       const name = item.name || "Unnamed";
       const nameLower = String(name || "").trim().toLowerCase();
@@ -14420,8 +14442,32 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       };
     })
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
-    .slice(0, 10);
+    .filter((item) => activeTypeFilter === "all" || item.type === activeTypeFilter)
+    .filter((item) => !excludedQueueKeys.has(item.key))
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+
+  const picked = [];
+  const typeCounts = {};
+  while (candidates.length && picked.length < 10) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    candidates.forEach((item, index) => {
+      const normalizedType = String(item.type || "Unknown").trim().toLowerCase();
+      const duplicateTypePenalty = activeTypeFilter === "all" ? (typeCounts[normalizedType] || 0) * 38 : 0;
+      const refreshBoost = refreshNonce > 0 ? deterministicJitter(`${refreshNonce}:${item.key}`) * 16 : 0;
+      const effectiveScore = item.score - duplicateTypePenalty + refreshBoost;
+      if (effectiveScore > bestScore) {
+        bestScore = effectiveScore;
+        bestIndex = index;
+      }
+    });
+    const [next] = candidates.splice(bestIndex, 1);
+    picked.push(next);
+    const normalizedType = String(next.type || "Unknown").trim().toLowerCase();
+    typeCounts[normalizedType] = (typeCounts[normalizedType] || 0) + 1;
+  }
+
+  return picked;
 };
 
 const markQueueItemWornToday = (queueItem) => {
@@ -14940,12 +14986,40 @@ const openInsightsDialog = (stats, options = {}) => {
     return;
   }
 
+  const readStoredQueueKeys = () => {
+    try {
+      const parsed = JSON.parse(dialog.getAttribute("data-queue-excluded-keys") || "[]");
+      return Array.isArray(parsed) ? parsed.map((key) => String(key || "")).filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
+  };
+  const defaultSimDateKey = localDateKeyFromDate(new Date());
   const activeSimDateKey = /^\d{4}-\d{2}-\d{2}$/.test(String(options.simDateKey || ""))
     ? String(options.simDateKey)
-    : localDateKeyFromDate(new Date());
+    : (options.preserveState && /^\d{4}-\d{2}-\d{2}$/.test(String(dialog.getAttribute("data-sim-date-key") || ""))
+      ? String(dialog.getAttribute("data-sim-date-key") || "")
+      : defaultSimDateKey);
+  const activeQueueTypeFilter = options.queueTypeFilter !== undefined
+    ? String(options.queueTypeFilter || "all")
+    : (options.preserveState ? String(dialog.getAttribute("data-queue-type-filter") || "all") : "all");
+  const activeQueueExcludedKeys = Array.isArray(options.queueExcludedKeys)
+    ? options.queueExcludedKeys.map((key) => String(key || "")).filter(Boolean)
+    : (options.preserveState ? readStoredQueueKeys() : []);
+  const activeQueueRefreshNonce = Number.isFinite(Number(options.queueRefreshNonce))
+    ? Math.max(0, Number(options.queueRefreshNonce))
+    : (options.preserveState ? Math.max(0, Number(dialog.getAttribute("data-queue-refresh-nonce") || 0)) : 0);
   dialog.setAttribute("data-sim-date-key", activeSimDateKey);
+  dialog.setAttribute("data-queue-type-filter", activeQueueTypeFilter);
+  dialog.setAttribute("data-queue-excluded-keys", JSON.stringify(activeQueueExcludedKeys));
+  dialog.setAttribute("data-queue-refresh-nonce", String(activeQueueRefreshNonce));
   const snoozes = loadInsightsSnoozes();
-  const queue = buildWearNextQueue(stats, snoozes, { simDateKey: activeSimDateKey });
+  const queue = buildWearNextQueue(stats, snoozes, {
+    simDateKey: activeSimDateKey,
+    typeFilter: activeQueueTypeFilter,
+    excludedKeys: activeQueueExcludedKeys,
+    refreshNonce: activeQueueRefreshNonce,
+  });
   const behavior = buildBehaviorInsights(stats, queue);
   const health = stats.advanced?.closetHealth || null;
   const inactive = stats.advanced?.inactiveCapital || null;
@@ -14962,6 +15036,9 @@ const openInsightsDialog = (stats, options = {}) => {
   const yearDna = buildStyleDnaPeriod(stats, yearStartMs, nowMs);
   const workLane = buildTaggedLaneStats(stats?.wearableItems || [], ["workappropriate", "work appropriate"], { nowMs });
   const formalLane = buildTaggedLaneStats(stats?.wearableItems || [], ["formal"], { nowMs });
+  const queueTypeOptions = Array.from(new Set((Array.isArray(stats?.wearableItems) ? stats.wearableItems : [])
+    .map((item) => String(item?.type || "Unknown").trim() || "Unknown")))
+    .sort((a, b) => a.localeCompare(b));
 
   const renderDnaCard = (title, dna) => {
     if (!dna || dna.totalWears === 0) {
@@ -15334,6 +15411,65 @@ const openInsightsDialog = (stats, options = {}) => {
     );
   };
 
+  const renderQueueSection = () => {
+    const queueSummary = queue.length
+      ? `${queue.length} suggestion${queue.length === 1 ? "" : "s"} ready${activeQueueTypeFilter !== "all" ? ` for ${activeQueueTypeFilter}` : ""}.`
+      : (activeQueueExcludedKeys.length
+        ? `No more matches found after hiding the current ${activeQueueExcludedKeys.length} suggestion${activeQueueExcludedKeys.length === 1 ? "" : "s"}.`
+        : `No queue suggestions match${activeQueueTypeFilter !== "all" ? ` the ${activeQueueTypeFilter} filter` : " right now"}.`);
+    return section(
+      "Wear next queue",
+      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, season/date signals, and value/condition boosts. Use the type filter for strict same-type picks, or Another 10 to swap out the current list for a different mix.</div>
+      <div class="stats-hint insights-queue-action-note">Not today hides an item until tomorrow and only adds a soft-pass signal to queue analytics. Snooze 30d hides it for 30 days and counts as a stronger skip signal. Neither action logs a wear or changes closet totals.</div>
+      <div class="insights-controls insights-queue-toolbar">
+        <div class="insights-queue-control-group">
+          <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
+          <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
+          <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
+        </div>
+        <div class="insights-queue-control-group">
+          <label for="insights-queue-type-filter" class="insights-sim-label">Type filter</label>
+          <select id="insights-queue-type-filter" class="insights-queue-sim-date"><option value="all">All types</option>${queueTypeOptions.map((type) => `<option value="${esc(type)}" ${type === activeQueueTypeFilter ? "selected" : ""}>${esc(type)}</option>`).join("")}</select>
+          <button type="button" class="btn secondary" id="insights-queue-refresh">Another 10</button>
+        </div>
+      </div>
+      <div class="stats-hint insights-queue-preview-date">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()} · ${queueSummary}</div>
+      ${queue.length
+        ? `<div class="insights-queue-list">
+        ${queue.map((item, idx) => `
+          <div class="insights-queue-item">
+            <div class="insights-queue-head">
+              <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
+              <div class="insights-queue-score lane-${esc(item.laneKey || "rotation-pick")}">${esc(item.lane || "Rotation pick")} · ${Math.round(item.score)}</div>
+            </div>
+              <div class="stats-hint insights-queue-lane-hint">${esc(item.laneHint || "")}</div>
+              <div class="insights-queue-meta">
+                <span>${esc(item.reason)}</span>
+                <div class="insights-queue-actions">
+                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-soft-pass="${esc(item.key)}">Not today</button>
+                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze 30d</button>
+                </div>
+              </div>
+            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
+              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
+                <div class="insights-queue-breakdown-row">
+                  <span>${esc(line.label)}</span>
+                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
+                </div>
+              `).join("")}
+              <div class="insights-queue-breakdown-row total">
+                <span>Total priority score</span>
+                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
+              </div>
+            </div>
+          </div>`).join("")}
+      </div>`
+        : `<div class="stats-hint">Try another date, switch the type filter, or press Another 10 again to pull a fresh mix.</div>`}`
+    );
+  };
+
   let html = "";
   html += section(
     "Personal style DNA (Wrapped)",
@@ -15347,6 +15483,7 @@ const openInsightsDialog = (stats, options = {}) => {
      </div>
      <div id="insights-story-root" class="insights-story-root" aria-live="polite"></div>`
   );
+  html += renderQueueSection();
   html += renderBehaviorInsights();
 
   if (health) {
@@ -15434,52 +15571,6 @@ const openInsightsDialog = (stats, options = {}) => {
     );
   }
 
-  if (queue.length) {
-    html += section(
-      "Wear next queue",
-      `<div class="stats-hint">Priority mix: time since last wear, never-worn pressure, and item value. Each pick carries a lane and a quick explanation so the queue feels intentional. "Why this ranked" shows the full score math. Snooze hides an item for 3 days.</div>
-      <div class="insights-controls insights-queue-sim-controls">
-        <label for="insights-queue-sim-date" class="insights-sim-label">Simulate date</label>
-        <input id="insights-queue-sim-date" class="insights-queue-sim-date" type="date" value="${esc(activeSimDateKey)}">
-        <button type="button" class="btn secondary" id="insights-queue-sim-today">Use today</button>
-      </div>
-      <div class="stats-hint insights-queue-preview-date">Ranking preview date: ${new Date(`${activeSimDateKey}T12:00:00`).toLocaleDateString()}</div>
-      <div class="insights-queue-list">
-        ${queue.map((item, idx) => `
-          <div class="insights-queue-item">
-            <div class="insights-queue-head">
-              <div class="insights-queue-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type || "Unknown")}</div>
-              <div class="insights-queue-score lane-${esc(item.laneKey || "rotation-pick")}">${esc(item.lane || "Rotation pick")} · ${Math.round(item.score)}</div>
-            </div>
-              <div class="stats-hint insights-queue-lane-hint">${esc(item.laneHint || "")}</div>
-              <div class="insights-queue-meta">
-                <span>${esc(item.reason)}</span>
-                <div class="insights-queue-actions">
-                  <button type="button" class="insights-queue-snooze" data-insights-explain-toggle="insights-explain-${idx}">Why this ranked</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-mark-worn="${idx}">Worn today</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-soft-pass="${esc(item.key)}">Not today</button>
-                  <button type="button" class="insights-queue-snooze" data-insights-snooze="${esc(item.key)}">Snooze</button>
-                </div>
-              </div>
-            <div class="insights-queue-explain is-hidden" id="insights-explain-${idx}">
-              ${(Array.isArray(item.breakdown) ? item.breakdown : []).map((line) => `
-                <div class="insights-queue-breakdown-row">
-                  <span>${esc(line.label)}</span>
-                  <span class="insights-queue-breakdown-points ${line.points >= 0 ? "positive" : "negative"}">${line.points >= 0 ? "+" : ""}${Math.round(line.points)}</span>
-                </div>
-              `).join("")}
-              <div class="insights-queue-breakdown-row total">
-                <span>Total priority score</span>
-                <span class="insights-queue-breakdown-points ${item.score >= 0 ? "positive" : "negative"}">${item.score >= 0 ? "+" : ""}${Math.round(item.score)}</span>
-              </div>
-            </div>
-          </div>`).join("")}
-      </div>`
-    );
-  } else {
-    html += section("Wear next queue", `<div class="stats-hint">Queue is clear for now. Log fresh wears or remove snoozes to regenerate suggestions.</div>`);
-  }
-
   const wearEvents = Array.isArray(stats.wearEvents) ? stats.wearEvents : [];
   const years = Array.from(new Set(wearEvents
     .map((event) => {
@@ -15509,11 +15600,11 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!key) return;
       const next = loadInsightsSnoozes();
       const until = new Date();
-      until.setDate(until.getDate() + 3);
+      until.setDate(until.getDate() + 30);
       next[key] = localDateKeyFromDate(until);
       saveInsightsSnoozes(next);
       trackInsightsQueueSnooze(key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15526,7 +15617,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(new Date());
       saveInsightsSnoozes(next);
       trackInsightsQueueSoftPass(key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15541,7 +15632,7 @@ const openInsightsDialog = (stats, options = {}) => {
       next[key] = localDateKeyFromDate(until);
       saveInsightsSellDismissals(next);
       scheduleSync();
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15567,7 +15658,7 @@ const openInsightsDialog = (stats, options = {}) => {
       if (!item) return;
       if (!markQueueItemWornToday(item)) return;
       trackInsightsQueueSelection(item.key, localDateKeyFromDate(new Date()));
-      rerenderInsightsDialog(activeSimDateKey);
+      rerenderInsightsDialog();
     });
   });
 
@@ -15577,13 +15668,32 @@ const openInsightsDialog = (stats, options = {}) => {
       const nextKey = /^\d{4}-\d{2}-\d{2}$/.test(String(simDateInput.value || ""))
         ? String(simDateInput.value)
         : localDateKeyFromDate(new Date());
-      rerenderInsightsDialog(nextKey);
+      rerenderInsightsDialog({ simDateKey: nextKey, queueExcludedKeys: [], queueRefreshNonce: 0 });
     });
   }
   const simTodayButton = content.querySelector("#insights-queue-sim-today");
   if (simTodayButton) {
     simTodayButton.addEventListener("click", () => {
-      rerenderInsightsDialog(localDateKeyFromDate(new Date()));
+      rerenderInsightsDialog({ simDateKey: localDateKeyFromDate(new Date()), queueExcludedKeys: [], queueRefreshNonce: 0 });
+    });
+  }
+  const typeFilterSelect = content.querySelector("#insights-queue-type-filter");
+  if (typeFilterSelect) {
+    typeFilterSelect.addEventListener("change", () => {
+      rerenderInsightsDialog({
+        queueTypeFilter: String(typeFilterSelect.value || "all"),
+        queueExcludedKeys: [],
+        queueRefreshNonce: 0,
+      });
+    });
+  }
+  const queueRefreshButton = content.querySelector("#insights-queue-refresh");
+  if (queueRefreshButton) {
+    queueRefreshButton.addEventListener("click", () => {
+      rerenderInsightsDialog({
+        queueExcludedKeys: queue.length ? queue.map((item) => item.key) : [],
+        queueRefreshNonce: activeQueueRefreshNonce + 1,
+      });
     });
   }
 

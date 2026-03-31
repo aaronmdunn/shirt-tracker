@@ -3219,6 +3219,18 @@ input[type="date"].stats-date-input {
     width: 100%;
     justify-content: center;
   }
+
+  .insights-queue-meta {
+    flex-direction: column;
+  }
+
+  .insights-queue-actions {
+    justify-content: flex-start;
+  }
+
+  .insights-queue-control-group {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3265,6 +3277,21 @@ input[type="date"].stats-date-input {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.insights-queue-toolbar {
+  justify-content: center;
+}
+
+.insights-queue-control-group {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.insights-queue-action-note {
+  text-align: center;
 }
 
 .insights-controls select {
@@ -3390,7 +3417,7 @@ input[type="date"].stats-date-input {
   color: var(--muted);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -3401,6 +3428,8 @@ input[type="date"].stats-date-input {
 .insights-queue-actions {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 10px;
 }
 
