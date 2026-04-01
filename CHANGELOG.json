@@ -4,6 +4,7 @@
     "date": "2026-03-31",
     "changes": [
       "Added a dedicated Pre-Buy Check front door to No-Buy with trigger-first coaching, 72-hour hold flow, wishlist parking, and a softer action layout across desktop and mobile",
+      "Added a synced desktop/Tauri Daily No-Buy Mission card that assigns one anti-buy task per day, keeps it stable for that day across devices, and surfaces it above the brand tabs without affecting mobile",
       "Expanded Pre-Buy Check with live fuzzy duplicate friction against inventory using name/brand/type, so likely closet overlaps surface before a buy or wishlist park",
       "Upgraded Pre-Buy wishlist parking to carry over typed brand/type details, add a Held tag, and save clearer hold notes for later review",
       "Expanded No-Buy recovery guidance with recovery-window summaries, low-wear added-shirt shortcuts, and help-copy refreshes that explain both the newer pre-buy layer and the older streak/cooldown/trend rules more clearly",
