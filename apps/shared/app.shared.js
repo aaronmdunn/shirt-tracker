@@ -3605,6 +3605,62 @@ const collectBackupAssetRefs = (value, refs = new Set()) => {
   return refs;
 };
 
+const addBackupAssetContext = (map, ref, label) => {
+  if (!ref || typeof ref !== "string" || (!ref.startsWith("idb:") && !ref.startsWith("supa:"))) return;
+  if (!label) return;
+  if (!map.has(ref)) map.set(ref, []);
+  const labels = map.get(ref);
+  if (!labels.includes(label)) labels.push(label);
+};
+
+const getBackupRowName = (row, columns) => {
+  if (!row || !row.cells || !Array.isArray(columns)) return "Unnamed item";
+  const nameColumn = columns.find((column) => getColumnLabel(column).trim().toLowerCase() === "name");
+  if (!nameColumn) return "Unnamed item";
+  return String(row.cells[nameColumn.id] || "").trim() || "Unnamed item";
+};
+
+const collectBackupAssetContextsFromTabState = (map, modeLabel, tab, tabState) => {
+  if (!tabState || !Array.isArray(tabState.columns) || !Array.isArray(tabState.rows)) return;
+  const tabName = tab && tab.name ? tab.name : "Untitled tab";
+  tabState.rows.forEach((row) => {
+    if (!row || !row.cells) return;
+    const rowName = getBackupRowName(row, tabState.columns);
+    tabState.columns.forEach((column) => {
+      const value = row.cells[column.id];
+      if (typeof value !== "string") return;
+      addBackupAssetContext(map, value, `${modeLabel} / ${tabName} / ${rowName} / ${getColumnLabel(column)}`);
+    });
+  });
+};
+
+const buildBackupAssetContextMap = (payload) => {
+  const map = new Map();
+  const inventoryTabsById = new Map((payload.tabs || []).map((tab) => [tab.id, tab]));
+  Object.entries(payload.tabStates || {}).forEach(([tabId, tabState]) => {
+    collectBackupAssetContextsFromTabState(map, "Inventory", inventoryTabsById.get(tabId), tabState);
+  });
+  Object.entries(payload.tabLogos || {}).forEach(([tabId, value]) => {
+    const tab = inventoryTabsById.get(tabId);
+    const tabName = tab && tab.name ? tab.name : "Untitled tab";
+    addBackupAssetContext(map, value, `Inventory / ${tabName} / Tab logo`);
+  });
+  Object.entries(payload.typeIconMap || {}).forEach(([typeName, value]) => {
+    addBackupAssetContext(map, value, `Inventory / Type icon / ${typeName || "Unknown type"}`);
+  });
+  const wishlistTabsById = new Map((((payload.wishlist || {}).tabs) || []).map((tab) => [tab.id, tab]));
+  Object.entries((((payload.wishlist || {}).tabStates) || {})).forEach(([tabId, tabState]) => {
+    collectBackupAssetContextsFromTabState(map, "Wishlist", wishlistTabsById.get(tabId), tabState);
+  });
+  return map;
+};
+
+const describeBackupAssetRef = (ref, contextMap) => {
+  const labels = contextMap && contextMap.get(ref);
+  if (!labels || !labels.length) return ref;
+  return `${labels[0]} (${ref})`;
+};
+
 const addCurrentTabStateToBackupPayload = (payload) => {
   if (!tabsState.activeTabId) return payload;
   const currentState = buildStateFromDom();
@@ -3645,11 +3701,18 @@ const loadBackupAssetBlob = async (ref) => {
 const buildFullBackupSnapshot = async ({ reason = "manual" } = {}) => {
   const payload = addCurrentTabStateToBackupPayload(buildCloudPayload());
   const refs = Array.from(collectBackupAssetRefs(payload));
+  const refContexts = buildBackupAssetContextMap(payload);
   const assets = {};
   for (const ref of refs) {
-    const blob = await loadBackupAssetBlob(ref);
+    let blob;
+    try {
+      blob = await loadBackupAssetBlob(ref);
+    } catch (error) {
+      const baseMessage = error && error.message ? error.message : "Unknown backup asset error";
+      throw new Error(`${describeBackupAssetRef(ref, refContexts)}: ${baseMessage}`);
+    }
     if (!blob) {
-      throw new Error(`Backup could not include ${ref}`);
+      throw new Error(`Backup could not include ${describeBackupAssetRef(ref, refContexts)}`);
     }
     assets[ref] = {
       mimeType: blob.type || "application/octet-stream",
