@@ -3568,14 +3568,18 @@ const renderSyncDiagnostics = () => {
     `Last local edit: ${formatDiagnosticsTimestamp(lastChange)}`,
     `Last successful cloud push: ${formatDiagnosticsTimestamp(lastSync)}`,
     `Last observed cloud update: ${formatDiagnosticsTimestamp(lastCloud)}`,
-    `Last full local backup export: ${formatDiagnosticsTimestamp(backupHealth.lastExport)}`,
-    `Last backup file: ${backupHealth.lastPath || "unknown"}`,
-    `Backup health: ${backupHealth.status === "ok" ? "fresh" : "needs export"}`,
-    `Last backup failure: ${backupHealth.lastError || "none"}`,
-    `Last backup failure time: ${formatDiagnosticsTimestamp(backupHealth.lastErrorAt)}`,
     `Last sync error: ${lastSyncErrorMessage || "none"}`,
     `Last sync error time: ${formatDiagnosticsTimestamp(lastSyncErrorAt)}`,
   ];
+  if (isDesktopTauriRuntime()) {
+    lines.splice(lines.length - 2, 0,
+      `Last full local backup export: ${formatDiagnosticsTimestamp(backupHealth.lastExport)}`,
+      `Last backup file: ${backupHealth.lastPath || "unknown"}`,
+      `Backup health: ${backupHealth.status === "ok" ? "fresh" : "needs export"}`,
+      `Last backup failure: ${backupHealth.lastError || "none"}`,
+      `Last backup failure time: ${formatDiagnosticsTimestamp(backupHealth.lastErrorAt)}`,
+    );
+  }
   syncDiagnosticsContent.textContent = lines.join("\n");
 };
 
