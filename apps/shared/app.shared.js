@@ -30,6 +30,12 @@ const LAST_ACTIVITY_KEY = "shirts-last-activity";
 const LAST_SYNC_KEY = "shirts-last-sync";
 const LAST_CLOUD_UPDATE_KEY = "shirts-last-cloud-update";
 const LAST_CHANGE_KEY = "shirts-last-change";
+const LAST_FULL_BACKUP_EXPORT_KEY = "shirts-last-full-backup-export";
+const LAST_FULL_BACKUP_PATH_KEY = "shirts-last-full-backup-path";
+const LAST_FULL_BACKUP_ERROR_KEY = "shirts-last-full-backup-error";
+const LAST_FULL_BACKUP_ERROR_AT_KEY = "shirts-last-full-backup-error-at";
+const BACKUP_HEALTH_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+const DESKTOP_DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const APP_VERSION = "2.1.3";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
@@ -199,6 +205,7 @@ let isSyncing = false;
 let syncRetryCount = 0;
 let lastSyncErrorAt = 0;
 let lastSyncErrorMessage = "";
+let desktopBackupInFlight = null;
 const FORCE_FRESH_START = (() => {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -476,9 +483,11 @@ const authActionButton = document.getElementById("auth-action");
 const authActionSignedOutButton = document.getElementById("auth-action-signedout");
 const syncNowButton = document.getElementById("sync-now");
 const verifyBackupButton = document.getElementById("verify-backup");
+const exportBackupJsonButton = document.getElementById("export-backup-json");
 const exportCsvButton = document.getElementById("export-csv");
 const importCsvButton = document.getElementById("import-csv");
 const backupStatusText = document.getElementById("backup-status");
+const backupHealthStatusText = document.getElementById("backup-health-status");
 const unsavedStatusText = document.getElementById("unsaved-status");
 const advancedDiagnosticsLink = document.getElementById("advanced-diagnostics-link");
 const syncDiagnosticsDialog = document.getElementById("sync-diagnostics-dialog");
@@ -2914,6 +2923,95 @@ const getBackupTimestamp = (key) => {
   }
 };
 
+const setBackupMeta = (key, value) => {
+  if (!canUseLocalStorage()) return;
+  try {
+    if (value) localStorage.setItem(key, String(value));
+    else localStorage.removeItem(key);
+  } catch (error) {
+    // ignore
+  }
+};
+
+const getBackupMeta = (key) => {
+  if (!canUseLocalStorage()) return "";
+  try {
+    return String(localStorage.getItem(key) || "");
+  } catch (error) {
+    return "";
+  }
+};
+
+const clearBackupMeta = (key) => {
+  if (!canUseLocalStorage()) return;
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    // ignore
+  }
+};
+
+const formatBackupAge = (timestamp) => {
+  if (!timestamp) return "";
+  const ageMs = Math.max(0, Date.now() - timestamp);
+  if (ageMs < 60 * 60 * 1000) return "within the last hour";
+  if (ageMs < 24 * 60 * 60 * 1000) {
+    const hours = Math.round(ageMs / (60 * 60 * 1000));
+    return `${hours}h ago`;
+  }
+  const days = Math.round(ageMs / (24 * 60 * 60 * 1000));
+  return `${days}d ago`;
+};
+
+const setBackupHealthStatus = (message, status = "ok") => {
+  if (!backupHealthStatusText) return;
+  backupHealthStatusText.textContent = message;
+  backupHealthStatusText.classList.toggle("ok", status === "ok");
+  backupHealthStatusText.classList.toggle("alert", status === "alert");
+};
+
+const getBackupHealthSnapshot = () => {
+  const lastExport = getBackupTimestamp(LAST_FULL_BACKUP_EXPORT_KEY);
+  const lastError = getBackupMeta(LAST_FULL_BACKUP_ERROR_KEY);
+  const lastErrorAt = getBackupTimestamp(LAST_FULL_BACKUP_ERROR_AT_KEY);
+  if (lastError && lastErrorAt && (!lastExport || lastErrorAt > lastExport)) {
+    return {
+      status: "alert",
+      message: `Backup health: Last daily backup failed ${formatBackupAge(lastErrorAt)}. ${lastError}`,
+      lastExport,
+      lastError,
+      lastErrorAt,
+      lastPath: getBackupMeta(LAST_FULL_BACKUP_PATH_KEY),
+    };
+  }
+  if (!lastExport) {
+    return {
+      status: "alert",
+      message: "Backup health: No full local backup exported yet. Use Export Backup JSON today.",
+      lastExport: null,
+      lastError,
+      lastErrorAt,
+      lastPath: getBackupMeta(LAST_FULL_BACKUP_PATH_KEY),
+    };
+  }
+  const stale = Date.now() - lastExport > BACKUP_HEALTH_MAX_AGE_MS;
+  return {
+    status: stale ? "alert" : "ok",
+    message: stale
+      ? `Backup health: Last full local backup was ${formatDateTime(lastExport)}. Export a new backup today.`
+      : `Backup health: Full local backup exported ${formatBackupAge(lastExport)} (${formatDateTime(lastExport)}).`,
+    lastExport,
+    lastError,
+    lastErrorAt,
+    lastPath: getBackupMeta(LAST_FULL_BACKUP_PATH_KEY),
+  };
+};
+
+const updateBackupHealthStatus = () => {
+  const health = getBackupHealthSnapshot();
+  setBackupHealthStatus(health.message, health.status);
+};
+
 const getLastActivity = () => {
   if (!canUseLocalStorage()) return null;
   try {
@@ -3427,11 +3525,13 @@ const updateBackupStatusFromStorage = () => {
   if (!backupStatusText) return;
   const lastCloud = getBackupTimestamp(LAST_CLOUD_UPDATE_KEY);
   if (!lastCloud) {
-  setBackupStatus("Cloud backup not checked yet.");
+    setBackupStatus("Cloud backup not checked yet.");
+    updateBackupHealthStatus();
     updateUnsavedStatus();
     return;
   }
   setBackupStatus(`Last synced to cloud: ${formatDateTime(lastCloud)}`);
+  updateBackupHealthStatus();
   updateUnsavedStatus();
 };
 
@@ -3452,6 +3552,7 @@ const renderSyncDiagnostics = () => {
   const lastChange = getBackupTimestamp(LAST_CHANGE_KEY);
   const lastSync = getBackupTimestamp(LAST_SYNC_KEY);
   const lastCloud = getBackupTimestamp(LAST_CLOUD_UPDATE_KEY);
+  const backupHealth = getBackupHealthSnapshot();
   const lagMs = getSyncLagMs(lastChange, lastSync);
   const lagText = lagMs === null ? "unknown" : `${Math.round(lagMs / 1000)}s`;
   const unsynced = lastChange && (!lastSync || lastChange > lastSync + 1000);
@@ -3467,10 +3568,170 @@ const renderSyncDiagnostics = () => {
     `Last local edit: ${formatDiagnosticsTimestamp(lastChange)}`,
     `Last successful cloud push: ${formatDiagnosticsTimestamp(lastSync)}`,
     `Last observed cloud update: ${formatDiagnosticsTimestamp(lastCloud)}`,
+    `Last full local backup export: ${formatDiagnosticsTimestamp(backupHealth.lastExport)}`,
+    `Last backup file: ${backupHealth.lastPath || "unknown"}`,
+    `Backup health: ${backupHealth.status === "ok" ? "fresh" : "needs export"}`,
+    `Last backup failure: ${backupHealth.lastError || "none"}`,
+    `Last backup failure time: ${formatDiagnosticsTimestamp(backupHealth.lastErrorAt)}`,
     `Last sync error: ${lastSyncErrorMessage || "none"}`,
     `Last sync error time: ${formatDiagnosticsTimestamp(lastSyncErrorAt)}`,
   ];
   syncDiagnosticsContent.textContent = lines.join("\n");
+};
+
+const isDesktopTauriRuntime = () => PLATFORM === "desktop"
+  && !!(window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function");
+
+const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+  reader.onerror = () => reject(reader.error || new Error("Failed to read blob"));
+  reader.readAsDataURL(blob);
+});
+
+const collectBackupAssetRefs = (value, refs = new Set()) => {
+  if (!value) return refs;
+  if (typeof value === "string") {
+    if (value.startsWith("idb:") || value.startsWith("supa:")) refs.add(value);
+    return refs;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectBackupAssetRefs(item, refs));
+    return refs;
+  }
+  if (typeof value === "object") {
+    Object.values(value).forEach((item) => collectBackupAssetRefs(item, refs));
+  }
+  return refs;
+};
+
+const addCurrentTabStateToBackupPayload = (payload) => {
+  if (!tabsState.activeTabId) return payload;
+  const currentState = buildStateFromDom();
+  if (appMode === "inventory") {
+    payload.tabStates = payload.tabStates || {};
+    payload.tabStates[tabsState.activeTabId] = currentState;
+    return payload;
+  }
+  payload.wishlist = payload.wishlist || {
+    tabs: tabsState.tabs,
+    activeTabId: tabsState.activeTabId,
+    tabStates: {},
+    columnOverrides,
+    globalColumns,
+  };
+  payload.wishlist.tabStates = payload.wishlist.tabStates || {};
+  payload.wishlist.tabStates[tabsState.activeTabId] = currentState;
+  return payload;
+};
+
+const loadBackupAssetBlob = async (ref) => {
+  if (!ref) return null;
+  if (ref.startsWith("idb:")) {
+    return loadPhotoBlob(ref.slice(4));
+  }
+  if (ref.startsWith("supa:")) {
+    const src = await getPhotoSrc(ref);
+    if (!src) throw new Error(`Could not resolve ${ref}`);
+    const response = await fetch(src);
+    if (!response.ok) {
+      throw new Error(`Could not download ${ref} (${response.status})`);
+    }
+    return response.blob();
+  }
+  return null;
+};
+
+const buildFullBackupSnapshot = async ({ reason = "manual" } = {}) => {
+  const payload = addCurrentTabStateToBackupPayload(buildCloudPayload());
+  const refs = Array.from(collectBackupAssetRefs(payload));
+  const assets = {};
+  for (const ref of refs) {
+    const blob = await loadBackupAssetBlob(ref);
+    if (!blob) {
+      throw new Error(`Backup could not include ${ref}`);
+    }
+    assets[ref] = {
+      mimeType: blob.type || "application/octet-stream",
+      dataUrl: await blobToDataUrl(blob),
+    };
+  }
+  return {
+    exportedAt: new Date().toISOString(),
+    version: APP_VERSION,
+    mode: appMode,
+    backupType: "full-app-state",
+    backupReason: reason,
+    assetCount: refs.length,
+    data: payload,
+    assets,
+  };
+};
+
+const buildBackupFileName = (reason = "manual") => {
+  if (reason === "auto") return `shirt-tracker-daily-backup-${localDateKeyFromDate(new Date())}.json`;
+  const stamp = new Date().toISOString().replace(/[:]/g, "-").replace(/\..+$/, "");
+  return `shirt-tracker-backup-${stamp}.json`;
+};
+
+const markBackupSuccess = (savedPath) => {
+  setBackupTimestamp(LAST_FULL_BACKUP_EXPORT_KEY, Date.now());
+  setBackupMeta(LAST_FULL_BACKUP_PATH_KEY, savedPath || "");
+  clearBackupMeta(LAST_FULL_BACKUP_ERROR_KEY);
+  clearBackupMeta(LAST_FULL_BACKUP_ERROR_AT_KEY);
+  updateBackupHealthStatus();
+  renderSyncDiagnostics();
+};
+
+const markBackupFailure = (error) => {
+  const message = error && error.message ? error.message : String(error || "Unknown backup error");
+  setBackupMeta(LAST_FULL_BACKUP_ERROR_KEY, message);
+  setBackupTimestamp(LAST_FULL_BACKUP_ERROR_AT_KEY, Date.now());
+  updateBackupHealthStatus();
+  renderSyncDiagnostics();
+};
+
+const saveBackupSnapshotToDesktop = async (snapshot, reason = "manual") => {
+  const invoke = window.__TAURI__?.core?.invoke;
+  if (typeof invoke !== "function") throw new Error("Desktop backup runtime unavailable.");
+  const contents = JSON.stringify(snapshot, null, 2);
+  const savedPath = await invoke("write_backup_snapshot", {
+    name: buildBackupFileName(reason),
+    contents,
+  });
+  return String(savedPath || "");
+};
+
+const shouldRunDesktopDailyBackup = () => {
+  const lastExport = getBackupTimestamp(LAST_FULL_BACKUP_EXPORT_KEY);
+  return !lastExport || Date.now() - lastExport >= DESKTOP_DAILY_BACKUP_INTERVAL_MS;
+};
+
+const runDesktopDailyBackupIfNeeded = async () => {
+  if (!isDesktopTauriRuntime()) return null;
+  if (publicShareToken || isViewerSession) return null;
+  if (supabase && !currentUser) return null;
+  if (!shouldRunDesktopDailyBackup()) {
+    updateBackupHealthStatus();
+    return null;
+  }
+  if (desktopBackupInFlight) return desktopBackupInFlight;
+  desktopBackupInFlight = (async () => {
+    try {
+      const snapshot = await buildFullBackupSnapshot({ reason: "auto" });
+      const savedPath = await saveBackupSnapshotToDesktop(snapshot, "auto");
+      markBackupSuccess(savedPath);
+      addEventLog("Saved automatic local backup");
+      return savedPath;
+    } catch (error) {
+      console.warn("Automatic desktop backup failed", error);
+      markBackupFailure(error);
+      return null;
+    } finally {
+      desktopBackupInFlight = null;
+    }
+  })();
+  return desktopBackupInFlight;
 };
 
 const updateAppUpdateDate = () => {
@@ -4158,8 +4419,10 @@ const syncToSupabase = async () => {
     const parsedUpdatedAt = Date.parse(updatedAt);
     setBackupTimestamp(LAST_SYNC_KEY, Number.isNaN(parsedUpdatedAt) ? Date.now() : parsedUpdatedAt);
     setBackupTimestamp(LAST_CLOUD_UPDATE_KEY, parsedUpdatedAt);
+    updateBackupHealthStatus();
     updateUnsavedStatus();
     renderSyncDiagnostics();
+    runDesktopDailyBackupIfNeeded();
   } catch (error) {
     console.warn("Sync failed", error);
     lastSyncErrorAt = Date.now();
@@ -4248,6 +4511,7 @@ const loadRemoteState = async () => {
       renderTable();
       renderFooter();
     }
+    runDesktopDailyBackupIfNeeded();
   } else {
     if (typeof applyFreshUserDefaults === "function") {
       applyFreshUserDefaults();
@@ -4256,6 +4520,7 @@ const loadRemoteState = async () => {
     saveState();
     updateTabLogo();
     await syncToSupabase();
+    runDesktopDailyBackupIfNeeded();
   }
 };
 
@@ -8081,6 +8346,24 @@ const exportCsv = () => {
   addEventLog("Exported CSV");
 };
 
+const exportBackupJson = async () => {
+  try {
+    const backup = await buildFullBackupSnapshot({ reason: "manual" });
+    if (isDesktopTauriRuntime()) {
+      const savedPath = await saveBackupSnapshotToDesktop(backup, "manual");
+      markBackupSuccess(savedPath);
+      addEventLog("Saved full backup JSON to desktop backup folder");
+      return;
+    }
+    downloadFile(JSON.stringify(backup, null, 2), buildBackupFileName("manual"), "application/json;charset=utf-8;");
+    markBackupSuccess("browser download");
+    addEventLog("Exported full backup JSON");
+  } catch (error) {
+    markBackupFailure(error);
+    alert(`Backup export failed: ${error && error.message ? error.message : String(error || "Unknown backup error")}`);
+  }
+};
+
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -8809,6 +9092,7 @@ if (supabase) {
       updateAppUpdateDate();
       updateLastActivity();
       handleInactivityCheck();
+      runDesktopDailyBackupIfNeeded();
       if (currentUser) {
         handleUserSwitch(currentUser.id);
         enforcePasswordSet(currentUser);
@@ -8826,6 +9110,7 @@ if (supabase) {
       updateBackupStatusFromStorage();
       updateAppUpdateDate();
       updateFooterVersionLine();
+      runDesktopDailyBackupIfNeeded();
     });
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === "TOKEN_REFRESHED") return;
@@ -8844,6 +9129,7 @@ if (supabase) {
     setAuthLoading(false);
     updateLastActivity();
     handleInactivityCheck();
+    runDesktopDailyBackupIfNeeded();
     if (currentUser) {
       handleUserSwitch(currentUser.id);
       enforcePasswordSet(currentUser);
@@ -8858,6 +9144,7 @@ if (supabase) {
   updateBackupStatusFromStorage();
   updateAppUpdateDate();
   updateFooterVersionLine();
+  runDesktopDailyBackupIfNeeded();
 }
 
 ["mousemove", "keydown", "touchstart", "click", "scroll"].forEach((eventName) => {
@@ -8868,7 +9155,12 @@ if (supabase) {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     flushPendingSyncIfNeeded();
+    return;
   }
+  runDesktopDailyBackupIfNeeded();
+});
+window.addEventListener("focus", () => {
+  runDesktopDailyBackupIfNeeded();
 });
 window.addEventListener("pagehide", () => {
   flushPendingSyncIfNeeded();
@@ -8881,6 +9173,9 @@ if (PLATFORM === "desktop") {
 window.setInterval(() => {
   handleInactivityCheck();
 }, 5 * 60 * 1000);
+window.setInterval(() => {
+  runDesktopDailyBackupIfNeeded();
+}, 60 * 60 * 1000);
 
 
 const executeClearAll = () => {
@@ -9346,6 +9641,9 @@ if (syncDiagnosticsCloseButton) {
 
 if (exportCsvButton) exportCsvButton.addEventListener("click", () => exportCsv());
 if (importCsvButton) importCsvButton.addEventListener("click", () => importCsv());
+if (exportBackupJsonButton) exportBackupJsonButton.addEventListener("click", () => {
+  exportBackupJson();
+});
 
 if (authSendButton) authSendButton.addEventListener("click", async () => {
   if (authNameRow) authNameRow.style.display = "block";
