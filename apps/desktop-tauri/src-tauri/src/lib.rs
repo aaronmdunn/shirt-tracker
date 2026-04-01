@@ -1,12 +1,31 @@
+use std::{fs, path::PathBuf};
+
 use tauri::{
     menu::{Menu, MenuItem, Submenu},
     Emitter, Manager,
 };
 
+#[tauri::command]
+fn write_backup_snapshot(app: tauri::AppHandle, name: String, contents: String) -> Result<String, String> {
+    let base_dir = app
+        .path()
+        .document_dir()
+        .or_else(|_| app.path().app_data_dir())
+        .map_err(|error| format!("Could not resolve backup folder: {error}"))?;
+    let backup_dir: PathBuf = base_dir.join("Shirt Tracker Backups").join("Daily");
+    fs::create_dir_all(&backup_dir)
+        .map_err(|error| format!("Could not create backup folder {}: {error}", backup_dir.display()))?;
+    let backup_path = backup_dir.join(name);
+    fs::write(&backup_path, contents)
+        .map_err(|error| format!("Could not write backup file {}: {error}", backup_path.display()))?;
+    Ok(backup_path.display().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![write_backup_snapshot])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();

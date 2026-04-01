@@ -1778,6 +1778,21 @@ input[type="date"].wear-date-input {
   text-align: center;
 }
 
+.backup-health-status {
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.backup-health-status.ok {
+  font-weight: 700;
+  color: #1f7a1f;
+}
+
+.backup-health-status.alert {
+  font-weight: 700;
+  color: #b10000;
+}
+
 #verify-backup {
   font-weight: 700;
 }
