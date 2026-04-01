@@ -3642,7 +3642,7 @@ const buildBackupAssetContextMap = (payload) => {
   });
   Object.entries(payload.tabLogos || {}).forEach(([tabId, value]) => {
     const tab = inventoryTabsById.get(tabId);
-    const tabName = tab && tab.name ? tab.name : "Untitled tab";
+    const tabName = tab && tab.name ? tab.name : "Deleted or missing tab";
     addBackupAssetContext(map, value, `Inventory / ${tabName} / Tab logo`);
   });
   Object.entries(payload.typeIconMap || {}).forEach(([typeName, value]) => {
@@ -3851,6 +3851,26 @@ const saveLogoMap = (map) => {
   } catch (error) {
     // ignore
   }
+};
+
+const pruneLogoMapForTabs = (map, tabs) => {
+  const source = map && typeof map === "object" ? map : {};
+  const validIds = new Set((Array.isArray(tabs) ? tabs : []).map((tab) => tab && tab.id).filter(Boolean));
+  const next = {};
+  Object.entries(source).forEach(([tabId, value]) => {
+    if (!validIds.has(tabId) || !value) return;
+    next[tabId] = value;
+  });
+  return next;
+};
+
+const loadPrunedLogoMap = (tabs = tabsState.tabs) => {
+  const current = loadLogoMap();
+  const pruned = pruneLogoMapForTabs(current, tabs);
+  if (JSON.stringify(current) !== JSON.stringify(pruned)) {
+    saveLogoMap(pruned);
+  }
+  return pruned;
 };
 
 const getCustomLogo = (tabId) => {
@@ -4087,7 +4107,7 @@ const buildCloudPayload = () => {
   const result = {
     tabs: inventoryTabs,
     activeTabId: inventoryActiveTabId,
-    tabLogos: loadLogoMap(),
+    tabLogos: loadPrunedLogoMap(inventoryTabs),
     eventLog: loadEventLog(),
     typeIconMap: loadTypeIconMap(),
     customTags: loadCustomTags(),
@@ -9329,6 +9349,11 @@ tabDeleteConfirm.addEventListener("click", () => {
   pendingDeleteTabId = null;
   tabsState.tabs = tabsState.tabs.filter((tab) => tab.id !== removeId);
   sortTabs();
+  const logoMap = loadLogoMap();
+  if (logoMap[removeId]) {
+    delete logoMap[removeId];
+    saveLogoMap(logoMap);
+  }
   if (tabsState.tabs.length === 0) {
     const fallbackTab = { id: createId(), name: "New Tab" };
     tabsState.tabs.push(fallbackTab);
