@@ -36,7 +36,7 @@ const LAST_FULL_BACKUP_ERROR_KEY = "shirts-last-full-backup-error";
 const LAST_FULL_BACKUP_ERROR_AT_KEY = "shirts-last-full-backup-error-at";
 const BACKUP_HEALTH_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 const DESKTOP_DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const APP_VERSION = "2.1.3";
+const APP_VERSION = "2.1.4";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -54,6 +54,7 @@ const CURRENT_USER_KEY = "shirts-current-user";
 const CUSTOM_TAGS_KEY = "shirts-custom-tags-v1";
 const FOR_SALE_TAG = "For Sale";
 const DELETED_ROWS_KEY = "shirts-deleted-rows-v1";
+const SOLD_ITEMS_KEY = "shirts-sold-items-v1";
 const DELETED_ROWS_PURGE_DAYS = 30;
 const GOT_IT_LOG_KEY = "wishlist-got-it-log-v1";
 const INSIGHTS_SNOOZE_KEY = "shirts-insights-snooze-v1";
@@ -650,6 +651,13 @@ const storyLabel = document.getElementById("story-label");
 const storyInput = document.getElementById("story-input");
 const storyCancelButton = document.getElementById("story-cancel");
 const storySaveButton = document.getElementById("story-save");
+const soldDialog = document.getElementById("sold-dialog");
+const soldDialogName = document.getElementById("sold-dialog-name");
+const soldPriceInput = document.getElementById("sold-price-input");
+const soldBuyerInput = document.getElementById("sold-buyer-input");
+const soldMarketplaceInput = document.getElementById("sold-marketplace-input");
+const soldCancelButton = document.getElementById("sold-cancel");
+const soldSaveButton = document.getElementById("sold-save");
 const csvImportDialog = document.getElementById("csv-import-dialog");
 const csvImportColumns = document.getElementById("csv-import-columns");
 const csvImportCancelButton = document.getElementById("csv-import-cancel");
@@ -699,6 +707,7 @@ let deleteSelectedButton = null;
 let pendingDeleteTabId = null;
 let activeTagsRowId = null;
 let activeStoryRowId = null;
+let activeSoldRowId = null;
 let lastClearSnapshot = null;
 let latestStatsSnapshot = null;
 const storageStatus = { ok: null };
@@ -1136,6 +1145,24 @@ const saveDeletedRows = (entries) => {
   }
 };
 
+const loadSoldItems = () => {
+  try {
+    const stored = localStorage.getItem(SOLD_ITEMS_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const saveSoldItems = (entries) => {
+  try {
+    localStorage.setItem(SOLD_ITEMS_KEY, JSON.stringify(entries));
+  } catch (error) {
+    // ignore
+  }
+};
+
 const purgeExpiredDeletedRows = () => {
   const entries = loadDeletedRows();
   const cutoff = Date.now() - DELETED_ROWS_PURGE_DAYS * 24 * 60 * 60 * 1000;
@@ -1146,11 +1173,11 @@ const purgeExpiredDeletedRows = () => {
   return kept;
 };
 
-const addToDeletedRows = (rows, fromTabId, fromTabName, mode) => {
+const addToDeletedRows = (rows, fromTabId, fromTabName, mode, options = {}) => {
   const entries = loadDeletedRows();
   const now = new Date().toISOString();
   rows.forEach((row) => {
-    entries.unshift({
+    const deletedEntry = {
       row: {
         ...row,
         cells: { ...(row.cells || {}) },
@@ -1163,9 +1190,67 @@ const addToDeletedRows = (rows, fromTabId, fromTabName, mode) => {
       fromTabName,
       mode: mode || appMode,
       columns: state.columns.map((col) => ({ id: col.id, name: col.name, type: col.type, options: col.options ? [...col.options] : [] })),
-    });
+    };
+    if (options.removalType) deletedEntry.removalType = String(options.removalType);
+    if (options.sale && typeof options.sale === "object") {
+      deletedEntry.sale = {
+        id: options.sale.id || createId(),
+        soldAt: options.sale.soldAt || now,
+        price: Number(options.sale.price || 0),
+        buyer: String(options.sale.buyer || "").trim(),
+        marketplace: String(options.sale.marketplace || "").trim(),
+      };
+    }
+    entries.unshift(deletedEntry);
   });
   saveDeletedRows(entries);
+};
+
+const getDeletedEntrySale = (entry) => {
+  if (!entry || entry.removalType !== "sold" || !entry.sale || typeof entry.sale !== "object") return null;
+  const price = Number(entry.sale.price);
+  return {
+    id: String(entry.sale.id || ""),
+    soldAt: String(entry.sale.soldAt || entry.deletedAt || ""),
+    price: Number.isFinite(price) && price >= 0 ? price : 0,
+    buyer: String(entry.sale.buyer || "").trim(),
+    marketplace: String(entry.sale.marketplace || "").trim(),
+  };
+};
+
+const buildSoldItemRecord = (row, columns, sale, fromTabName) => {
+  const values = getRowValuesByLabel(row, columns);
+  const purchasePriceRaw = String(values.price || "").replace(/[$,]/g, "");
+  const purchasePrice = Number.parseFloat(purchasePriceRaw);
+  return {
+    id: String(sale.id || createId()),
+    soldAt: String(sale.soldAt || new Date().toISOString()),
+    price: Number(sale.price || 0),
+    buyer: String(sale.buyer || "").trim(),
+    marketplace: String(sale.marketplace || "").trim(),
+    name: String(values.name || getRowName(row) || "Unnamed").trim() || "Unnamed",
+    brand: String(values.brand || fromTabName || "").trim(),
+    tab: String(fromTabName || "").trim(),
+    type: String(values.type || "").trim(),
+    wearCount: Math.max(0, Number(row?.wearCount || 0)),
+    lastWorn: String(row?.lastWorn || ""),
+    createdAt: String(row?.createdAt || ""),
+    purchasePrice: Number.isFinite(purchasePrice) ? purchasePrice : null,
+  };
+};
+
+const recordSoldItem = (item) => {
+  const entries = loadSoldItems();
+  entries.unshift(item);
+  saveSoldItems(entries);
+};
+
+const removeSoldItemById = (id) => {
+  const cleanId = String(id || "").trim();
+  if (!cleanId) return;
+  const entries = loadSoldItems();
+  const next = entries.filter((entry) => String(entry?.id || "") !== cleanId);
+  if (next.length !== entries.length) saveSoldItems(next);
 };
 
 const renderEventLog = (filterQuery) => {
@@ -2622,6 +2707,70 @@ const saveStoryDialog = () => {
   renderFooter();
 };
 
+const closeSoldDialog = () => {
+  activeSoldRowId = null;
+  if (soldDialogName) soldDialogName.textContent = "";
+  if (soldPriceInput) soldPriceInput.value = "";
+  if (soldBuyerInput) soldBuyerInput.value = "";
+  if (soldMarketplaceInput) soldMarketplaceInput.value = "";
+  closeDialog(soldDialog);
+};
+
+const openSoldDialog = (rowId) => {
+  if (!soldDialog || !soldPriceInput || appMode !== "inventory") return;
+  const row = state.rows.find((item) => item.id === rowId);
+  if (!row) return;
+  activeSoldRowId = rowId;
+  if (soldDialogName) soldDialogName.textContent = getRowName(row);
+  soldPriceInput.value = "";
+  soldBuyerInput.value = "";
+  soldMarketplaceInput.value = "";
+  resetDialogScroll(soldDialog);
+  openDialog(soldDialog);
+  window.setTimeout(() => {
+    soldPriceInput.focus();
+    soldPriceInput.select();
+  }, 0);
+};
+
+const saveSoldDialog = () => {
+  if (!activeSoldRowId || !soldPriceInput) return;
+  const row = state.rows.find((item) => item.id === activeSoldRowId);
+  if (!row) {
+    closeSoldDialog();
+    return;
+  }
+  const price = parseCurrency(soldPriceInput.value);
+  if (price === null || price < 0) {
+    alert("Enter a valid selling price.");
+    soldPriceInput.focus();
+    return;
+  }
+  const sale = {
+    id: createId(),
+    soldAt: new Date().toISOString(),
+    price,
+    buyer: String(soldBuyerInput?.value || "").trim(),
+    marketplace: String(soldMarketplaceInput?.value || "").trim(),
+  };
+  const rowName = getRowName(row);
+  const tabName = getActiveTabName();
+  recordSoldItem(buildSoldItemRecord(row, state.columns, sale, tabName));
+  addToDeletedRows([row], tabsState.activeTabId, tabName, appMode, { removalType: "sold", sale });
+  state.rows = state.rows.filter((item) => item.id !== activeSoldRowId);
+  if (state.rows.length === 0) state.rows.push(defaultRow());
+  addEventLog(
+    "Sold row",
+    `${rowName} - ${formatCurrency(price)}${sale.buyer ? ` to ${sale.buyer}` : ""}${sale.marketplace ? ` via ${sale.marketplace}` : ""}`,
+    snapshotRow(row)
+  );
+  updateShirtUpdateDate();
+  saveState();
+  closeSoldDialog();
+  renderRows();
+  renderFooter();
+};
+
 const openTagsDialog = (rowId) => {
   if (state.readOnly || !tagsDialog) return;
   activeTagsRowId = rowId;
@@ -2722,9 +2871,10 @@ const renderRecycleBin = () => {
     const daysAgo = Math.floor((Date.now() - deletedDate.getTime()) / (24 * 60 * 60 * 1000));
     const daysLeft = Math.max(0, DELETED_ROWS_PURGE_DAYS - daysAgo);
     const modeLabel = entry.mode === "wishlist" ? "Wishlist" : "Inventory";
+    const sale = getDeletedEntrySale(entry);
     const meta = document.createElement("div");
     meta.className = "recycle-bin-meta";
-    meta.textContent = `${deletedDate.toLocaleDateString()} - ${entry.fromTabName || "Unknown tab"} (${modeLabel}) - ${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`;
+    meta.textContent = `${sale ? "Sold" : "Deleted"}: ${deletedDate.toLocaleDateString()} - ${entry.fromTabName || "Unknown tab"} (${modeLabel}) - ${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`;
     const nameEl = document.createElement("div");
     nameEl.className = "recycle-bin-name";
     nameEl.textContent = displayName;
@@ -2744,6 +2894,11 @@ const renderRecycleBin = () => {
       const tagLine = document.createElement("div");
       tagLine.textContent = "Tags: " + tags.join(", ");
       details.appendChild(tagLine);
+    }
+    if (sale) {
+      const saleLine = document.createElement("div");
+      saleLine.textContent = `Sold for: ${formatCurrency(sale.price)}${sale.buyer ? ` - Buyer: ${sale.buyer}` : ""}${sale.marketplace ? ` - Marketplace: ${sale.marketplace}` : ""}`;
+      details.appendChild(saleLine);
     }
     const actions = document.createElement("div");
     actions.className = "recycle-bin-actions";
@@ -2794,6 +2949,7 @@ const restoreDeletedRow = (idx) => {
   const entries = loadDeletedRows();
   if (idx < 0 || idx >= entries.length) return;
   const entry = entries[idx];
+  const sale = getDeletedEntrySale(entry);
   const row = entry.row;
   const targetMode = entry.mode || "inventory";
   const targetTabId = entry.fromTabId;
@@ -2847,8 +3003,9 @@ const restoreDeletedRow = (idx) => {
   }
   entries.splice(idx, 1);
   saveDeletedRows(entries);
+  if (sale?.id) removeSoldItemById(sale.id);
   const restoredTabName = tabExists ? targetTabName : (tabs[0] ? tabs[0].name : "first tab");
-  addEventLog("Restored row from recycle bin", getRowNameFromEntry(entry), null);
+  addEventLog(sale ? "Restored sold row" : "Restored row from recycle bin", getRowNameFromEntry(entry), null);
   if (targetMode === appMode && restoreTabId === tabsState.activeTabId) {
     loadState();
     ensureRowCells();
@@ -4121,7 +4278,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.1.3",
+    version: "2.1.4",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -4147,6 +4304,9 @@ const buildCloudPayload = () => {
     if (insightsSnoozesRaw) result.insightsSnoozes = normalizeExpiringInsightsMap(JSON.parse(insightsSnoozesRaw));
     const insightsSellDismissalsRaw = localStorage.getItem(INSIGHTS_SELL_DISMISS_KEY);
     if (insightsSellDismissalsRaw) result.insightsSellDismissals = normalizeExpiringInsightsMap(JSON.parse(insightsSellDismissalsRaw));
+  } catch (e) { /* ignore */ }
+  try {
+    result.soldItems = loadSoldItems();
   } catch (e) { /* ignore */ }
   // Include no-buy game state in cloud payload for cross-device parity.
   try {
@@ -4278,6 +4438,9 @@ const applyCloudPayload = (payload) => {
     } catch (error) {
       try { localStorage.setItem(INSIGHTS_SELL_DISMISS_KEY, JSON.stringify(normalizeExpiringInsightsMap(payload.insightsSellDismissals))); } catch (e) { /* ignore */ }
     }
+  }
+  if (Array.isArray(payload.soldItems)) {
+    saveSoldItems(payload.soldItems);
   }
   if (payload.publicShareVisibility) {
     publicShareVisibility = normalizePublicShareVisibility(payload.publicShareVisibility);
@@ -7284,6 +7447,16 @@ const createCellInput = (row, column) => {
       storyButton.setAttribute("aria-label", `${getRowStory(row) ? "Edit" : "Add"} story for ${getRowName(row)}`);
       storyButton.addEventListener("click", () => openStoryDialog(row.id));
       wrapper.appendChild(storyButton);
+      if (appMode === "inventory") {
+        const soldButton = document.createElement("button");
+        soldButton.type = "button";
+        soldButton.className = "cell-story-btn cell-sold-btn";
+        soldButton.textContent = "Sold";
+        soldButton.title = "Log a sale and move this item to the recycle bin";
+        soldButton.setAttribute("aria-label", `Mark ${getRowName(row)} as sold`);
+        soldButton.addEventListener("click", () => openSoldDialog(row.id));
+        wrapper.appendChild(soldButton);
+      }
     }
     return wrapper;
   }
@@ -10183,6 +10356,25 @@ if (storyDialog) {
   });
 }
 
+if (soldCancelButton) {
+  soldCancelButton.addEventListener("click", () => {
+    closeSoldDialog();
+  });
+}
+
+if (soldSaveButton) {
+  soldSaveButton.addEventListener("click", () => {
+    saveSoldDialog();
+  });
+}
+
+if (soldDialog) {
+  soldDialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeSoldDialog();
+  });
+}
+
 clearPhotoDialogButton.addEventListener("click", () => {
   if (!activePhotoTarget) return;
   const { rowId, columnId, value } = activePhotoTarget;
@@ -10740,10 +10932,34 @@ const collectAllStats = () => {
     };
   });
 
-  // --- Recently deleted ---
+  // --- Recently deleted / sold ---
   const deletedEntries = loadDeletedRows();
+  const soldItems = loadSoldItems()
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const soldMs = new Date(String(item.soldAt || "")).getTime();
+      if (!Number.isFinite(soldMs)) return null;
+      const price = Number(item.price);
+      return {
+        id: String(item.id || ""),
+        soldAt: new Date(soldMs).toISOString(),
+        soldMs,
+        price: Number.isFinite(price) && price >= 0 ? price : 0,
+        buyer: String(item.buyer || "").trim(),
+        marketplace: String(item.marketplace || "").trim(),
+        name: String(item.name || "Unnamed").trim() || "Unnamed",
+        brand: String(item.brand || item.tab || "").trim(),
+        tab: String(item.tab || item.brand || "").trim(),
+        type: String(item.type || "").trim(),
+        wearCount: Math.max(0, Number(item.wearCount || 0)),
+        lastWorn: String(item.lastWorn || ""),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.soldMs - a.soldMs || a.name.localeCompare(b.name));
   const recentlyDeleted = deletedEntries
     .map((entry) => {
+      if (getDeletedEntrySale(entry)) return null;
       const cols = Array.isArray(entry.columns) ? entry.columns : [];
       const typeCol = cols.find((c) => c.name === "Type");
       const type = (typeCol && entry.row && entry.row.cells) ? String(entry.row.cells[typeCol.id] || "").trim() : "";
@@ -10755,6 +10971,46 @@ const collectAllStats = () => {
     })
     .filter(Boolean)
     .slice(0, 5);
+  const soldByMonthMap = {};
+  const soldBuyerCounts = {};
+  const soldMarketplaceCounts = {};
+  let soldRevenue = 0;
+  soldItems.forEach((item) => {
+    soldRevenue += Number(item.price || 0);
+    const soldDate = new Date(item.soldAt);
+    const monthKey = `${soldDate.getFullYear()}-${String(soldDate.getMonth() + 1).padStart(2, "0")}`;
+    if (!soldByMonthMap[monthKey]) soldByMonthMap[monthKey] = { count: 0, revenue: 0 };
+    soldByMonthMap[monthKey].count += 1;
+    soldByMonthMap[monthKey].revenue += Number(item.price || 0);
+    if (item.buyer) soldBuyerCounts[item.buyer] = (soldBuyerCounts[item.buyer] || 0) + 1;
+    if (item.marketplace) soldMarketplaceCounts[item.marketplace] = (soldMarketplaceCounts[item.marketplace] || 0) + 1;
+  });
+  const soldByMonth = Object.entries(soldByMonthMap)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, data]) => {
+      const [y, m] = month.split("-");
+      return {
+        month,
+        label: new Date(Number(y), Number(m) - 1).toLocaleDateString(undefined, { year: "numeric", month: "short" }),
+        count: data.count,
+        revenue: data.revenue,
+      };
+    });
+  const soldTopBuyers = Object.entries(soldBuyerCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, count]) => ({ name, count }));
+  const soldTopMarketplaces = Object.entries(soldMarketplaceCounts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, count]) => ({ name, count }));
+  const soldStats = {
+    totalItems: soldItems.length,
+    totalRevenue: soldRevenue,
+    averagePrice: soldItems.length ? soldRevenue / soldItems.length : 0,
+    recentItems: soldItems.slice(0, 5),
+    byMonth: soldByMonth,
+    topBuyers: soldTopBuyers,
+    topMarketplaces: soldTopMarketplaces,
+  };
 
   // --- Wear-based stats (Inventory only) ---
   const wornItems = [];
@@ -11706,6 +11962,7 @@ const collectAllStats = () => {
     recentlyAdded: top5RecentlyAdded,
     allRecentlyAdded,
     recentlyDeleted,
+    soldStats,
     longestUnworn,
     costPerWear,
     topRotationScore,
@@ -17083,6 +17340,15 @@ const openInsightsDialog = (stats, options = {}) => {
   const queueTypeOptions = Array.from(new Set((Array.isArray(stats?.wearableItems) ? stats.wearableItems : [])
     .map((item) => String(item?.type || "Unknown").trim() || "Unknown")))
     .sort((a, b) => a.localeCompare(b));
+  const soldStats = stats?.soldStats || {
+    totalItems: 0,
+    totalRevenue: 0,
+    averagePrice: 0,
+    recentItems: [],
+    byMonth: [],
+    topBuyers: [],
+    topMarketplaces: [],
+  };
 
   const renderDnaCard = (title, dna) => {
     if (!dna || dna.totalWears === 0) {
@@ -17179,6 +17445,15 @@ const openInsightsDialog = (stats, options = {}) => {
     const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
       .join(" · ");
+    const soldLead = Array.isArray(soldStats.recentItems) && soldStats.recentItems.length
+      ? `${soldStats.recentItems[0].name} (${formatCurrency(soldStats.recentItems[0].price || 0)})`
+      : "n/a";
+    const soldBuyerLead = Array.isArray(soldStats.topBuyers) && soldStats.topBuyers.length
+      ? `${soldStats.topBuyers[0].name} (${soldStats.topBuyers[0].count})`
+      : "n/a";
+    const soldMarketplaceLead = Array.isArray(soldStats.topMarketplaces) && soldStats.topMarketplaces.length
+      ? `${soldStats.topMarketplaces[0].name} (${soldStats.topMarketplaces[0].count})`
+      : "n/a";
     const marketValueTotal = marketplaceRows
       .reduce((sum, row) => sum + Number(row.totalValue || 0), 0);
     const marketplaceTaggedCount = marketplaceRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
@@ -17373,6 +17648,13 @@ const openInsightsDialog = (stats, options = {}) => {
           ${detailButton("insights-detail-marketplace")}
         </div>
         <div class="insights-score-card">
+          <div class="insights-score-title">Sold archive</div>
+          ${insightValue(`${soldStats.totalItems} sold · ${formatCurrency(soldStats.totalRevenue)}`, soldStats.totalItems ? "good" : "")}
+          <div class="insights-score-note">Latest: ${esc(soldLead)}</div>
+          <div class="insights-score-note">Top buyer: ${esc(soldBuyerLead)} · top marketplace: ${esc(soldMarketplaceLead)}</div>
+          ${detailButton("insights-detail-sold")}
+        </div>
+        <div class="insights-score-card">
           <div class="insights-score-title">Marketplace keepers</div>
           ${insightValue(`${marketplaceKeeperPct}% keeper rate`, marketplaceKeeperPct >= 45 ? "good" : marketplaceKeeperPct <= 20 ? "bad" : "")}
           <div class="insights-score-note">${marketplaceKeeperCount}/${marketplaceTaggedCount || 0} tagged items still perform like clear keepers.</div>
@@ -17445,6 +17727,23 @@ const openInsightsDialog = (stats, options = {}) => {
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
+      <div id="insights-detail-sold" class="stats-section-title" style="margin-top:8px">Sold archive</div>
+      <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful.</div>
+      <div class="insights-action-list">
+        <div class="stats-row stats-sub"><span class="stats-label">Total sold items</span><span class="stats-value">${soldStats.totalItems}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Total sold revenue</span><span class="stats-value">${formatCurrency(soldStats.totalRevenue)}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Average sale price</span><span class="stats-value">${soldStats.totalItems ? formatCurrency(soldStats.averagePrice) : "n/a"}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Most frequent buyer</span><span class="stats-value">${esc(soldBuyerLead)}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Top marketplace</span><span class="stats-value">${esc(soldMarketplaceLead)}</span></div>
+      </div>
+      <div class="stats-section-title" style="margin-top:8px">Sold over time</div>
+      ${Array.isArray(soldStats.byMonth) && soldStats.byMonth.length
+    ? `<div class="insights-action-list">${soldStats.byMonth.slice(0, 12).map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} sold · ${formatCurrency(row.revenue || 0)}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No sold history logged yet.</div>`}
+      <div class="stats-section-title" style="margin-top:8px">Last items sold</div>
+      ${Array.isArray(soldStats.recentItems) && soldStats.recentItems.length
+    ? `<div class="insights-action-list">${soldStats.recentItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab || item.brand || "Unknown")}) - ${esc(item.type || "Unknown")}</span><span class="stats-value">${new Date(item.soldAt).toLocaleDateString()} · ${formatCurrency(item.price || 0)}${item.buyer ? ` · ${esc(item.buyer)}` : ""}${item.marketplace ? ` · ${esc(item.marketplace)}` : ""}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No sold items have been logged yet.</div>`}
       <div id="insights-detail-marketplace" class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
       <div class="insights-action-list insights-marketplace-details">${marketplaceRows.map((row, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(row.label)}</span><span class="stats-value">${row.count} items · ${row.neverWorn} never worn · ${row.inactive180} inactive >180d · ${formatCurrency(row.totalValue || 0)} value · ${row.avgWears === null ? "n/a" : `${row.avgWears} avg wears`} · ${row.strongKeepers} keeper${row.strongKeepers === 1 ? "" : "s"}</span></div>`).join("")}</div>

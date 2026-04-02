@@ -410,7 +410,7 @@
     <dialog id="about-dialog" class="about-dialog">
       <div class="dialog-body">
         <div class="about-goose">🪿</div>
-        <div id="about-version">Shirt Tracker v2.1.3</div>
+        <div id="about-version">Shirt Tracker v2.1.4</div>
         <div>Date created: 01/30/2026</div>
         <div>© 2026 Aaron Dunn</div>
         <div style="margin-top: 12px;">“Always almost there…”</div>
@@ -823,6 +823,29 @@
       <div class="dialog-actions">
         <button type="button" class="btn secondary" id="story-cancel">Cancel</button>
         <button type="button" class="btn" id="story-save">Save</button>
+      </div>
+    </dialog>
+
+    <dialog id="sold-dialog">
+      <div class="dialog-body">
+        <h3>Sold Item</h3>
+        <div class="sold-dialog-name" id="sold-dialog-name"></div>
+        <div class="dialog-row">
+          <label for="sold-price-input">Selling price</label>
+          <input id="sold-price-input" type="text" inputmode="decimal" placeholder="$45.00">
+        </div>
+        <div class="dialog-row">
+          <label for="sold-buyer-input">Sold to</label>
+          <input id="sold-buyer-input" type="text" placeholder="Buyer name (optional)">
+        </div>
+        <div class="dialog-row">
+          <label for="sold-marketplace-input">Marketplace</label>
+          <input id="sold-marketplace-input" type="text" placeholder="eBay, Mercari, BST, etc. (optional)">
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="sold-cancel">Cancel</button>
+        <button type="button" class="btn" id="sold-save">Save</button>
       </div>
     </dialog>
 
