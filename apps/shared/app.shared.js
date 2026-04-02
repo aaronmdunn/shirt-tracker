@@ -17728,7 +17728,7 @@ const openInsightsDialog = (stats, options = {}) => {
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
       <div id="insights-detail-sold" class="stats-section-title" style="margin-top:8px">Sold archive</div>
-      <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful.</div>
+      <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful. These stats are since 04/02/2026.</div>
       <div class="insights-action-list">
         <div class="stats-row stats-sub"><span class="stats-label">Total sold items</span><span class="stats-value">${soldStats.totalItems}</span></div>
         <div class="stats-row stats-sub"><span class="stats-label">Total sold revenue</span><span class="stats-value">${formatCurrency(soldStats.totalRevenue)}</span></div>

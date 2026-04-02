@@ -1311,8 +1311,8 @@ textarea {
 }
 
 td[data-label="Preview"] {
-  width: 110px;
-  min-width: 110px;
+  width: 126px;
+  min-width: 126px;
   text-align: center;
   overflow: hidden;
 }
@@ -1324,8 +1324,8 @@ td[data-label="Preview"] {
 }
 
 .photo-preview {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   border-radius: 10px;
   border: 1px dashed var(--line);
   background: #ffffff;
