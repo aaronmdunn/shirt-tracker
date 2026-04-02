@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.1.4",
+    "date": "2026-04-02",
+    "changes": [
+      "Added a row-level Sold action under The Yarn so inventory items can capture sale price, buyer, and marketplace before moving into the recycle bin",
+      "Added durable sold-history tracking that survives recycle-bin retention and restore flows, so completed resale records stay available for long-term analytics",
+      "Expanded Insights with a Sold archive covering total sold items, resale revenue, sold-over-time history, recent sold items, top buyers, and top marketplaces",
+      "Shipped routine release maintenance: version references updated to 2.1.4 across web, shared, and Tauri metadata"
+    ]
+  },
+  {
     "version": "2.1.3",
     "date": "2026-03-31",
     "changes": [
