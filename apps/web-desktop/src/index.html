@@ -802,6 +802,29 @@
       </div>
     </dialog>
 
+    <dialog id="sold-dialog">
+      <div class="dialog-body">
+        <h3>Sold Item</h3>
+        <div class="sold-dialog-name" id="sold-dialog-name"></div>
+        <div class="dialog-row">
+          <label for="sold-price-input">Selling price</label>
+          <input id="sold-price-input" type="text" inputmode="decimal" placeholder="$45.00">
+        </div>
+        <div class="dialog-row">
+          <label for="sold-buyer-input">Sold to</label>
+          <input id="sold-buyer-input" type="text" placeholder="Buyer name (optional)">
+        </div>
+        <div class="dialog-row">
+          <label for="sold-marketplace-input">Marketplace</label>
+          <input id="sold-marketplace-input" type="text" placeholder="eBay, Mercari, BST, etc. (optional)">
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn secondary" id="sold-cancel">Cancel</button>
+        <button type="button" class="btn" id="sold-save">Save</button>
+      </div>
+    </dialog>
+
     <dialog id="share-columns-dialog">
       <div class="dialog-body">
         <h3>Shared Columns</h3>

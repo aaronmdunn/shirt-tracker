@@ -1504,9 +1504,33 @@ td[data-label="Preview"] {
   color: #8a5a00;
 }
 
+.cell-sold-btn {
+  background: #eef8ef;
+  border-color: #8fbc8f;
+  color: #25603a;
+}
+
+.cell-sold-btn:hover {
+  background: #e1f2e4;
+  border-color: #6ca46c;
+}
+
 .story-dialog-name {
   color: var(--muted);
   font-size: 0.8rem;
+}
+
+#sold-dialog {
+  max-width: 420px;
+}
+
+#sold-dialog .dialog-body {
+  gap: 12px;
+}
+
+.sold-dialog-name {
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 #story-label {
