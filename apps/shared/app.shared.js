@@ -399,6 +399,29 @@ const prefetchPhotoSources = async () => {
   });
 };
 
+let photoPrefetchTimer = null;
+let photoPrefetchIdleHandle = null;
+const schedulePhotoSourcePrefetch = () => {
+  if (photoPrefetchIdleHandle && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(photoPrefetchIdleHandle);
+    photoPrefetchIdleHandle = null;
+  }
+  if (photoPrefetchTimer) {
+    window.clearTimeout(photoPrefetchTimer);
+    photoPrefetchTimer = null;
+  }
+  const run = () => {
+    photoPrefetchTimer = null;
+    photoPrefetchIdleHandle = null;
+    prefetchPhotoSources();
+  };
+  if (typeof window.requestIdleCallback === "function") {
+    photoPrefetchIdleHandle = window.requestIdleCallback(run, { timeout: 1200 });
+    return;
+  }
+  photoPrefetchTimer = window.setTimeout(run, 250);
+};
+
 const state = {
   columns: [],
   rows: [defaultRow()],
@@ -2018,6 +2041,9 @@ const setAuthLoading = (isLoading) => {
   } else if (document.body.getAttribute("data-auth") === "loading") {
     document.body.setAttribute("data-auth", "signed-out");
   }
+  // Reveal the already-rendered shell during the first auth check so startup
+  // doesn't sit blank while Supabase resolves the current session.
+  if (isLoading && !document.body.classList.contains("ready")) document.body.classList.add("ready");
   // Reveal the page once auth state is determined (prevents flash of signed-out layout)
   if (!isLoading) document.body.classList.add("ready");
   const signedOutLogin = document.querySelector(".signedout-login");
@@ -4558,7 +4584,7 @@ const applyCloudPayload = (payload) => {
   renderTabs();
   renderModeSwitcher();
   renderFooter();
-  prefetchPhotoSources();
+  schedulePhotoSourcePrefetch();
 };
 
 const SYNC_DEBOUNCE_MS = 1200;
@@ -5514,7 +5540,7 @@ const switchAppMode = (nextMode) => {
   renderTabs();
   renderModeSwitcher();
   renderFooter();
-  prefetchPhotoSources();
+  schedulePhotoSourcePrefetch();
 };
 
 const renderModeSwitcher = () => {
@@ -6274,7 +6300,7 @@ const switchTab = (tabId) => {
       renderTable();
       applyReadOnlyMode();
       renderTabs();
-      prefetchPhotoSources();
+      schedulePhotoSourcePrefetch();
       return;
     }
   }
@@ -6325,7 +6351,7 @@ const switchTab = (tabId) => {
   renderTable();
   applyReadOnlyMode();
   renderTabs();
-  prefetchPhotoSources();
+  schedulePhotoSourcePrefetch();
 };
 
 const reorderColumns = (fromId, toId) => {
