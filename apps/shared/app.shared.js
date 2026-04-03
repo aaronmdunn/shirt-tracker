@@ -5594,7 +5594,8 @@ const renderModeSwitcher = () => {
     container.appendChild(btn);
   });
   if (PLATFORM === "mobile") {
-    modeSwitcher.style.display = "block";
+    modeSwitcher.style.display = "flex";
+    modeSwitcher.style.justifyContent = "center";
     modeSwitcher.style.margin = "0 20px 10px";
     modeSwitcher.appendChild(container);
     return;
