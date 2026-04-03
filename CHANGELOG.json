@@ -7,6 +7,8 @@
       "Added durable sold-history tracking that survives recycle-bin retention and restore flows, so completed resale records stay available for long-term analytics",
       "Expanded Insights with a Sold archive covering total sold items, resale revenue, sold-over-time history, recent sold items, top buyers, and top marketplaces",
       "Improved initial load responsiveness by revealing the app shell during the first auth check and deferring photo-source prefetch work until idle time",
+      "Fixed Wear Next Queue ranking so historically worn items, including EUC pieces outside the 2026-03-01 analytics window, no longer get treated as true first-wear candidates",
+      "Added a dedicated Insights For Sale section driven only by the exact For Sale tag, including current item count, tagged value, a 5-item preview, and a full-list dialog",
       "Shipped routine release maintenance: version references updated to 2.1.4 across web, shared, and Tauri metadata"
     ]
   },
