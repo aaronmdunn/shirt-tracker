@@ -5548,7 +5548,7 @@ const renderModeSwitcher = () => {
   modeSwitcher.innerHTML = "";
   if (PLATFORM === "mobile") {
     modeSwitcher.style.display = "none";
-    return;
+    if (!currentUser) return;
   } else {
     modeSwitcher.style.display = "none";
     const sheetHeader = document.querySelector(".sheet-header");
@@ -5564,6 +5564,12 @@ const renderModeSwitcher = () => {
     borderRadius: PLATFORM === "mobile" ? "8px" : "6px",
     overflow: "hidden",
     border: "2px solid #c62828",
+    ...(PLATFORM === "mobile" ? {
+      width: "100%",
+      maxWidth: "260px",
+      margin: "0 auto",
+      justifyContent: "stretch",
+    } : {}),
     ...(PLATFORM === "desktop" ? { flexShrink: "0", alignSelf: "center" } : {}),
   });
   const modes = [
@@ -5576,13 +5582,24 @@ const renderModeSwitcher = () => {
     btn.textContent = mode.label;
     const isActive = appMode === mode.id;
     btn.className = "btn-mode-switcher" + (isActive ? " active" : "");
-    btn.style.padding = PLATFORM === "mobile" ? "7px 24px" : "5px 14px";
-    btn.style.fontSize = PLATFORM === "mobile" ? "0.92rem" : "0.78rem";
+    btn.style.padding = PLATFORM === "mobile" ? "6px 8px" : "5px 14px";
+    btn.style.fontSize = PLATFORM === "mobile" ? "0.78rem" : "0.78rem";
+    if (PLATFORM === "mobile") {
+      btn.style.flex = "1 1 50%";
+      btn.style.minWidth = "0";
+      btn.style.whiteSpace = "nowrap";
+    }
     if (PLATFORM === "desktop") btn.style.whiteSpace = "nowrap";
     btn.addEventListener("click", () => switchAppMode(mode.id));
     container.appendChild(btn);
   });
   if (PLATFORM === "mobile") {
+    modeSwitcher.style.display = "flex";
+    modeSwitcher.style.justifyContent = "center";
+    modeSwitcher.style.margin = "0";
+    modeSwitcher.style.padding = "10px 20px 14px";
+    modeSwitcher.style.background = "linear-gradient(90deg, #eeeeee, #e1e1e1)";
+    modeSwitcher.appendChild(container);
     return;
   } else {
     const sheetHeader = document.querySelector(".sheet-header");
@@ -19445,7 +19462,7 @@ sheetBody.addEventListener("focusout", (event) => {
 
 try {
   const savedMode = localStorage.getItem(APP_MODE_KEY);
-  if (savedMode === "wishlist" && PLATFORM !== "mobile") appMode = "wishlist";
+  if (savedMode === "wishlist") appMode = "wishlist";
 } catch (error) { /* ignore */ }
 if (appMode === "wishlist") {
   initWishlistMode();
