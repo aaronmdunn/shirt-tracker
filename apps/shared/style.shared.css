@@ -10,12 +10,17 @@
 :root {
   --ink: #111111;
   --muted: #4a4a4a;
-  --paper: #efefef;
-  --paper-2: #e1e1e1;
+  --paper: #e6e6e6;
+  --paper-2: #d6d6d6;
   --accent: #b00020;
   --accent-2: #ffb3b8;
-  --line: #d5d5d5;
+  --line: #c7c7c7;
   --shadow: rgba(0, 0, 0, 0.2);
+  --surface-band-1: #e0e0e0;
+  --surface-band-2: #d3d3d3;
+  --table-cell: #e3e3e3;
+  --table-cell-alt: #dcdcdc;
+  --table-cell-leading: #f3f3f3;
 }
 
 @keyframes loading-pulse {
@@ -302,7 +307,7 @@ header .wrap {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+  background: linear-gradient(90deg, var(--surface-band-1), var(--surface-band-2));
 }
 /* /PLATFORM:desktop */
 
@@ -314,7 +319,7 @@ header .wrap {
   align-items: stretch;
   gap: 12px;
   padding: 16px 20px;
-  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+  background: linear-gradient(90deg, var(--surface-band-1), var(--surface-band-2));
 }
 
 .sheet-header h2 {
@@ -1000,7 +1005,7 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   flex-wrap: wrap;
   gap: 8px;
   padding: 10px 20px;
-  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+  background: linear-gradient(90deg, var(--surface-band-1), var(--surface-band-2));
   font-family: "Work Sans", "Trebuchet MS", sans-serif;
 }
 /* /PLATFORM:desktop */
@@ -1010,7 +1015,7 @@ body[data-auth="signed-in"][data-viewer="false"] .danger-zone {
   display: grid;
   gap: 10px;
   padding: 10px 20px;
-  background: linear-gradient(90deg, #eeeeee, #e1e1e1);
+  background: linear-gradient(90deg, var(--surface-band-1), var(--surface-band-2));
   font-family: "Work Sans", "Trebuchet MS", sans-serif;
 }
 /* /PLATFORM:mobile */
@@ -1243,7 +1248,7 @@ tbody td {
   border-bottom: 1px solid var(--line);
   padding: 11px 10px;
   vertical-align: top;
-  background: #efefef;
+  background: var(--table-cell);
   overflow: hidden;
 }
 
@@ -1259,16 +1264,16 @@ tbody td {
 
 
 tbody tr:nth-child(even) td {
-  background: #e7e7e7;
+  background: var(--table-cell-alt);
 }
 
 /* PLATFORM:desktop */
 tbody td:first-child {
-  background: #ffffff;
+  background: var(--table-cell-leading);
 }
 
 tbody tr:nth-child(even) td:first-child {
-  background: #ffffff;
+  background: var(--table-cell-leading);
 }
 /* /PLATFORM:desktop */
 
