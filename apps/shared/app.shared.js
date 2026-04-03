@@ -5597,7 +5597,7 @@ const renderModeSwitcher = () => {
     modeSwitcher.style.display = "flex";
     modeSwitcher.style.justifyContent = "center";
     modeSwitcher.style.margin = "0";
-    modeSwitcher.style.padding = "10px 20px 0";
+    modeSwitcher.style.padding = "10px 20px 8px";
     modeSwitcher.style.background = "linear-gradient(90deg, #eeeeee, #e1e1e1)";
     modeSwitcher.appendChild(container);
     return;
