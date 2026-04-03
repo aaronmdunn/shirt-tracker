@@ -11199,10 +11199,16 @@ const collectAllStats = () => {
           tags: getRowTags(entry.row),
         });
         const price = parseCurrency(getCellValue(entry, "Price"));
+        const condition = getCellValue(entry, "Condition") || "";
         const analyticsWear = getAnalyticsWearData(entry.row);
         const wearCount = analyticsWear.wearCount;
         const lastWorn = analyticsWear.lastWorn || null;
         const wearLog = analyticsWear.wearLog;
+        const rawWearLog = Array.isArray(entry.row?.wearLog) ? entry.row.wearLog : [];
+        const rawLastWorn = entry.row?.lastWorn || null;
+        const hasHistoricalWear = rawWearLog.length > 0
+          || Boolean(rawLastWorn)
+          || String(condition).trim().toLowerCase() === "euc";
         wearableUniverse.push({
           rowId: entry.row.id,
           tabId: tab.id,
@@ -11210,10 +11216,12 @@ const collectAllStats = () => {
           tab: tab.name,
           type,
           price,
-          condition: getCellValue(entry, "Condition") || "",
+          condition,
           fandom: getCellValue(entry, "Fandom") || "",
           wearCount,
           lastWorn,
+          historicalLastWorn: rawLastWorn,
+          hasHistoricalWear,
           wearLog,
           createdAt: entry.row.createdAt || null,
           tags: getRowTags(entry.row),
@@ -15977,6 +15985,33 @@ const buildBehaviorInsights = (stats, queue = []) => {
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
   };
+  const forSaleTagKey = normalizeTagKey(FOR_SALE_TAG);
+  const forSaleItems = wearableItems
+    .filter((item) => {
+      const tags = Array.isArray(item?.tags) ? item.tags : [];
+      return tags.some((tag) => normalizeTagKey(tag) === forSaleTagKey);
+    })
+    .map((item) => {
+      const price = Number(item?.price || 0);
+      const wearCount = Math.max(0, Number(item?.wearCount || 0));
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      return {
+        key: getInsightsQueueKey(item),
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        price,
+        wearCount,
+        daysSince,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || a.tab.localeCompare(b.tab) || a.type.localeCompare(b.type));
+  const forSaleStats = {
+    totalItems: forSaleItems.length,
+    totalValue: forSaleItems.reduce((sum, item) => sum + Number(item.price || 0), 0),
+    items: forSaleItems,
+  };
 
   const confidenceByKey = {};
   confidenceRows.forEach((row) => {
@@ -16257,6 +16292,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       playbook,
     },
     sellSuggestions,
+    forSaleStats,
     marketplaceTags: marketplaceTagStats,
     comebackCandidates,
     benchPressure,
@@ -16535,9 +16571,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const typeLower = String(type || "").trim().toLowerCase();
       const typeKey = typeLower.replace(/[^a-z0-9]+/g, "");
       const lastWorn = item.lastWorn || null;
+      const historicalLastWorn = item.historicalLastWorn || null;
+      const effectiveLastWorn = lastWorn || historicalLastWorn || null;
       const wearCount = item.wearCount || 0;
       const price = item.price !== null && item.price !== undefined ? item.price : null;
       const condition = String(item.condition || "").trim().toLowerCase();
+      const hasHistoricalWear = Boolean(item.hasHistoricalWear);
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
@@ -16559,11 +16598,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
       const isSnoozed = snoozeUntil && snoozeUntil >= todayKey;
-      const lwMs = lastWorn ? new Date(lastWorn).getTime() : NaN;
+      const lwMs = effectiveLastWorn ? new Date(effectiveLastWorn).getTime() : NaN;
       const daysSince = Number.isNaN(lwMs) ? null : Math.max(0, Math.floor((nowMs - lwMs) / 86400000));
-      const lastWornToday = lastWorn ? localDateKeyFromDate(new Date(lastWorn)) === todayKey : false;
+      const lastWornToday = effectiveLastWorn ? localDateKeyFromDate(new Date(effectiveLastWorn)) === todayKey : false;
       const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
       const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
+      const isFirstWearCandidate = wearCount === 0 && !hasHistoricalWear;
 
       let score = 0;
       const breakdown = [];
@@ -16573,7 +16613,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         breakdown.push({ label, points });
       };
 
-      if (wearCount === 0) {
+      if (isFirstWearCandidate) {
         // New and never-worn items should be surfaced aggressively.
         addScore("Never worn baseline", 170);
         if (daysSinceAdded !== null) addScore("Unworn age pressure", Math.min(65, Math.floor(daysSinceAdded / 4)));
@@ -16708,8 +16748,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (isSnoozed) addScore("Snoozed item penalty", -600);
 
       const reasonParts = [];
-      if (wearCount === 0) reasonParts.push("Never worn");
+      if (isFirstWearCandidate) reasonParts.push("Never worn");
       else if (daysSince !== null) reasonParts.push(`${daysSince}d since last wear`);
+      else if (hasHistoricalWear) reasonParts.push("Previously worn");
       else reasonParts.push("No wear date logged");
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
@@ -16724,7 +16765,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
       if (hasGenericHolidayTag && activeHolidayProfiles.length) reasonParts.push("Holiday window boost");
       if (isNationalFlannelDay && isFlannelLikeText(typeLower)) reasonParts.push("National Flannel Day boost");
-      if (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
+      if (isTagPopTuesday && (isFirstWearCandidate || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
       if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
       if (isMickeyMonday && isMickeyDisneyItem) reasonParts.push("Mickey Monday boost");
       if (isWhaleWednesday && isWhaleItem) reasonParts.push("Wednesday Whale boost");
@@ -16738,10 +16779,10 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         || (isWhaleWednesday && isWhaleItem)
         || (isNationalFlannelDay && isFlannelLikeText(typeLower))
         || (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4)
-        || (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot"));
+        || (isTagPopTuesday && (isFirstWearCandidate || condition === "nwt" || condition === "nwot"));
 
       let lane = "Rotation pick";
-      if (wearCount === 0) lane = "First wear";
+      if (isFirstWearCandidate) lane = "First wear";
       else if (matchedActiveHoliday || hasThemeBoost || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (isColdMonth && isHoodieLikeText(typeLower))) lane = "Seasonal window";
       else if (price !== null && price >= 120 && daysSince !== null && daysSince >= 180) lane = "Value wear";
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
@@ -17429,6 +17470,8 @@ const openInsightsDialog = (stats, options = {}) => {
     const adaptive = behavior?.adaptive || { boosts: [], suppressions: [], sampleSize: 0 };
     const reactivation = behavior?.reactivation || { playbook: [] };
     const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
+    const forSaleStats = behavior?.forSaleStats || { totalItems: 0, totalValue: 0, items: [] };
+    const forSalePreviewItems = Array.isArray(forSaleStats.items) ? forSaleStats.items.slice(0, 5) : [];
     const marketplaceTags = behavior?.marketplaceTags || {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
@@ -17467,6 +17510,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const playbookCount = Array.isArray(reactivation.playbook) ? reactivation.playbook.length : 0;
     const sellLead = sellSuggestions.length
       ? `${sellSuggestions[0].name} (${sellSuggestions[0].actionLabel})`
+      : "n/a";
+    const forSaleLead = Array.isArray(forSaleStats.items) && forSaleStats.items.length
+      ? `${forSaleStats.items[0].name} (${forSaleStats.items[0].tab})`
       : "n/a";
     const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
@@ -17667,6 +17713,13 @@ const openInsightsDialog = (stats, options = {}) => {
           ${detailButton("insights-detail-sell")}
         </div>
         <div class="insights-score-card">
+          <div class="insights-score-title">For Sale</div>
+          ${insightValue(`${forSaleStats.totalItems} current item${forSaleStats.totalItems === 1 ? "" : "s"}`, forSaleStats.totalItems ? "" : "good")}
+          <div class="insights-score-note">Lead listing: ${esc(forSaleLead)}</div>
+          <div class="insights-score-note">Exact <code>${esc(FOR_SALE_TAG)}</code> tag only. Separate from purchase-source marketplace tags.</div>
+          ${detailButton("insights-detail-for-sale")}
+        </div>
+        <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
@@ -17753,6 +17806,15 @@ const openInsightsDialog = (stats, options = {}) => {
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
+      <div id="insights-detail-for-sale" class="stats-section-title" style="margin-top:8px">Current items for sale</div>
+      <div class="stats-hint">Shows inventory items currently tagged exactly <code>${esc(FOR_SALE_TAG)}</code>. This does not use BST, eBay, Mercari, or Dixxon XXChange purchase-source tags.</div>
+      <div class="insights-action-list">
+        <div class="stats-row stats-sub"><span class="stats-label">Total current for-sale items</span><span class="stats-value">${forSaleStats.totalItems}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tagged inventory value</span><span class="stats-value">${formatCurrency(forSaleStats.totalValue)}</span></div>
+      </div>
+      ${forSalePreviewItems.length
+    ? `<div class="insights-action-list">${forSalePreviewItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.price > 0 ? formatCurrency(item.price) : "No price"} · ${item.wearCount} wear${item.wearCount === 1 ? "" : "s"}${item.daysSince === null ? "" : ` · ${item.daysSince}d idle`}</span></div>`).join("")}</div>${forSaleStats.totalItems > forSalePreviewItems.length ? `<button type="button" class="stats-link-button" data-insights-for-sale-all="1">View all for-sale items</button>` : ""}`
+    : `<div class="stats-hint">No items are currently tagged ${esc(FOR_SALE_TAG)}.</div>`}
       <div id="insights-detail-sold" class="stats-section-title" style="margin-top:8px">Sold archive</div>
       <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful. These stats are since 04/02/2026.</div>
       <div class="insights-action-list">
@@ -18007,6 +18069,13 @@ const openInsightsDialog = (stats, options = {}) => {
       rerenderInsightsDialog();
     });
   });
+
+  const forSaleAllButton = content.querySelector("[data-insights-for-sale-all]");
+  if (forSaleAllButton) {
+    forSaleAllButton.addEventListener("click", () => {
+      openTaggedItemsDialog(forSaleStats.items || [], FOR_SALE_TAG);
+    });
+  }
 
   const explainButtons = content.querySelectorAll("[data-insights-explain-toggle]");
   explainButtons.forEach((button) => {
