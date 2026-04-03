@@ -11199,10 +11199,16 @@ const collectAllStats = () => {
           tags: getRowTags(entry.row),
         });
         const price = parseCurrency(getCellValue(entry, "Price"));
+        const condition = getCellValue(entry, "Condition") || "";
         const analyticsWear = getAnalyticsWearData(entry.row);
         const wearCount = analyticsWear.wearCount;
         const lastWorn = analyticsWear.lastWorn || null;
         const wearLog = analyticsWear.wearLog;
+        const rawWearLog = Array.isArray(entry.row?.wearLog) ? entry.row.wearLog : [];
+        const rawLastWorn = entry.row?.lastWorn || null;
+        const hasHistoricalWear = rawWearLog.length > 0
+          || Boolean(rawLastWorn)
+          || String(condition).trim().toLowerCase() === "euc";
         wearableUniverse.push({
           rowId: entry.row.id,
           tabId: tab.id,
@@ -11210,10 +11216,12 @@ const collectAllStats = () => {
           tab: tab.name,
           type,
           price,
-          condition: getCellValue(entry, "Condition") || "",
+          condition,
           fandom: getCellValue(entry, "Fandom") || "",
           wearCount,
           lastWorn,
+          historicalLastWorn: rawLastWorn,
+          hasHistoricalWear,
           wearLog,
           createdAt: entry.row.createdAt || null,
           tags: getRowTags(entry.row),
@@ -16535,9 +16543,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const typeLower = String(type || "").trim().toLowerCase();
       const typeKey = typeLower.replace(/[^a-z0-9]+/g, "");
       const lastWorn = item.lastWorn || null;
+      const historicalLastWorn = item.historicalLastWorn || null;
+      const effectiveLastWorn = lastWorn || historicalLastWorn || null;
       const wearCount = item.wearCount || 0;
       const price = item.price !== null && item.price !== undefined ? item.price : null;
       const condition = String(item.condition || "").trim().toLowerCase();
+      const hasHistoricalWear = Boolean(item.hasHistoricalWear);
       const fandom = String(item.fandom || "").trim().toLowerCase();
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagSet = new Set(tags.map((tag) => String(tag || "").trim().toLowerCase()).filter(Boolean));
@@ -16559,11 +16570,12 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       const key = getInsightsQueueKey({ name, tab, type });
       const snoozeUntil = activeSnoozes[key] || "";
       const isSnoozed = snoozeUntil && snoozeUntil >= todayKey;
-      const lwMs = lastWorn ? new Date(lastWorn).getTime() : NaN;
+      const lwMs = effectiveLastWorn ? new Date(effectiveLastWorn).getTime() : NaN;
       const daysSince = Number.isNaN(lwMs) ? null : Math.max(0, Math.floor((nowMs - lwMs) / 86400000));
-      const lastWornToday = lastWorn ? localDateKeyFromDate(new Date(lastWorn)) === todayKey : false;
+      const lastWornToday = effectiveLastWorn ? localDateKeyFromDate(new Date(effectiveLastWorn)) === todayKey : false;
       const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
       const daysSinceAdded = Number.isNaN(createdMs) ? null : Math.max(0, Math.floor((nowMs - createdMs) / 86400000));
+      const isFirstWearCandidate = wearCount === 0 && !hasHistoricalWear;
 
       let score = 0;
       const breakdown = [];
@@ -16573,7 +16585,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         breakdown.push({ label, points });
       };
 
-      if (wearCount === 0) {
+      if (isFirstWearCandidate) {
         // New and never-worn items should be surfaced aggressively.
         addScore("Never worn baseline", 170);
         if (daysSinceAdded !== null) addScore("Unworn age pressure", Math.min(65, Math.floor(daysSinceAdded / 4)));
@@ -16708,8 +16720,9 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (isSnoozed) addScore("Snoozed item penalty", -600);
 
       const reasonParts = [];
-      if (wearCount === 0) reasonParts.push("Never worn");
+      if (isFirstWearCandidate) reasonParts.push("Never worn");
       else if (daysSince !== null) reasonParts.push(`${daysSince}d since last wear`);
+      else if (hasHistoricalWear) reasonParts.push("Previously worn");
       else reasonParts.push("No wear date logged");
       if (price !== null && price > 0) reasonParts.push(`Value ${formatCurrency(price)}`);
       if (condition === "nwt" || condition === "nwot") reasonParts.push(condition.toUpperCase());
@@ -16724,7 +16737,7 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
       if (matchedHolidayProfiles.length && !matchedActiveHoliday) reasonParts.push("Out-of-season holiday penalty");
       if (hasGenericHolidayTag && activeHolidayProfiles.length) reasonParts.push("Holiday window boost");
       if (isNationalFlannelDay && isFlannelLikeText(typeLower)) reasonParts.push("National Flannel Day boost");
-      if (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
+      if (isTagPopTuesday && (isFirstWearCandidate || condition === "nwt" || condition === "nwot")) reasonParts.push("Tag Pop Tuesday boost");
       if (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4) reasonParts.push("May 4 boost");
       if (isMickeyMonday && isMickeyDisneyItem) reasonParts.push("Mickey Monday boost");
       if (isWhaleWednesday && isWhaleItem) reasonParts.push("Wednesday Whale boost");
@@ -16738,10 +16751,10 @@ const buildWearNextQueue = (stats, snoozes, options = {}) => {
         || (isWhaleWednesday && isWhaleItem)
         || (isNationalFlannelDay && isFlannelLikeText(typeLower))
         || (isStarWarsItem && monthIndex === 4 && dayOfMonth === 4)
-        || (isTagPopTuesday && (wearCount === 0 || condition === "nwt" || condition === "nwot"));
+        || (isTagPopTuesday && (isFirstWearCandidate || condition === "nwt" || condition === "nwot"));
 
       let lane = "Rotation pick";
-      if (wearCount === 0) lane = "First wear";
+      if (isFirstWearCandidate) lane = "First wear";
       else if (matchedActiveHoliday || hasThemeBoost || (isSummerMonth && hasSummerPriorityMatch) || (isColdMonth && isFlannelLikeText(typeLower)) || (isColdMonth && isHoodieLikeText(typeLower))) lane = "Seasonal window";
       else if (price !== null && price >= 120 && daysSince !== null && daysSince >= 180) lane = "Value wear";
       else if (daysSince !== null && daysSince >= 365) lane = "Deep cut";
