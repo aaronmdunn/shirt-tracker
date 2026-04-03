@@ -17471,6 +17471,7 @@ const openInsightsDialog = (stats, options = {}) => {
     const reactivation = behavior?.reactivation || { playbook: [] };
     const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
     const forSaleStats = behavior?.forSaleStats || { totalItems: 0, totalValue: 0, items: [] };
+    const forSalePreviewItems = Array.isArray(forSaleStats.items) ? forSaleStats.items.slice(0, 5) : [];
     const marketplaceTags = behavior?.marketplaceTags || {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
@@ -17811,8 +17812,8 @@ const openInsightsDialog = (stats, options = {}) => {
         <div class="stats-row stats-sub"><span class="stats-label">Total current for-sale items</span><span class="stats-value">${forSaleStats.totalItems}</span></div>
         <div class="stats-row stats-sub"><span class="stats-label">Tagged inventory value</span><span class="stats-value">${formatCurrency(forSaleStats.totalValue)}</span></div>
       </div>
-      ${Array.isArray(forSaleStats.items) && forSaleStats.items.length
-    ? `<div class="insights-action-list">${forSaleStats.items.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.price > 0 ? formatCurrency(item.price) : "No price"} · ${item.wearCount} wear${item.wearCount === 1 ? "" : "s"}${item.daysSince === null ? "" : ` · ${item.daysSince}d idle`}</span></div>`).join("")}</div>`
+      ${forSalePreviewItems.length
+    ? `<div class="insights-action-list">${forSalePreviewItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.price > 0 ? formatCurrency(item.price) : "No price"} · ${item.wearCount} wear${item.wearCount === 1 ? "" : "s"}${item.daysSince === null ? "" : ` · ${item.daysSince}d idle`}</span></div>`).join("")}</div>${forSaleStats.totalItems > forSalePreviewItems.length ? `<button type="button" class="stats-link-button" data-insights-for-sale-all="1">View all for-sale items</button>` : ""}`
     : `<div class="stats-hint">No items are currently tagged ${esc(FOR_SALE_TAG)}.</div>`}
       <div id="insights-detail-sold" class="stats-section-title" style="margin-top:8px">Sold archive</div>
       <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful. These stats are since 04/02/2026.</div>
@@ -18068,6 +18069,13 @@ const openInsightsDialog = (stats, options = {}) => {
       rerenderInsightsDialog();
     });
   });
+
+  const forSaleAllButton = content.querySelector("[data-insights-for-sale-all]");
+  if (forSaleAllButton) {
+    forSaleAllButton.addEventListener("click", () => {
+      openTaggedItemsDialog(forSaleStats.items || [], FOR_SALE_TAG);
+    });
+  }
 
   const explainButtons = content.querySelectorAll("[data-insights-explain-toggle]");
   explainButtons.forEach((button) => {
