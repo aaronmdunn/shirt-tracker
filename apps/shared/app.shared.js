@@ -15985,6 +15985,33 @@ const buildBehaviorInsights = (stats, queue = []) => {
     mercari: { label: "Mercari", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
     xxchange: { label: "Dixxon XXChange", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null, avgWears: null, strongKeepers: 0, cpwSamples: [], wearSamples: [] },
   };
+  const forSaleTagKey = normalizeTagKey(FOR_SALE_TAG);
+  const forSaleItems = wearableItems
+    .filter((item) => {
+      const tags = Array.isArray(item?.tags) ? item.tags : [];
+      return tags.some((tag) => normalizeTagKey(tag) === forSaleTagKey);
+    })
+    .map((item) => {
+      const price = Number(item?.price || 0);
+      const wearCount = Math.max(0, Number(item?.wearCount || 0));
+      const lastWornMs = item?.lastWorn ? new Date(item.lastWorn).getTime() : NaN;
+      const daysSince = Number.isNaN(lastWornMs) ? null : Math.max(0, Math.floor((nowMs - lastWornMs) / dayMs));
+      return {
+        key: getInsightsQueueKey(item),
+        name: String(item?.name || "Unnamed"),
+        tab: String(item?.tab || "Unknown"),
+        type: String(item?.type || "Unknown"),
+        price,
+        wearCount,
+        daysSince,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || a.tab.localeCompare(b.tab) || a.type.localeCompare(b.type));
+  const forSaleStats = {
+    totalItems: forSaleItems.length,
+    totalValue: forSaleItems.reduce((sum, item) => sum + Number(item.price || 0), 0),
+    items: forSaleItems,
+  };
 
   const confidenceByKey = {};
   confidenceRows.forEach((row) => {
@@ -16265,6 +16292,7 @@ const buildBehaviorInsights = (stats, queue = []) => {
       playbook,
     },
     sellSuggestions,
+    forSaleStats,
     marketplaceTags: marketplaceTagStats,
     comebackCandidates,
     benchPressure,
@@ -17442,6 +17470,7 @@ const openInsightsDialog = (stats, options = {}) => {
     const adaptive = behavior?.adaptive || { boosts: [], suppressions: [], sampleSize: 0 };
     const reactivation = behavior?.reactivation || { playbook: [] };
     const sellSuggestions = Array.isArray(behavior?.sellSuggestions) ? behavior.sellSuggestions : [];
+    const forSaleStats = behavior?.forSaleStats || { totalItems: 0, totalValue: 0, items: [] };
     const marketplaceTags = behavior?.marketplaceTags || {
       bst: { label: "BST", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
       ebay: { label: "eBay", count: 0, neverWorn: 0, inactive180: 0, totalValue: 0, avgCpw: null },
@@ -17480,6 +17509,9 @@ const openInsightsDialog = (stats, options = {}) => {
     const playbookCount = Array.isArray(reactivation.playbook) ? reactivation.playbook.length : 0;
     const sellLead = sellSuggestions.length
       ? `${sellSuggestions[0].name} (${sellSuggestions[0].actionLabel})`
+      : "n/a";
+    const forSaleLead = Array.isArray(forSaleStats.items) && forSaleStats.items.length
+      ? `${forSaleStats.items[0].name} (${forSaleStats.items[0].tab})`
       : "n/a";
     const marketSummary = marketplaceRows
       .map((row) => `${row.label} ${row.count}`)
@@ -17680,6 +17712,13 @@ const openInsightsDialog = (stats, options = {}) => {
           ${detailButton("insights-detail-sell")}
         </div>
         <div class="insights-score-card">
+          <div class="insights-score-title">For Sale</div>
+          ${insightValue(`${forSaleStats.totalItems} current item${forSaleStats.totalItems === 1 ? "" : "s"}`, forSaleStats.totalItems ? "" : "good")}
+          <div class="insights-score-note">Lead listing: ${esc(forSaleLead)}</div>
+          <div class="insights-score-note">Exact <code>${esc(FOR_SALE_TAG)}</code> tag only. Separate from purchase-source marketplace tags.</div>
+          ${detailButton("insights-detail-for-sale")}
+        </div>
+        <div class="insights-score-card">
           <div class="insights-score-title">Marketplace tags</div>
           <div class="insights-score-value">${esc(marketSummary)}</div>
           <div class="insights-score-note">Tagged value: ${formatCurrency(marketValueTotal)}</div>
@@ -17766,6 +17805,15 @@ const openInsightsDialog = (stats, options = {}) => {
       ${sellSuggestions.length
     ? `<div class="insights-action-list">${sellSuggestions.map((item, idx) => `<div class="stats-row stats-sub insights-sell-row"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${esc(item.actionLabel)} · score ${item.score} · ${item.daysSince === null ? "no last-worn date" : `${item.daysSince}d idle`} · ${item.wearCount} wears</span><button type="button" class="btn secondary insights-sell-dismiss" data-insights-sell-dismiss="${esc(item.key)}">Nope</button></div>`).join("")}</div>`
     : `<div class="stats-hint">No strong sell signals right now. This shortlist appears when multi-factor risk is high enough.</div>`}
+      <div id="insights-detail-for-sale" class="stats-section-title" style="margin-top:8px">Current items for sale</div>
+      <div class="stats-hint">Shows inventory items currently tagged exactly <code>${esc(FOR_SALE_TAG)}</code>. This does not use BST, eBay, Mercari, or Dixxon XXChange purchase-source tags.</div>
+      <div class="insights-action-list">
+        <div class="stats-row stats-sub"><span class="stats-label">Total current for-sale items</span><span class="stats-value">${forSaleStats.totalItems}</span></div>
+        <div class="stats-row stats-sub"><span class="stats-label">Tagged inventory value</span><span class="stats-value">${formatCurrency(forSaleStats.totalValue)}</span></div>
+      </div>
+      ${Array.isArray(forSaleStats.items) && forSaleStats.items.length
+    ? `<div class="insights-action-list">${forSaleStats.items.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab)}) - ${esc(item.type)}</span><span class="stats-value">${item.price > 0 ? formatCurrency(item.price) : "No price"} · ${item.wearCount} wear${item.wearCount === 1 ? "" : "s"}${item.daysSince === null ? "" : ` · ${item.daysSince}d idle`}</span></div>`).join("")}</div>`
+    : `<div class="stats-hint">No items are currently tagged ${esc(FOR_SALE_TAG)}.</div>`}
       <div id="insights-detail-sold" class="stats-section-title" style="margin-top:8px">Sold archive</div>
       <div class="stats-hint">Tracks completed sales over time even after recycle-bin retention expires, so your resale history stays useful. These stats are since 04/02/2026.</div>
       <div class="insights-action-list">
