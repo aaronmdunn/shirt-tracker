@@ -5598,7 +5598,7 @@ const renderModeSwitcher = () => {
     modeSwitcher.style.justifyContent = "center";
     modeSwitcher.style.margin = "0";
     modeSwitcher.style.padding = "10px 20px 14px";
-    modeSwitcher.style.background = "linear-gradient(90deg, var(--surface-band-1), var(--surface-band-2))";
+    modeSwitcher.style.background = "linear-gradient(90deg, #eeeeee, #e1e1e1)";
     modeSwitcher.appendChild(container);
     return;
   } else {
