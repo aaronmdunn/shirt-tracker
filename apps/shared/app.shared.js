@@ -397,6 +397,7 @@ const prefetchPhotoSources = async () => {
     setCachedSignedUrl(key, item.signedUrl);
     photoSrcCache.set(key, item.signedUrl);
   });
+  hydrateVisiblePhotoPreviews();
 };
 
 let photoPrefetchTimer = null;
@@ -420,6 +421,20 @@ const schedulePhotoSourcePrefetch = () => {
     return;
   }
   photoPrefetchTimer = window.setTimeout(run, 250);
+};
+
+const hydrateVisiblePhotoPreviews = () => {
+  document.querySelectorAll(".photo-preview img[data-photo-value]").forEach((img) => {
+    if (img.getAttribute("src")) return;
+    const value = String(img.dataset.photoValue || "");
+    if (!value) return;
+    getPhotoSrc(value).then((src) => {
+      if (!src || !img.isConnected || img.dataset.photoValue !== value) return;
+      img.src = src;
+    }).catch(() => {
+      // Ignore transient preview hydration failures; later renders can retry.
+    });
+  });
 };
 
 const state = {
@@ -2177,6 +2192,7 @@ const setAuthStatus = () => {
        applyCloudPayload() also triggers it. */
     renderModeSwitcher();
     renderDailyNoBuyMissionCard();
+    hydrateVisiblePhotoPreviews();
   } else {
     document.body.setAttribute("data-auth", "signed-out");
     document.body.setAttribute("data-viewer", "false");
@@ -7512,6 +7528,7 @@ const createCellInput = (row, column) => {
     if (value) {
       const img = document.createElement("img");
       img.alt = "Row photo";
+      img.dataset.photoValue = value;
       preview.appendChild(img);
       preview.addEventListener("click", async () => {
         const src = await getPhotoSrc(value);
