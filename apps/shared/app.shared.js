@@ -397,6 +397,7 @@ const prefetchPhotoSources = async () => {
     setCachedSignedUrl(key, item.signedUrl);
     photoSrcCache.set(key, item.signedUrl);
   });
+  hydrateVisiblePhotoPreviews();
 };
 
 let photoPrefetchTimer = null;
@@ -420,6 +421,20 @@ const schedulePhotoSourcePrefetch = () => {
     return;
   }
   photoPrefetchTimer = window.setTimeout(run, 250);
+};
+
+const hydrateVisiblePhotoPreviews = () => {
+  document.querySelectorAll(".photo-preview img[data-photo-value]").forEach((img) => {
+    if (img.getAttribute("src")) return;
+    const value = String(img.dataset.photoValue || "");
+    if (!value) return;
+    getPhotoSrc(value).then((src) => {
+      if (!src || !img.isConnected || img.dataset.photoValue !== value) return;
+      img.src = src;
+    }).catch(() => {
+      // Ignore transient preview hydration failures; later renders can retry.
+    });
+  });
 };
 
 const state = {
@@ -2177,6 +2192,7 @@ const setAuthStatus = () => {
        applyCloudPayload() also triggers it. */
     renderModeSwitcher();
     renderDailyNoBuyMissionCard();
+    hydrateVisiblePhotoPreviews();
   } else {
     document.body.setAttribute("data-auth", "signed-out");
     document.body.setAttribute("data-viewer", "false");
@@ -7512,6 +7528,7 @@ const createCellInput = (row, column) => {
     if (value) {
       const img = document.createElement("img");
       img.alt = "Row photo";
+      img.dataset.photoValue = value;
       preview.appendChild(img);
       preview.addEventListener("click", async () => {
         const src = await getPhotoSrc(value);
@@ -16959,19 +16976,19 @@ const renderInsightsHeatmap = (stats, year, brandFilter, mount) => {
   for (let month = 0; month < 12; month += 1) {
     const firstDay = new Date(year, month, 1);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const monthStartMon = (firstDay.getDay() + 6) % 7;
+    const monthStartSun = firstDay.getDay();
     const cells = Array.from({ length: 42 }, () => null);
     let monthCount = 0;
     for (let day = 1; day <= daysInMonth; day += 1) {
       const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const idx = monthStartMon + (day - 1);
+      const idx = monthStartSun + (day - 1);
       const count = countByDate[dateKey] || 0;
       monthCount += count;
       cells[idx] = { day, count, dateKey };
     }
 
     const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
-    html += `<div class="insights-month"><div class="insights-month-title"><span>${monthNames[month]}</span>${monthCount > 0 ? `<button type="button" class="insights-month-summary" data-insights-heat-month="${esc(monthKey)}">${monthCount}</button>` : `<span>${monthCount}</span>`}</div><div class="insights-heatmap-weekdays"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div><div class="insights-month-grid">`;
+    html += `<div class="insights-month"><div class="insights-month-title"><span>${monthNames[month]}</span>${monthCount > 0 ? `<button type="button" class="insights-month-summary" data-insights-heat-month="${esc(monthKey)}">${monthCount}</button>` : `<span>${monthCount}</span>`}</div><div class="insights-heatmap-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div><div class="insights-month-grid">`;
     cells.forEach((cell) => {
       if (!cell) {
         html += `<div class="insights-heat-cell empty"></div>`;
