@@ -9,6 +9,7 @@
       "Improved initial load responsiveness by revealing the app shell during the first auth check and deferring photo-source prefetch work until idle time",
       "Corrected the Wear Calendar Heatmap to use Sunday-first weeks so the monthly grids match standard calendar layout",
       "Fixed initial preview image hydration so row photo thumbnails retry after auth/prefetch settles instead of requiring a tab switch to appear",
+      "Fixed no-buy recovery mission deadlines to run through the full final calendar day, so eligible wears on the deadline date still count instead of expiring at the original buy timestamp",
       "Fixed Wear Next Queue ranking so historically worn items, including EUC pieces outside the 2026-03-01 analytics window, no longer get treated as true first-wear candidates",
       "Added a dedicated Insights For Sale section driven only by the exact For Sale tag, including current item count, tagged value, a 5-item preview, and a full-list dialog",
       "Shipped routine release maintenance: version references updated to 2.1.4 across web, shared, and Tauri metadata"

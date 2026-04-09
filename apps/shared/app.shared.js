@@ -13779,6 +13779,13 @@ const computeNoBuyLevel = (xp) => {
   return Math.floor(Math.sqrt(safeXp / 100)) + 1;
 };
 
+const normalizeRecoveryDeadlineIso = (value) => {
+  const parsed = new Date(String(value || ""));
+  if (Number.isNaN(parsed.getTime())) return String(value || "");
+  parsed.setHours(23, 59, 59, 999);
+  return parsed.toISOString();
+};
+
 const normalizeNoBuyGamifyState = (value) => {
   const base = defaultNoBuyGamifyState();
   const raw = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : value;
@@ -13807,7 +13814,7 @@ const normalizeNoBuyGamifyState = (value) => {
           goalType: String(raw.activeRecovery.goalType || "wear_added_items"),
           target: Math.max(1, Number(raw.activeRecovery.target || 3)),
           progress: Math.max(0, Number(raw.activeRecovery.progress || 0)),
-          deadline: String(raw.activeRecovery.deadline || ""),
+          deadline: normalizeRecoveryDeadlineIso(raw.activeRecovery.deadline || ""),
           completedAt: String(raw.activeRecovery.completedAt || ""),
         }
       : null,
@@ -14381,6 +14388,7 @@ const createNoBuyRecoveryMission = (state, nowIso) => {
   const start = Number.isFinite(new Date(nowIso).getTime()) ? new Date(nowIso) : new Date();
   const deadline = new Date(start);
   deadline.setDate(deadline.getDate() + 7);
+  deadline.setHours(23, 59, 59, 999);
   safe.activeRecovery = {
     startedAt: start.toISOString(),
     goalType: "wear_added_items",
