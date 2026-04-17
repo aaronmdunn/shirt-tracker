@@ -3952,6 +3952,7 @@ input[type="date"].stats-date-input {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr) auto;
   align-items: center;
+  column-gap: 16px;
 }
 
 #no-buy-game-dialog .no-buy-log-row .stats-label {
@@ -3960,7 +3961,9 @@ input[type="date"].stats-date-input {
 
 #no-buy-game-dialog .no-buy-log-row .stats-value {
   min-width: 0;
-  text-align: left;
+  justify-self: center;
+  text-align: center;
+  max-width: 100%;
 }
 
 #no-buy-game-dialog .no-buy-history-open {
