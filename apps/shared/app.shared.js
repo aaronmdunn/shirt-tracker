@@ -2307,6 +2307,40 @@ const closeDialog = (dialog) => {
   if (PLATFORM === "mobile") dialog.style.display = "none";
 };
 
+const resetPhotoDialogLayout = () => {
+  if (!photoDialog) return;
+  photoDialog.style.width = "";
+  photoDialog.style.height = "";
+};
+
+const updatePhotoDialogLayout = () => {
+  if (!photoDialog || !photoDialogImage) return;
+  const naturalWidth = Number(photoDialogImage.naturalWidth || 0);
+  const naturalHeight = Number(photoDialogImage.naturalHeight || 0);
+  if (!naturalWidth || !naturalHeight) {
+    resetPhotoDialogLayout();
+    return;
+  }
+  const actions = photoDialog.querySelector(".dialog-actions");
+  const actionsHeight = actions ? Math.ceil(actions.getBoundingClientRect().height) : 0;
+  const maxDialogWidth = Math.floor(window.innerWidth * 0.94);
+  const maxDialogHeight = Math.floor(window.innerHeight * 0.9);
+  const maxImageWidth = Math.max(160, maxDialogWidth - 24);
+  const maxImageHeight = Math.max(160, maxDialogHeight - actionsHeight - 24);
+  const fitRatio = Math.min(1, maxImageWidth / naturalWidth, maxImageHeight / naturalHeight);
+  const fittedWidth = Math.max(160, Math.round(naturalWidth * fitRatio));
+  const fittedHeight = Math.max(160, Math.round(naturalHeight * fitRatio));
+  const targetWidth = Math.min(maxDialogWidth, Math.max(220, fittedWidth + 24));
+  const targetHeight = Math.min(maxDialogHeight, Math.max(220, fittedHeight + actionsHeight + 24));
+  photoDialog.style.width = `${targetWidth}px`;
+  photoDialog.style.height = `${targetHeight}px`;
+};
+
+const closePhotoPreviewDialog = () => {
+  resetPhotoDialogLayout();
+  closeDialog(photoDialog);
+};
+
 const showTextPrompt = (title, label, defaultValue) => {
   return new Promise((resolve) => {
     if (!textPromptDialog || !textPromptInput) { resolve(null); return; }
@@ -7536,6 +7570,8 @@ const createCellInput = (row, column) => {
         activePhotoTarget = { rowId: row.id, columnId: column.id, value };
         photoDialogImage.src = src;
         openDialog(photoDialog);
+        updatePhotoDialogLayout();
+        requestAnimationFrame(updatePhotoDialogLayout);
         }
       });
       img.onerror = () => {
@@ -10394,7 +10430,31 @@ columnForm.addEventListener("submit", (event) => {
 
 
 closePhotoDialogButton.addEventListener("click", () => {
-  closeDialog(photoDialog);
+  closePhotoPreviewDialog();
+});
+
+photoDialog.addEventListener("click", (event) => {
+  const rect = photoDialog.getBoundingClientRect();
+  const clickedInsidePanel = event.clientX >= rect.left
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.bottom;
+  if (!clickedInsidePanel) {
+    closePhotoPreviewDialog();
+  }
+});
+
+photoDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closePhotoPreviewDialog();
+});
+
+photoDialogImage.addEventListener("load", () => {
+  updatePhotoDialogLayout();
+});
+
+window.addEventListener("resize", () => {
+  if (photoDialog.hasAttribute("open")) updatePhotoDialogLayout();
 });
 
 if (storyCancelButton) {
@@ -10443,7 +10503,7 @@ clearPhotoDialogButton.addEventListener("click", () => {
   if (photoSrcCache.has(value)) {
     photoSrcCache.delete(value);
   }
-  closeDialog(photoDialog);
+  closePhotoPreviewDialog();
   renderRows();
 });
 

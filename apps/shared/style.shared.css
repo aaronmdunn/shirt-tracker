@@ -4659,7 +4659,8 @@ html[data-public-share="true"] #go-bottom {
 
 .photo-dialog {
   width: min(800px, 94vw);
-  min-height: 60vh;
+  max-width: 94vw;
+  min-height: 0;
   max-height: 90vh;
   display: none;
   flex-direction: column;
@@ -4674,7 +4675,7 @@ html[data-public-share="true"] #go-bottom {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
   padding: 12px;
 }
@@ -4686,6 +4687,31 @@ html[data-public-share="true"] #go-bottom {
   display: block;
   margin: auto;
   background: #ffffff;
+}
+
+#clear-photo-dialog {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #d10000;
+  color: #ffffff;
+  border: 1px solid #d10000;
+  box-shadow: none;
+}
+
+#clear-photo-dialog:hover {
+  background: #a30000;
+  color: #ffffff;
+  border-color: #a30000;
+  box-shadow: none;
+}
+
+#clear-photo-dialog:active {
+  background: #ffd7d7;
+  color: #8a0000;
+  border-color: #d10000;
 }
 
 @media print {
