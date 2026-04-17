@@ -2307,6 +2307,15 @@ const closeDialog = (dialog) => {
   if (PLATFORM === "mobile") dialog.style.display = "none";
 };
 
+const resetPhotoDialogZoom = () => {
+  if (photoDialogImage) photoDialogImage.classList.remove("is-zoomed");
+};
+
+const closePhotoPreviewDialog = () => {
+  resetPhotoDialogZoom();
+  closeDialog(photoDialog);
+};
+
 const showTextPrompt = (title, label, defaultValue) => {
   return new Promise((resolve) => {
     if (!textPromptDialog || !textPromptInput) { resolve(null); return; }
@@ -7535,6 +7544,7 @@ const createCellInput = (row, column) => {
         if (src) {
         activePhotoTarget = { rowId: row.id, columnId: column.id, value };
         photoDialogImage.src = src;
+        resetPhotoDialogZoom();
         openDialog(photoDialog);
         }
       });
@@ -10394,7 +10404,7 @@ columnForm.addEventListener("submit", (event) => {
 
 
 closePhotoDialogButton.addEventListener("click", () => {
-  closeDialog(photoDialog);
+  closePhotoPreviewDialog();
 });
 
 photoDialog.addEventListener("click", (event) => {
@@ -10404,8 +10414,17 @@ photoDialog.addEventListener("click", (event) => {
     && event.clientY >= rect.top
     && event.clientY <= rect.bottom;
   if (!clickedInsidePanel) {
-    closeDialog(photoDialog);
+    closePhotoPreviewDialog();
   }
+});
+
+photoDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closePhotoPreviewDialog();
+});
+
+photoDialogImage.addEventListener("click", () => {
+  photoDialogImage.classList.toggle("is-zoomed");
 });
 
 if (storyCancelButton) {
@@ -10454,7 +10473,7 @@ clearPhotoDialogButton.addEventListener("click", () => {
   if (photoSrcCache.has(value)) {
     photoSrcCache.delete(value);
   }
-  closeDialog(photoDialog);
+  closePhotoPreviewDialog();
   renderRows();
 });
 

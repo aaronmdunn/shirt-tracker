@@ -4674,7 +4674,7 @@ html[data-public-share="true"] #go-bottom {
   display: flex;
   align-items: stretch;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
   min-height: 0;
   padding: 12px;
 }
@@ -4686,6 +4686,14 @@ html[data-public-share="true"] #go-bottom {
   display: block;
   margin: auto;
   background: #ffffff;
+  cursor: zoom-in;
+}
+
+.photo-dialog img.is-zoomed {
+  width: 170%;
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
 }
 
 #clear-photo-dialog {
