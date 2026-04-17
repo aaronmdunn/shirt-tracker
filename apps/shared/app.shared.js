@@ -13819,6 +13819,7 @@ const defaultNoBuyGamifyState = () => ({
   totalRecoveriesCompleted: 0,
   noBuyDaysTotal: 0,
   lastXpDate: "",
+  lastResistXpDate: "",
   lastSyncDate: "",
   lastObservedStreak: 0,
   activeRecovery: null,
@@ -13866,6 +13867,7 @@ const normalizeNoBuyGamifyState = (value) => {
     totalRecoveriesCompleted: Math.max(0, Number(raw.totalRecoveriesCompleted || 0)),
     noBuyDaysTotal: Math.max(0, Number(raw.noBuyDaysTotal || 0)),
     lastXpDate: String(raw.lastXpDate || ""),
+    lastResistXpDate: String(raw.lastResistXpDate || ""),
     lastSyncDate: String(raw.lastSyncDate || ""),
     lastObservedStreak: Math.max(0, Number(raw.lastObservedStreak || 0)),
     activeRecovery: raw.activeRecovery && typeof raw.activeRecovery === "object" && !Array.isArray(raw.activeRecovery)
@@ -14037,6 +14039,13 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
   merged.noBuyDaysTotal = Math.max(local.noBuyDaysTotal, remote.noBuyDaysTotal);
   merged.totalBuysLogged = Math.max(local.totalBuysLogged, remote.totalBuysLogged);
   merged.totalRecoveriesCompleted = Math.max(local.totalRecoveriesCompleted, remote.totalRecoveriesCompleted);
+  {
+    const localResistMs = toMs(local.lastResistXpDate);
+    const remoteResistMs = toMs(remote.lastResistXpDate);
+    merged.lastResistXpDate = Number.isFinite(remoteResistMs) && (!Number.isFinite(localResistMs) || remoteResistMs >= localResistMs)
+      ? String(remote.lastResistXpDate || "")
+      : String(local.lastResistXpDate || "");
+  }
 
   // Authoritative logs come from the freshest side so deletions propagate.
   merged.actionLog = Array.isArray(primary.actionLog) ? primary.actionLog.slice(-300) : [];
@@ -14479,8 +14488,22 @@ const isNoBuyCooldownActive = (state) => {
   return Number.isFinite(ms) && ms > Date.now();
 };
 
-const startNoBuyCooldown = (state, hours = 24) => {
+const awardNoBuyTemptationResistXp = (state) => {
   const safe = normalizeNoBuyGamifyState(state);
+  const todayKey = localDateKeyFromDate(new Date());
+  if (safe.lastResistXpDate === todayKey) return safe;
+  const todayCheckin = Array.isArray(safe.dailyCheckins)
+    ? safe.dailyCheckins.find((entry) => String(entry?.dateKey || "") === todayKey)
+    : null;
+  if (!todayCheckin?.tempted) return safe;
+  safe.xp += 5;
+  safe.level = computeNoBuyLevel(safe.xp);
+  safe.lastResistXpDate = todayKey;
+  return safe;
+};
+
+const startNoBuyCooldown = (state, hours = 24) => {
+  const safe = awardNoBuyTemptationResistXp(state);
   const requestedHours = Math.max(1, Number(hours) || 24);
   const nowIso = new Date().toISOString();
   const until = new Date();
@@ -14575,6 +14598,7 @@ const exportNoBuyLogJson = (state) => {
       currentStreak: safe.currentStreak,
       longestStreak: safe.longestStreak,
       buyCredits: safe.buyCredits,
+      lastResistXpDate: safe.lastResistXpDate,
       totalBuysLogged: safe.totalBuysLogged,
       totalRecoveriesCompleted: safe.totalRecoveriesCompleted,
       lastBuyDate: safe.lastBuyDate,
@@ -15043,7 +15067,7 @@ const buildNoBuyHelpHtml = () => {
     [
       { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
       { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days and completing recovery." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery." },
       { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
@@ -15078,7 +15102,7 @@ const buildNoBuyHelpHtml = () => {
     "Stat cards and sections",
     "These are the older, core ideas the game still runs on behind all the newer UI.",
     [
-      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands." },
+      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands. A logged temptation that turns into a cooldown or anti-buy move also grants a small once-per-day XP bump." },
       { label: "No-buy day banking", value: "Every successful no-buy day adds to your lifetime banked no-buy-day total." },
       { label: "Streak shields rule", value: "Every 10 banked no-buy days grants 1 streak shield." },
       { label: "Cooldown behavior", value: "Cooldown is a time buffer, not a lockout. Starting a longer cooldown can extend a shorter one that is already active." },
