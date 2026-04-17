@@ -4687,14 +4687,6 @@ html[data-public-share="true"] #go-bottom {
   display: block;
   margin: auto;
   background: #ffffff;
-  cursor: zoom-in;
-}
-
-.photo-dialog img.is-zoomed {
-  width: 170%;
-  max-width: none;
-  max-height: none;
-  cursor: zoom-out;
 }
 
 #clear-photo-dialog {

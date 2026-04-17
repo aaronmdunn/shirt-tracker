@@ -2321,30 +2321,22 @@ const updatePhotoDialogLayout = () => {
     resetPhotoDialogLayout();
     return;
   }
-  const scale = photoDialogImage.classList.contains("is-zoomed") ? 1.7 : 1;
   const actions = photoDialog.querySelector(".dialog-actions");
   const actionsHeight = actions ? Math.ceil(actions.getBoundingClientRect().height) : 0;
   const maxDialogWidth = Math.floor(window.innerWidth * 0.94);
   const maxDialogHeight = Math.floor(window.innerHeight * 0.9);
   const maxImageWidth = Math.max(160, maxDialogWidth - 24);
   const maxImageHeight = Math.max(160, maxDialogHeight - actionsHeight - 24);
-  const scaledWidth = naturalWidth * scale;
-  const scaledHeight = naturalHeight * scale;
-  const fitRatio = Math.min(1, maxImageWidth / scaledWidth, maxImageHeight / scaledHeight);
-  const fittedWidth = Math.max(160, Math.round(scaledWidth * fitRatio));
-  const fittedHeight = Math.max(160, Math.round(scaledHeight * fitRatio));
+  const fitRatio = Math.min(1, maxImageWidth / naturalWidth, maxImageHeight / naturalHeight);
+  const fittedWidth = Math.max(160, Math.round(naturalWidth * fitRatio));
+  const fittedHeight = Math.max(160, Math.round(naturalHeight * fitRatio));
   const targetWidth = Math.min(maxDialogWidth, Math.max(220, fittedWidth + 24));
   const targetHeight = Math.min(maxDialogHeight, Math.max(220, fittedHeight + actionsHeight + 24));
   photoDialog.style.width = `${targetWidth}px`;
   photoDialog.style.height = `${targetHeight}px`;
 };
 
-const resetPhotoDialogZoom = () => {
-  if (photoDialogImage) photoDialogImage.classList.remove("is-zoomed");
-};
-
 const closePhotoPreviewDialog = () => {
-  resetPhotoDialogZoom();
   resetPhotoDialogLayout();
   closeDialog(photoDialog);
 };
@@ -7577,7 +7569,6 @@ const createCellInput = (row, column) => {
         if (src) {
         activePhotoTarget = { rowId: row.id, columnId: column.id, value };
         photoDialogImage.src = src;
-        resetPhotoDialogZoom();
         openDialog(photoDialog);
         updatePhotoDialogLayout();
         requestAnimationFrame(updatePhotoDialogLayout);
@@ -10456,11 +10447,6 @@ photoDialog.addEventListener("click", (event) => {
 photoDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closePhotoPreviewDialog();
-});
-
-photoDialogImage.addEventListener("click", () => {
-  photoDialogImage.classList.toggle("is-zoomed");
-  updatePhotoDialogLayout();
 });
 
 photoDialogImage.addEventListener("load", () => {
