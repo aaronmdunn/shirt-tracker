@@ -1,5 +1,18 @@
 [
   {
+    "version": "2.1.5",
+    "date": "2026-04-17",
+    "changes": [
+      "Refined the photo preview dialog with a smaller red Clear action, readable white destructive text, outside-click close behavior, and large auto-fit image sizing that avoids accidental destructive taps",
+      "Removed the abandoned photo-preview zoom experiment and tightened preview sizing so the image opens large enough to inspect cleanly without extra zoom controls",
+      "Added a once-per-day No-Buy XP reward when a logged temptation turns into a cooldown or anti-buy move, while keeping buy logging non-punitive to lifetime XP",
+      "Polished the No-Buy recent button log with aligned three-column rows and cleaner centered detail spacing for action history readability",
+      "Redefined No-Buy recovery eligibility so one unique shirt counts per progress point when it is never worn, at 0-1 lifetime wears, or idle for 30+ days",
+      "Fixed No-Buy recovery mission progress to evaluate shirts from their pre-wear state and track already-counted shirt IDs, resolving the issue where recovery could get stuck and the last wear would not count",
+      "Shipped routine release maintenance: version references updated to 2.1.5 across web, shared, and Tauri metadata"
+    ]
+  },
+  {
     "version": "2.1.4",
     "date": "2026-04-02",
     "changes": [

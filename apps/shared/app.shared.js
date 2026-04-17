@@ -36,7 +36,7 @@ const LAST_FULL_BACKUP_ERROR_KEY = "shirts-last-full-backup-error";
 const LAST_FULL_BACKUP_ERROR_AT_KEY = "shirts-last-full-backup-error-at";
 const BACKUP_HEALTH_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 const DESKTOP_DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const APP_VERSION = "2.1.4";
+const APP_VERSION = "2.1.5";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -4400,7 +4400,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.1.4",
+    version: "2.1.5",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
