@@ -1931,15 +1931,8 @@ const updatePublicShareSummary = () => {
     shareColumnsButton.appendChild(subSpan);
     if (PLATFORM === "mobile") {
       scheduleCopyShareSizing();
-    } else {
-if (PLATFORM === "desktop") {
-  applyDesktopHeaderInlineLayout();
-}
-if (PLATFORM === "mobile") {
-  applyMobileHeaderInlineLayout();
-  window.addEventListener("resize", () => { applyMobileHeaderInlineLayout(); });
-  window.addEventListener("orientationchange", () => { applyMobileHeaderInlineLayout(); });
-}
+    } else if (PLATFORM === "desktop") {
+      applyDesktopHeaderInlineLayout();
     }
   };
   if (!currentUser || isViewerSession) {
@@ -3531,8 +3524,6 @@ const applyMobileHeaderInlineLayout = () => {
     const syncNowButton = document.getElementById("sync-now");
     const authActionButton = document.getElementById("auth-action");
     const statsBtn = document.getElementById("stats-button");
-    const blankSlot = document.createElement("div");
-    blankSlot.setAttribute("aria-hidden", "true");
 
     const rows = [
       [addColumnButton, editColumnsButton],
@@ -6489,23 +6480,6 @@ const updateRow = (id, key, value) => {
   renderFooter();
 };
 
-const syncCellValue = (rowId, columnId, rawValue) => {
-  const column = state.columns.find((col) => col.id === columnId);
-  if (!column) return;
-  if (column.type === "number") {
-    const parsed = parseCurrency(rawValue);
-    if (rawValue.trim() === "") {
-      updateRow(rowId, columnId, "");
-      return;
-    }
-    if (parsed !== null) {
-      updateRow(rowId, columnId, parsed.toString());
-      return;
-    }
-  }
-  updateRow(rowId, columnId, rawValue);
-};
-
 const handleCellEvent = (event) => {
   const target = event.target;
   if (!target || !target.dataset) return;
@@ -6513,18 +6487,13 @@ const handleCellEvent = (event) => {
   const columnId = target.dataset.columnId;
   if (!rowId || !columnId) return;
   if (target.tagName === "SELECT" && target.value === "__add_new__") return;
-  if (event.type === "input") {
-    rememberEditStart(rowId, columnId);
-  }
   if (event.type === "change") {
     const startValue = consumeEditStart(rowId, columnId);
     const fallbackRow = state.rows.find((item) => item.id === rowId);
     const prevValue = startValue ?? (fallbackRow && fallbackRow.cells ? fallbackRow.cells[columnId] : "");
     logRowChange(rowId, columnId, prevValue, target.value ?? "");
   }
-  syncCellValue(rowId, columnId, target.value ?? "");
   const column = state.columns.find((col) => col.id === columnId);
-  if (column && isShirtNameColumn(column)) scheduleNameSort();
   if (event.type === "change" && column) {
     const labelLower = getColumnLabel(column).trim().toLowerCase();
     if (labelLower === "type") {
@@ -6810,21 +6779,26 @@ const TYPE_ICON_DEFAULTS = {
   "borlandflex": "assets/icons/flannel.png",
 };
 
+let typeIconMapCache = null;
+
 const loadTypeIconMap = () => {
+  if (typeIconMapCache) return typeIconMapCache;
   if (!canUseLocalStorage()) return {};
   try {
     const stored = localStorage.getItem(TYPE_ICON_STORAGE_KEY);
     const parsed = stored ? JSON.parse(stored) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
+    typeIconMapCache = parsed && typeof parsed === "object" ? parsed : {};
   } catch (error) {
-    return {};
+    typeIconMapCache = {};
   }
+  return typeIconMapCache;
 };
 
 const saveTypeIconMap = (map) => {
+  typeIconMapCache = map && typeof map === "object" ? map : {};
   if (!canUseLocalStorage()) return;
   try {
-    localStorage.setItem(TYPE_ICON_STORAGE_KEY, JSON.stringify(map));
+    localStorage.setItem(TYPE_ICON_STORAGE_KEY, JSON.stringify(typeIconMapCache));
   } catch (error) {
     // ignore
   }
@@ -7511,11 +7485,6 @@ const createCellInput = (row, column) => {
       select.appendChild(addNewOpt);
     }
     select.value = value;
-    select.addEventListener("input", (event) => {
-      if (event.target.value === "__add_new__") return;
-      updateRow(row.id, column.id, event.target.value);
-      if (isNameColumn) scheduleNameSort();
-    });
     select.addEventListener("change", async (event) => {
       if (event.target.value === "__add_new__") {
         const newValue = await showTextPrompt("Add New " + getColumnLabel(column), "New option");
@@ -19603,7 +19572,6 @@ sheetBody.addEventListener("click", (event) => {
   if (!typeVal) return;
   openTypeIconDialog(typeVal);
 });
-sheetBody.addEventListener("input", handleCellEvent);
 sheetBody.addEventListener("change", handleCellEvent);
 sheetBody.addEventListener("focusin", (event) => {
   const target = event.target;
