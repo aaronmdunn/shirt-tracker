@@ -4688,6 +4688,29 @@ html[data-public-share="true"] #go-bottom {
   background: #ffffff;
 }
 
+#clear-photo-dialog {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #d10000;
+  border: 1px solid #d10000;
+  box-shadow: none;
+}
+
+#clear-photo-dialog:hover {
+  background: #a30000;
+  border-color: #a30000;
+  box-shadow: none;
+}
+
+#clear-photo-dialog:active {
+  background: #ffd7d7;
+  color: #8a0000;
+  border-color: #d10000;
+}
+
 @media print {
   body {
     background: white;
