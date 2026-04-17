@@ -2598,25 +2598,71 @@ const buildPreBuyDuplicateSnapshot = (details, inventoryEntries) => {
   };
 };
 
-const buildRecoveryMissionGuide = (inventoryEntries) => {
-  const eligible = (Array.isArray(inventoryEntries) ? inventoryEntries : []).filter((entry) => Number.isFinite(new Date(String(entry.createdAt || "")).getTime()));
-  const unwornCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 0).length;
-  const lowWearCount = eligible.filter((entry) => Number(entry.wearCount || 0) <= 1).length;
+const NO_BUY_RECOVERY_STALE_DAYS = 30;
+
+const getRecoveryWearReason = (rowLike, referenceIso = "") => {
+  const wearCount = Math.max(0, Number(rowLike?.wearCount || 0));
+  if (wearCount <= 0) return "unworn";
+  if (wearCount <= 1) return "low-wear";
+  const lastWornMs = new Date(String(rowLike?.lastWorn || "")).getTime();
+  const referenceMs = new Date(String(referenceIso || "")).getTime();
+  if (!Number.isFinite(lastWornMs) || !Number.isFinite(referenceMs)) return "";
+  return (referenceMs - lastWornMs) >= (NO_BUY_RECOVERY_STALE_DAYS * 86400000) ? "stale" : "";
+};
+
+const getRecoveryWearReasonLabel = (reason) => {
+  if (reason === "unworn") return "never worn";
+  if (reason === "low-wear") return "0-1 wears";
+  if (reason === "stale") return `${NO_BUY_RECOVERY_STALE_DAYS}+ days idle`;
+  return "";
+};
+
+const snapshotRecoveryCandidate = (row) => {
+  if (!row || typeof row !== "object") return null;
+  return {
+    id: String(row.id || ""),
+    wearCount: Math.max(0, Number(row.wearCount || 0)),
+    lastWorn: String(row.lastWorn || ""),
+    createdAt: String(row.createdAt || ""),
+  };
+};
+
+const buildRecoveryMissionGuide = (inventoryEntries, recovery = null) => {
+  const nowIso = new Date().toISOString();
+  const countedIds = new Set(Array.isArray(recovery?.countedRowIds) ? recovery.countedRowIds.map((id) => String(id || "")).filter(Boolean) : []);
+  const eligible = (Array.isArray(inventoryEntries) ? inventoryEntries : []).filter((entry) => {
+    const rowId = String(entry?.row?.id || "");
+    if (!rowId || countedIds.has(rowId)) return false;
+    return Boolean(getRecoveryWearReason(entry, nowIso));
+  });
+  const unwornCount = eligible.filter((entry) => getRecoveryWearReason(entry, nowIso) === "unworn").length;
+  const lowWearCount = eligible.filter((entry) => getRecoveryWearReason(entry, nowIso) === "low-wear").length;
+  const staleCount = eligible.filter((entry) => getRecoveryWearReason(entry, nowIso) === "stale").length;
   const suggested = eligible
     .slice()
-    .sort((a, b) => (Number(a.wearCount || 0) - Number(b.wearCount || 0)) || (new Date(String(b.createdAt || 0)).getTime() - new Date(String(a.createdAt || 0)).getTime()) || String(a.name || "").localeCompare(String(b.name || "")))
+    .sort((a, b) => {
+      const rank = { unworn: 0, "low-wear": 1, stale: 2 };
+      const aReason = getRecoveryWearReason(a, nowIso);
+      const bReason = getRecoveryWearReason(b, nowIso);
+      return (Number(rank[aReason] ?? 99) - Number(rank[bReason] ?? 99))
+        || (Number(a.wearCount || 0) - Number(b.wearCount || 0))
+        || (new Date(String(b.createdAt || 0)).getTime() - new Date(String(a.createdAt || 0)).getTime())
+        || String(a.name || "").localeCompare(String(b.name || ""));
+    })
     .slice(0, 3)
     .map((entry) => ({
       name: entry.name || "Unnamed",
       brand: entry.brand || entry.tabName || "Unknown",
       type: entry.type || "Unknown",
       wearCount: Number(entry.wearCount || 0),
+      reasonLabel: getRecoveryWearReasonLabel(getRecoveryWearReason(entry, nowIso)),
       createdAt: String(entry.createdAt || ""),
     }));
   return {
     eligibleCount: eligible.length,
     unwornCount,
     lowWearCount,
+    staleCount,
     suggested,
   };
 };
@@ -8471,6 +8517,7 @@ const renderRows = () => {
         logBtn._prevLastWorn = targetRow.lastWorn || null;
         logBtn._prevWearLog = targetRow.wearLog ? targetRow.wearLog.slice() : [];
         logBtn._prevNoBuyState = cloneNoBuyGamifyState(loadNoBuyGamifyState());
+        const recoveryCandidate = snapshotRecoveryCandidate(targetRow);
         // Apply wear
         const chosen = dateInput.value || new Date().toISOString().slice(0, 10);
         const wornDate = new Date(chosen + "T12:00:00").toISOString();
@@ -8483,7 +8530,7 @@ const renderRows = () => {
         applyWearToRow(targetRow, wornDate);
         updateShirtUpdateDate();
         saveState();
-        progressNoBuyRecoveryOnWear(targetRow, wornDate);
+        progressNoBuyRecoveryOnWear(targetRow, wornDate, recoveryCandidate);
         renderFooter();
         // Update display inline (avoid full re-render during undo window)
         countStat.querySelector(".wear-stat-value").textContent = String(targetRow.wearCount);
@@ -13819,6 +13866,7 @@ const defaultNoBuyGamifyState = () => ({
   totalRecoveriesCompleted: 0,
   noBuyDaysTotal: 0,
   lastXpDate: "",
+  lastResistXpDate: "",
   lastSyncDate: "",
   lastObservedStreak: 0,
   activeRecovery: null,
@@ -13866,6 +13914,7 @@ const normalizeNoBuyGamifyState = (value) => {
     totalRecoveriesCompleted: Math.max(0, Number(raw.totalRecoveriesCompleted || 0)),
     noBuyDaysTotal: Math.max(0, Number(raw.noBuyDaysTotal || 0)),
     lastXpDate: String(raw.lastXpDate || ""),
+    lastResistXpDate: String(raw.lastResistXpDate || ""),
     lastSyncDate: String(raw.lastSyncDate || ""),
     lastObservedStreak: Math.max(0, Number(raw.lastObservedStreak || 0)),
     activeRecovery: raw.activeRecovery && typeof raw.activeRecovery === "object" && !Array.isArray(raw.activeRecovery)
@@ -13876,6 +13925,9 @@ const normalizeNoBuyGamifyState = (value) => {
           progress: Math.max(0, Number(raw.activeRecovery.progress || 0)),
           deadline: normalizeRecoveryDeadlineIso(raw.activeRecovery.deadline || ""),
           completedAt: String(raw.activeRecovery.completedAt || ""),
+          countedRowIds: Array.isArray(raw.activeRecovery.countedRowIds)
+            ? raw.activeRecovery.countedRowIds.slice(-50).map((id) => String(id || "")).filter(Boolean)
+            : [],
         }
       : null,
     buyLog: Array.isArray(raw.buyLog)
@@ -14037,6 +14089,13 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
   merged.noBuyDaysTotal = Math.max(local.noBuyDaysTotal, remote.noBuyDaysTotal);
   merged.totalBuysLogged = Math.max(local.totalBuysLogged, remote.totalBuysLogged);
   merged.totalRecoveriesCompleted = Math.max(local.totalRecoveriesCompleted, remote.totalRecoveriesCompleted);
+  {
+    const localResistMs = toMs(local.lastResistXpDate);
+    const remoteResistMs = toMs(remote.lastResistXpDate);
+    merged.lastResistXpDate = Number.isFinite(remoteResistMs) && (!Number.isFinite(localResistMs) || remoteResistMs >= localResistMs)
+      ? String(remote.lastResistXpDate || "")
+      : String(local.lastResistXpDate || "");
+  }
 
   // Authoritative logs come from the freshest side so deletions propagate.
   merged.actionLog = Array.isArray(primary.actionLog) ? primary.actionLog.slice(-300) : [];
@@ -14456,6 +14515,7 @@ const createNoBuyRecoveryMission = (state, nowIso) => {
     progress: 0,
     deadline: deadline.toISOString(),
     completedAt: "",
+    countedRowIds: [],
   };
   return safe;
 };
@@ -14465,11 +14525,12 @@ const cloneNoBuyGamifyState = (value) => JSON.parse(JSON.stringify(normalizeNoBu
 const isRecoveryWearEligible = (recovery, row, wornDateIso) => {
   if (!recovery || recovery.completedAt || !row) return false;
   const deadlineMs = new Date(String(recovery.deadline || "")).getTime();
-  const createdMs = new Date(String(row.createdAt || "")).getTime();
   const wornMs = new Date(String(wornDateIso || "")).getTime();
-  if (!Number.isFinite(deadlineMs) || !Number.isFinite(createdMs) || !Number.isFinite(wornMs)) return false;
+  const rowId = String(row.id || "");
+  if (!Number.isFinite(deadlineMs) || !Number.isFinite(wornMs) || !rowId) return false;
   if (deadlineMs < Date.now()) return false;
-  return wornMs <= deadlineMs;
+  if (Array.isArray(recovery.countedRowIds) && recovery.countedRowIds.includes(rowId)) return false;
+  return wornMs <= deadlineMs && Boolean(getRecoveryWearReason(row, wornDateIso));
 };
 
 const isNoBuyCooldownActive = (state) => {
@@ -14479,8 +14540,22 @@ const isNoBuyCooldownActive = (state) => {
   return Number.isFinite(ms) && ms > Date.now();
 };
 
-const startNoBuyCooldown = (state, hours = 24) => {
+const awardNoBuyTemptationResistXp = (state) => {
   const safe = normalizeNoBuyGamifyState(state);
+  const todayKey = localDateKeyFromDate(new Date());
+  if (safe.lastResistXpDate === todayKey) return safe;
+  const todayCheckin = Array.isArray(safe.dailyCheckins)
+    ? safe.dailyCheckins.find((entry) => String(entry?.dateKey || "") === todayKey)
+    : null;
+  if (!todayCheckin?.tempted) return safe;
+  safe.xp += 5;
+  safe.level = computeNoBuyLevel(safe.xp);
+  safe.lastResistXpDate = todayKey;
+  return safe;
+};
+
+const startNoBuyCooldown = (state, hours = 24) => {
+  const safe = awardNoBuyTemptationResistXp(state);
   const requestedHours = Math.max(1, Number(hours) || 24);
   const nowIso = new Date().toISOString();
   const until = new Date();
@@ -14575,6 +14650,7 @@ const exportNoBuyLogJson = (state) => {
       currentStreak: safe.currentStreak,
       longestStreak: safe.longestStreak,
       buyCredits: safe.buyCredits,
+      lastResistXpDate: safe.lastResistXpDate,
       totalBuysLogged: safe.totalBuysLogged,
       totalRecoveriesCompleted: safe.totalRecoveriesCompleted,
       lastBuyDate: safe.lastBuyDate,
@@ -15029,7 +15105,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Item fields", value: "Name, Brand, and Type are optional helper inputs. Filling them in gives the duplicate read more context so it can find closer inventory matches." },
       { label: "Duplicate friction", value: "This is a live fuzzy text read against your inventory using name, brand, and type. It shows a risk level, how many similar rows already exist, and the closest current matches." },
       { label: "Closet friction", value: "This card summarizes pressure from your current closet, such as unworn backlog or wishlist buy-gate performance, so the cost of buying feels immediate instead of abstract." },
-      { label: "Recovery window live", value: "If a recovery mission is active, the strip under the cards reminds you that added shirts can count toward recovery and shows whether unworn added shirts are still available." },
+      { label: "Recovery window live", value: "If a recovery mission is active, the strip under the cards shows how many unique shirts still qualify right now: never worn, 0-1 wears, or idle for 30+ days." },
       { label: "Hold 72h", value: "Starts or extends a 72-hour cooldown and logs a successful anti-buy check-in." },
       { label: "Park in Wishlist", value: "Moves the idea into Wishlist instead of your cart. It carries over the typed name, brand, and type when available, adds a Held tag, and writes a hold note into Notes." },
       { label: "Wear Similar First", value: "Starts a shorter cooldown and bounces you back to Inventory so you can wear something close before you decide to buy." },
@@ -15043,15 +15119,15 @@ const buildNoBuyHelpHtml = () => {
     [
       { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
       { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days and completing recovery." },
+      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery." },
       { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
-      { label: "Recovery mission", value: "A post-buy challenge with a 3-wear target and a 7-day deadline. The note also reflects whether added shirts are still unworn and available to help finish the mission." },
+      { label: "Recovery mission", value: "A post-buy challenge with a 3-wear target and a 7-day deadline. Each progress point must come from a different shirt that is never worn, 0-1 wears, or idle for 30+ days." },
       { label: "Clean badge", value: "A quick monthly and weekly cleanliness read. It blends this month’s buy count with last week’s temptation count." },
       { label: "Boss trigger", value: "Your strongest recent temptation trigger, grouped into its larger pressure family." },
       { label: "Best move today", value: "The single coaching recommendation the app thinks would help most right now based on streak, pressure mix, cooldown, and recovery state." },
-      { label: "Recovery shortcuts", value: "When recovery is active, this section highlights how many added shirts are eligible to count and suggests low-wear added shirts to reach for first." },
+      { label: "Recovery shortcuts", value: "When recovery is active, this section shows how many shirts still qualify, breaks them into never-worn / low-wear / idle buckets, and suggests the best candidates first." },
       { label: "Recent button log", value: "The latest 10 logged no-buy actions, including cooldowns, temptations, and buys." },
       { label: "Trends (30d)", value: "Which temptation and purchase reasons are rising, cooling, or staying steady over the last 30 days." },
       { label: "Pressure mix (30d)", value: "Splits recent temptation pressure into impulse pressure and planned pressure." },
@@ -15078,7 +15154,7 @@ const buildNoBuyHelpHtml = () => {
     "Stat cards and sections",
     "These are the older, core ideas the game still runs on behind all the newer UI.",
     [
-      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands." },
+      { label: "Daily XP", value: "XP is granted once per valid no-buy day, with extra reward at bigger streak bands. A logged temptation that turns into a cooldown or anti-buy move also grants a small once-per-day XP bump." },
       { label: "No-buy day banking", value: "Every successful no-buy day adds to your lifetime banked no-buy-day total." },
       { label: "Streak shields rule", value: "Every 10 banked no-buy days grants 1 streak shield." },
       { label: "Cooldown behavior", value: "Cooldown is a time buffer, not a lockout. Starting a longer cooldown can extend a shorter one that is already active." },
@@ -15087,7 +15163,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Impulse pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
       { label: "Planned pressure", value: "Pressure driven by more deliberate shopping logic, like sale, good deal, rare find, marketed, or promo." },
       { label: "Wear logging and recovery", value: "Both Worn today and row-level Log Wear feed the same recovery logic now, so either wear path can advance an active recovery mission." },
-      { label: "Recovery eligibility", value: "Recovery only counts wears from shirts that have an in-app add date (`createdAt`). Older rows without tracked add dates do not count." },
+      { label: "Recovery eligibility", value: "A recovery wear counts once per unique shirt when that shirt is either never worn, at 0-1 lifetime wears, or has not been worn in 30+ days. Rewearing the same qualifying shirt does not add progress twice." },
     ]
   );
   return html;
@@ -15130,7 +15206,7 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
   let candidateBrand = "";
   let candidateType = "";
   const inventoryEntries = loadInventoryEntriesForPreBuy();
-  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries, gamify.activeRecovery);
 
   const render = () => {
     const stats = sourceStats || collectAllStats();
@@ -15254,7 +15330,7 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         </div>
       </div>
 
-      ${recoveryActive ? `<div class="pre-buy-recovery-strip">Recovery window live: any shirt with an in-app add date counts. ${recoveryGuide.unwornCount > 0 ? `${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? " is" : "s are"} still unworn.` : `You have ${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} available to count.`}</div>` : ""}
+      ${recoveryActive ? `<div class="pre-buy-recovery-strip">Recovery window live: one unique shirt counts per recovery wear if it is never worn, at 0-1 wears, or ${NO_BUY_RECOVERY_STALE_DAYS}+ days idle. ${recoveryGuide.unwornCount > 0 ? `${recoveryGuide.unwornCount} shirt${recoveryGuide.unwornCount === 1 ? " is" : "s are"} still never worn.` : `You have ${recoveryGuide.eligibleCount} shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} that qualify right now.`}</div>` : ""}
 
       <div class="stats-section-title" style="margin-top:10px">Best move today</div>
       <div class="stats-hint pre-buy-check-best-move">${esc(bestMove)}</div>
@@ -15439,7 +15515,7 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
   return pushNoBuySnapshot(markNoBuyStateUpdated(safe), "delete-log");
 };
 
-const progressNoBuyRecoveryOnWear = (row, wornDateIso) => {
+const progressNoBuyRecoveryOnWear = (row, wornDateIso, recoveryCandidate = null) => {
   const safe = loadNoBuyGamifyState();
   if (!safe.activeRecovery || safe.activeRecovery.completedAt) return;
   const deadlineMs = new Date(safe.activeRecovery.deadline).getTime();
@@ -15447,9 +15523,14 @@ const progressNoBuyRecoveryOnWear = (row, wornDateIso) => {
     saveNoBuyGamifyStateAndSync(safe);
     return;
   }
-  if (!isRecoveryWearEligible(safe.activeRecovery, row, wornDateIso)) {
+  const candidate = recoveryCandidate || row;
+  if (!isRecoveryWearEligible(safe.activeRecovery, candidate, wornDateIso)) {
     return;
   }
+  const rowId = String(candidate?.id || row?.id || "");
+  if (!Array.isArray(safe.activeRecovery.countedRowIds)) safe.activeRecovery.countedRowIds = [];
+  if (rowId) safe.activeRecovery.countedRowIds.push(rowId);
+  safe.activeRecovery.countedRowIds = Array.from(new Set(safe.activeRecovery.countedRowIds)).slice(-50);
   safe.activeRecovery.progress = Math.min(safe.activeRecovery.target, (safe.activeRecovery.progress || 0) + 1);
   if (safe.activeRecovery.progress >= safe.activeRecovery.target) {
     safe.activeRecovery.completedAt = new Date().toISOString();
@@ -16955,13 +17036,14 @@ const markQueueItemWornToday = (queueItem) => {
 
   if (tabsState.activeTabId === queueItem.tabId) {
     const target = state.rows.find((row) => row.id === queueItem.rowId);
+    const recoveryCandidate = snapshotRecoveryCandidate(target);
     if (!applyWearToRow(target, wornDate)) return false;
     updateShirtUpdateDate();
     saveState();
     renderRows();
     renderFooter();
     addEventLog("Logged wear", rowLabel);
-    progressNoBuyRecoveryOnWear(target, wornDate);
+    progressNoBuyRecoveryOnWear(target, wornDate, recoveryCandidate);
     return true;
   }
 
@@ -16971,12 +17053,13 @@ const markQueueItemWornToday = (queueItem) => {
       const parsed = JSON.parse(stored);
       if (!parsed || !Array.isArray(parsed.rows)) return false;
       const target = parsed.rows.find((row) => row.id === queueItem.rowId);
+      const recoveryCandidate = snapshotRecoveryCandidate(target);
       if (!applyWearToRow(target, wornDate)) return false;
       localStorage.setItem(getStorageKey(queueItem.tabId), JSON.stringify(parsed));
       updateShirtUpdateDate();
       scheduleSync();
       addEventLog("Logged wear", rowLabel);
-      progressNoBuyRecoveryOnWear(target, wornDate);
+      progressNoBuyRecoveryOnWear(target, wornDate, recoveryCandidate);
       return true;
     } catch (error) {
       return false;
@@ -18453,8 +18536,9 @@ const openNoBuyGameDialog = (stats) => {
 
   const sourceStats = stats || collectAllStats();
   const gamify = syncNoBuyGamifyStateFromStats(sourceStats);
+  const recovery = gamify.activeRecovery;
   const inventoryEntries = loadInventoryEntriesForPreBuy();
-  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries);
+  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries, recovery);
   const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
   const daysToMilestone = nextMilestone === null ? 0 : Math.max(0, nextMilestone - gamify.currentStreak);
   const cooldownActive = isNoBuyCooldownActive(gamify);
@@ -18468,7 +18552,6 @@ const openNoBuyGameDialog = (stats) => {
   const topTrigger = topTriggerSummary[0] || null;
   const recentActions = buildNoBuyActionEntries(gamify, 10);
   const fullActionHistory = buildNoBuyActionEntries(gamify, Number.POSITIVE_INFINITY);
-  const recovery = gamify.activeRecovery;
   const recoveryActive = recovery && !recovery.completedAt;
   const recoveryDaysLeft = recoveryActive
     ? Math.max(0, Math.ceil((new Date(recovery.deadline).getTime() - Date.now()) / 86400000))
@@ -18487,7 +18570,7 @@ const openNoBuyGameDialog = (stats) => {
   const recoveryUrgencyNote = recoveryActive
     ? recoveryDaysLeft <= 0
       ? "Recovery deadline is today"
-      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline · ${recoveryGuide.unwornCount} added shirt${recoveryGuide.unwornCount === 1 ? "" : "s"} still unworn`
+      : `${recoveryDaysLeft} day${recoveryDaysLeft === 1 ? "" : "s"} until deadline · ${recoveryGuide.eligibleCount} shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} still qualify`
     : "Complete to gain +50 XP";
   const nowMs = Date.now();
   const weekThreshold = nowMs - (7 * 86400000);
@@ -18614,12 +18697,12 @@ const openNoBuyGameDialog = (stats) => {
 
     ${recoveryActive ? `
       <div class="stats-section-title" style="margin-top:8px">Recovery shortcuts</div>
-      <div class="stats-hint">Any shirt with an in-app add date counts. Start with low-wear added shirts before you browse anything new.</div>
+      <div class="stats-hint">One unique shirt counts per recovery wear if it is never worn, at 0-1 wears, or ${NO_BUY_RECOVERY_STALE_DAYS}+ days idle. Rewearing the same shirt will not advance the mission twice.</div>
       <div class="pre-buy-recovery-guide">
-        <div class="pre-buy-recovery-strip">${recoveryGuide.eligibleCount} added shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} count right now · ${recoveryGuide.lowWearCount} are still at 0-1 wears</div>
+        <div class="pre-buy-recovery-strip">${recoveryGuide.eligibleCount} shirt${recoveryGuide.eligibleCount === 1 ? "" : "s"} qualify right now · ${recoveryGuide.unwornCount} never worn · ${recoveryGuide.lowWearCount} at 0-1 wears · ${recoveryGuide.staleCount} ${NO_BUY_RECOVERY_STALE_DAYS}+ days idle</div>
         ${recoveryGuide.suggested.length
-          ? `<div class="insights-action-list">${recoveryGuide.suggested.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${item.name} (${item.brand}) - ${item.type}`)}</span><span class="stats-value">${item.wearCount} wear${item.wearCount === 1 ? "" : "s"} · added ${esc(item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "unknown")}</span></div>`).join("")}</div>`
-          : `<div class="stats-hint">No added shirts with tracked add dates are available yet. New adds will count once they have an in-app add date.</div>`}
+          ? `<div class="insights-action-list">${recoveryGuide.suggested.map((item, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${item.name} (${item.brand}) - ${item.type}`)}</span><span class="stats-value">${esc(item.reasonLabel)} · ${item.wearCount} wear${item.wearCount === 1 ? "" : "s"}${item.createdAt ? ` · added ${esc(new Date(item.createdAt).toLocaleDateString())}` : ""}</span></div>`).join("")}</div>`
+          : `<div class="stats-hint">No shirts qualify right now. Recovery only advances on unique shirts that are never worn, at 0-1 wears, or ${NO_BUY_RECOVERY_STALE_DAYS}+ days idle.</div>`}
       </div>` : ""}
 
     <div class="stats-section-title" style="margin-top:8px">Actions</div>
@@ -18674,7 +18757,7 @@ const openNoBuyGameDialog = (stats) => {
               ? "Cooldown started"
               : "Temptation logged";
           const toneClass = entry.type === "purchase" ? "tone-bad" : entry.type === "cooldown" ? "" : "tone-good";
-          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
+          return `<div class="stats-row stats-sub no-buy-log-row"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
     <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
