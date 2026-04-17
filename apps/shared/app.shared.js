@@ -2307,12 +2307,36 @@ const closeDialog = (dialog) => {
   if (PLATFORM === "mobile") dialog.style.display = "none";
 };
 
+const resetPhotoDialogLayout = () => {
+  if (!photoDialog) return;
+  photoDialog.style.width = "";
+  photoDialog.style.height = "";
+};
+
+const updatePhotoDialogLayout = () => {
+  if (!photoDialog || !photoDialogImage) return;
+  const naturalWidth = Number(photoDialogImage.naturalWidth || 0);
+  const naturalHeight = Number(photoDialogImage.naturalHeight || 0);
+  if (!naturalWidth || !naturalHeight) {
+    resetPhotoDialogLayout();
+    return;
+  }
+  const scale = photoDialogImage.classList.contains("is-zoomed") ? 1.7 : 1;
+  const actions = photoDialog.querySelector(".dialog-actions");
+  const actionsHeight = actions ? Math.ceil(actions.getBoundingClientRect().height) : 0;
+  const targetWidth = Math.min(Math.floor(window.innerWidth * 0.94), Math.max(280, Math.round(naturalWidth * scale) + 24));
+  const targetHeight = Math.min(Math.floor(window.innerHeight * 0.9), Math.max(220, Math.round(naturalHeight * scale) + actionsHeight + 24));
+  photoDialog.style.width = `${targetWidth}px`;
+  photoDialog.style.height = `${targetHeight}px`;
+};
+
 const resetPhotoDialogZoom = () => {
   if (photoDialogImage) photoDialogImage.classList.remove("is-zoomed");
 };
 
 const closePhotoPreviewDialog = () => {
   resetPhotoDialogZoom();
+  resetPhotoDialogLayout();
   closeDialog(photoDialog);
 };
 
@@ -7546,6 +7570,8 @@ const createCellInput = (row, column) => {
         photoDialogImage.src = src;
         resetPhotoDialogZoom();
         openDialog(photoDialog);
+        updatePhotoDialogLayout();
+        requestAnimationFrame(updatePhotoDialogLayout);
         }
       });
       img.onerror = () => {
@@ -10425,6 +10451,15 @@ photoDialog.addEventListener("cancel", (event) => {
 
 photoDialogImage.addEventListener("click", () => {
   photoDialogImage.classList.toggle("is-zoomed");
+  updatePhotoDialogLayout();
+});
+
+photoDialogImage.addEventListener("load", () => {
+  updatePhotoDialogLayout();
+});
+
+window.addEventListener("resize", () => {
+  if (photoDialog.hasAttribute("open")) updatePhotoDialogLayout();
 });
 
 if (storyCancelButton) {
