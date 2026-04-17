@@ -4695,12 +4695,14 @@ html[data-public-share="true"] #go-bottom {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: #d10000;
+  color: #ffffff;
   border: 1px solid #d10000;
   box-shadow: none;
 }
 
 #clear-photo-dialog:hover {
   background: #a30000;
+  color: #ffffff;
   border-color: #a30000;
   box-shadow: none;
 }

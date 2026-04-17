@@ -10397,6 +10397,17 @@ closePhotoDialogButton.addEventListener("click", () => {
   closeDialog(photoDialog);
 });
 
+photoDialog.addEventListener("click", (event) => {
+  const rect = photoDialog.getBoundingClientRect();
+  const clickedInsidePanel = event.clientX >= rect.left
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.bottom;
+  if (!clickedInsidePanel) {
+    closeDialog(photoDialog);
+  }
+});
+
 if (storyCancelButton) {
   storyCancelButton.addEventListener("click", () => {
     closeStoryDialog();
