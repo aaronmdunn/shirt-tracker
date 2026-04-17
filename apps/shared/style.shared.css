@@ -3948,6 +3948,21 @@ input[type="date"].stats-date-input {
   font-size: 0.72rem;
 }
 
+#no-buy-game-dialog .no-buy-log-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+#no-buy-game-dialog .no-buy-log-row .stats-label {
+  white-space: normal;
+}
+
+#no-buy-game-dialog .no-buy-log-row .stats-value {
+  min-width: 0;
+  text-align: left;
+}
+
 #no-buy-game-dialog .no-buy-history-open {
   padding: 5px 9px;
   font-size: 0.72rem;

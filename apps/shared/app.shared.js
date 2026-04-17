@@ -18698,7 +18698,7 @@ const openNoBuyGameDialog = (stats) => {
               ? "Cooldown started"
               : "Temptation logged";
           const toneClass = entry.type === "purchase" ? "tone-bad" : entry.type === "cooldown" ? "" : "tone-good";
-          return `<div class="stats-row stats-sub"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
+          return `<div class="stats-row stats-sub no-buy-log-row"><span class="stats-label ${toneClass}">${idx + 1}. ${esc(typeLabel)}</span><span class="stats-value ${toneClass}">${esc(whenLabel)} · ${esc(noBuyReasonLabel(entry.reason || "other"))}</span><button type="button" class="btn secondary no-buy-log-delete" data-nobuy-delete="1" data-nobuy-source="${esc(entry.source || "")}" data-nobuy-index="${Number.isInteger(entry.sourceIndex) ? entry.sourceIndex : ""}" data-nobuy-type="${esc(entry.type || "")}" data-nobuy-at="${esc(entry.at || "")}" data-nobuy-reason="${esc(entry.reason || "")}" data-nobuy-date="${esc(entry.dateKey || "")}">Delete</button></div>`;
         }).join("")}</div>`
       : `<div class="stats-hint">No button activity yet.</div>`}
     <div class="insights-controls no-buy-history-action-row" style="justify-content:flex-start; margin-top:10px">
