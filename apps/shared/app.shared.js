@@ -15175,11 +15175,11 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
   let candidateBrand = "";
   let candidateType = "";
   const inventoryEntries = loadInventoryEntriesForPreBuy();
-  const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries, gamify.activeRecovery);
 
   const render = () => {
     const stats = sourceStats || collectAllStats();
     const gamify = syncNoBuyGamifyStateFromStats(stats);
+    const recoveryGuide = buildRecoveryMissionGuide(inventoryEntries, gamify.activeRecovery);
     const topTrigger = getNoBuyTriggerSummary(gamify, 14)[0] || null;
     const nextMilestone = getNoBuyNextMilestone(gamify.currentStreak);
     const daysToMilestone = nextMilestone ? Math.max(0, nextMilestone - gamify.currentStreak) : 0;
