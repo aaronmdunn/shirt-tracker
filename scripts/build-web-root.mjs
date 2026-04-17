@@ -24,9 +24,7 @@ const injectLastCommitDate = (filePath, lastCommitDate) => {
   if (!lastCommitDate) return;
   if (!fs.existsSync(filePath)) return;
   const source = fs.readFileSync(filePath, "utf8");
-  const updated = source
-    .replace(/const LAST_COMMIT_DATE = "[^"]*";/, `const LAST_COMMIT_DATE = "${lastCommitDate}";`)
-    .replace(/<input type="text" id="app-update-date" value="[^"]*" readonly>/, (match) => match);
+  const updated = source.replace(/const LAST_COMMIT_DATE = "[^"]*";/, `const LAST_COMMIT_DATE = "${lastCommitDate}";`);
   fs.writeFileSync(filePath, updated, "utf8");
 };
 

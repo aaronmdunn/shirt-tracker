@@ -1931,15 +1931,8 @@ const updatePublicShareSummary = () => {
     shareColumnsButton.appendChild(subSpan);
     if (PLATFORM === "mobile") {
       scheduleCopyShareSizing();
-    } else {
-if (PLATFORM === "desktop") {
-  applyDesktopHeaderInlineLayout();
-}
-if (PLATFORM === "mobile") {
-  applyMobileHeaderInlineLayout();
-  window.addEventListener("resize", () => { applyMobileHeaderInlineLayout(); });
-  window.addEventListener("orientationchange", () => { applyMobileHeaderInlineLayout(); });
-}
+    } else if (PLATFORM === "desktop") {
+      applyDesktopHeaderInlineLayout();
     }
   };
   if (!currentUser || isViewerSession) {
@@ -3531,8 +3524,6 @@ const applyMobileHeaderInlineLayout = () => {
     const syncNowButton = document.getElementById("sync-now");
     const authActionButton = document.getElementById("auth-action");
     const statsBtn = document.getElementById("stats-button");
-    const blankSlot = document.createElement("div");
-    blankSlot.setAttribute("aria-hidden", "true");
 
     const rows = [
       [addColumnButton, editColumnsButton],
@@ -6810,21 +6801,26 @@ const TYPE_ICON_DEFAULTS = {
   "borlandflex": "assets/icons/flannel.png",
 };
 
+let typeIconMapCache = null;
+
 const loadTypeIconMap = () => {
+  if (typeIconMapCache) return typeIconMapCache;
   if (!canUseLocalStorage()) return {};
   try {
     const stored = localStorage.getItem(TYPE_ICON_STORAGE_KEY);
     const parsed = stored ? JSON.parse(stored) : {};
-    return parsed && typeof parsed === "object" ? parsed : {};
+    typeIconMapCache = parsed && typeof parsed === "object" ? parsed : {};
   } catch (error) {
-    return {};
+    typeIconMapCache = {};
   }
+  return typeIconMapCache;
 };
 
 const saveTypeIconMap = (map) => {
+  typeIconMapCache = map && typeof map === "object" ? map : {};
   if (!canUseLocalStorage()) return;
   try {
-    localStorage.setItem(TYPE_ICON_STORAGE_KEY, JSON.stringify(map));
+    localStorage.setItem(TYPE_ICON_STORAGE_KEY, JSON.stringify(typeIconMapCache));
   } catch (error) {
     // ignore
   }
