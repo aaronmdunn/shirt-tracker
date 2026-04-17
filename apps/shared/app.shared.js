@@ -6480,23 +6480,6 @@ const updateRow = (id, key, value) => {
   renderFooter();
 };
 
-const syncCellValue = (rowId, columnId, rawValue) => {
-  const column = state.columns.find((col) => col.id === columnId);
-  if (!column) return;
-  if (column.type === "number") {
-    const parsed = parseCurrency(rawValue);
-    if (rawValue.trim() === "") {
-      updateRow(rowId, columnId, "");
-      return;
-    }
-    if (parsed !== null) {
-      updateRow(rowId, columnId, parsed.toString());
-      return;
-    }
-  }
-  updateRow(rowId, columnId, rawValue);
-};
-
 const handleCellEvent = (event) => {
   const target = event.target;
   if (!target || !target.dataset) return;
@@ -6504,18 +6487,13 @@ const handleCellEvent = (event) => {
   const columnId = target.dataset.columnId;
   if (!rowId || !columnId) return;
   if (target.tagName === "SELECT" && target.value === "__add_new__") return;
-  if (event.type === "input") {
-    rememberEditStart(rowId, columnId);
-  }
   if (event.type === "change") {
     const startValue = consumeEditStart(rowId, columnId);
     const fallbackRow = state.rows.find((item) => item.id === rowId);
     const prevValue = startValue ?? (fallbackRow && fallbackRow.cells ? fallbackRow.cells[columnId] : "");
     logRowChange(rowId, columnId, prevValue, target.value ?? "");
   }
-  syncCellValue(rowId, columnId, target.value ?? "");
   const column = state.columns.find((col) => col.id === columnId);
-  if (column && isShirtNameColumn(column)) scheduleNameSort();
   if (event.type === "change" && column) {
     const labelLower = getColumnLabel(column).trim().toLowerCase();
     if (labelLower === "type") {
@@ -7507,11 +7485,6 @@ const createCellInput = (row, column) => {
       select.appendChild(addNewOpt);
     }
     select.value = value;
-    select.addEventListener("input", (event) => {
-      if (event.target.value === "__add_new__") return;
-      updateRow(row.id, column.id, event.target.value);
-      if (isNameColumn) scheduleNameSort();
-    });
     select.addEventListener("change", async (event) => {
       if (event.target.value === "__add_new__") {
         const newValue = await showTextPrompt("Add New " + getColumnLabel(column), "New option");
@@ -19599,7 +19572,6 @@ sheetBody.addEventListener("click", (event) => {
   if (!typeVal) return;
   openTypeIconDialog(typeVal);
 });
-sheetBody.addEventListener("input", handleCellEvent);
 sheetBody.addEventListener("change", handleCellEvent);
 sheetBody.addEventListener("focusin", (event) => {
   const target = event.target;
