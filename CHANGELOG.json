@@ -9,6 +9,7 @@
       "Polished the No-Buy recent button log with aligned three-column rows and cleaner centered detail spacing for action history readability",
       "Redefined No-Buy recovery eligibility so one unique shirt counts per progress point when it is never worn, at 0-1 lifetime wears, or idle for 30+ days",
       "Fixed No-Buy recovery mission progress to evaluate shirts from their pre-wear state and track already-counted shirt IDs, resolving the issue where recovery could get stuck and the last wear would not count",
+      "Fixed stale No-Buy recovery state so expired recovery missions stop blocking new progress, and eligible recovery wears are judged against the selected worn date instead of the current clock",
       "Removed duplicate table edit-update paths so standard cell edits no longer trigger overlapping state writes, while preserving edit logging, name sorting, type-icon refreshes, and Add new... select behavior",
       "Trimmed a small safe cleanup pass by removing unreachable share-summary layout code, caching type-icon map reads, and deleting an unreferenced build helper script",
       "Shipped routine release maintenance: version references updated to 2.1.5 across web, shared, and Tauri metadata"

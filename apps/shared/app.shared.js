@@ -13863,6 +13863,14 @@ const normalizeRecoveryDeadlineIso = (value) => {
   return parsed.toISOString();
 };
 
+const getNoBuyRecoveryDeadlineMs = (recovery) => new Date(String(recovery?.deadline || "")).getTime();
+
+const isNoBuyRecoveryActive = (recovery, referenceMs = Date.now()) => {
+  if (!recovery || recovery.completedAt) return false;
+  const deadlineMs = getNoBuyRecoveryDeadlineMs(recovery);
+  return !Number.isFinite(deadlineMs) || deadlineMs >= referenceMs;
+};
+
 const normalizeNoBuyGamifyState = (value) => {
   const base = defaultNoBuyGamifyState();
   const raw = (!value || typeof value !== "object" || Array.isArray(value)) ? {} : value;
@@ -14072,7 +14080,7 @@ const mergeNoBuyGamifyState = (localValue, remoteValue) => {
   merged.dailyCheckins = Array.isArray(primary.dailyCheckins) ? primary.dailyCheckins.slice(-120) : [];
   merged.snapshots = Array.isArray(primary.snapshots) ? primary.snapshots.slice(-60) : [];
 
-  if (secondary.activeRecovery && !secondary.activeRecovery.completedAt && (!merged.activeRecovery || merged.activeRecovery.completedAt)) {
+  if (isNoBuyRecoveryActive(secondary.activeRecovery) && !isNoBuyRecoveryActive(merged.activeRecovery)) {
     merged.activeRecovery = { ...secondary.activeRecovery };
   }
   return normalizeNoBuyGamifyState(merged);
@@ -14175,7 +14183,7 @@ const chooseNoBuyDailyMissionType = (state, stats) => {
   const pressureCount = Number(pressure.impulse.count || 0) + Number(pressure.planned.count || 0);
   const cooldownActive = isNoBuyCooldownActive(safe);
   const recovery = safe.activeRecovery;
-  const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryActive = isNoBuyRecoveryActive(recovery);
   const recoveryRemaining = recoveryActive
     ? Math.max(0, Number(recovery.target || 0) - Number(recovery.progress || 0))
     : 0;
@@ -14192,7 +14200,10 @@ const chooseNoBuyDailyMissionType = (state, stats) => {
 const ensureTodayNoBuyDailyMission = (state, stats) => {
   const safe = normalizeNoBuyGamifyState(state || {});
   const todayKey = localDateKeyFromDate(new Date());
-  if (safe.dailyMission?.dateKey === todayKey && safe.dailyMission?.type) {
+  const needsMissionRefresh = safe.dailyMission?.dateKey === todayKey
+    && safe.dailyMission?.type === "review-recovery"
+    && !isNoBuyRecoveryActive(safe.activeRecovery);
+  if (safe.dailyMission?.dateKey === todayKey && safe.dailyMission?.type && !needsMissionRefresh) {
     return { state: safe, changed: false };
   }
   safe.dailyMission = {
@@ -14243,10 +14254,12 @@ const buildNoBuyDailyMission = (state, stats) => {
   const currentStreak = Math.max(0, Number(stats?.noBuyCurrentDays || safe.currentStreak || 0));
   const topTrigger = getNoBuyTriggerSummary(safe, 14)[0] || null;
   const recovery = safe.activeRecovery;
-  const recoveryRemaining = recovery && !recovery.completedAt
+  const recoveryActive = isNoBuyRecoveryActive(recovery);
+  const recoveryRemaining = recoveryActive
     ? Math.max(0, Number(recovery.target || 0) - Number(recovery.progress || 0))
     : 0;
   if (mission.type === "review-recovery") {
+    if (!recoveryActive) return null;
     return {
       type: mission.type,
       title: "Protect the bounce-back plan",
@@ -14472,7 +14485,7 @@ const getNoBuyPressureSummary = (state, lookbackDays = 30) => {
 
 const createNoBuyRecoveryMission = (state, nowIso) => {
   const safe = normalizeNoBuyGamifyState(state);
-  if (safe.activeRecovery && !safe.activeRecovery.completedAt) return safe;
+  if (isNoBuyRecoveryActive(safe.activeRecovery)) return safe;
   const start = Number.isFinite(new Date(nowIso).getTime()) ? new Date(nowIso) : new Date();
   const deadline = new Date(start);
   deadline.setDate(deadline.getDate() + 7);
@@ -14493,11 +14506,10 @@ const cloneNoBuyGamifyState = (value) => JSON.parse(JSON.stringify(normalizeNoBu
 
 const isRecoveryWearEligible = (recovery, row, wornDateIso) => {
   if (!recovery || recovery.completedAt || !row) return false;
-  const deadlineMs = new Date(String(recovery.deadline || "")).getTime();
+  const deadlineMs = getNoBuyRecoveryDeadlineMs(recovery);
   const wornMs = new Date(String(wornDateIso || "")).getTime();
   const rowId = String(row.id || "");
   if (!Number.isFinite(deadlineMs) || !Number.isFinite(wornMs) || !rowId) return false;
-  if (deadlineMs < Date.now()) return false;
   if (Array.isArray(recovery.countedRowIds) && recovery.countedRowIds.includes(rowId)) return false;
   return wornMs <= deadlineMs && Boolean(getRecoveryWearReason(row, wornDateIso));
 };
@@ -15487,11 +15499,6 @@ const deleteNoBuyLogEntry = (state, descriptor = {}) => {
 const progressNoBuyRecoveryOnWear = (row, wornDateIso, recoveryCandidate = null) => {
   const safe = loadNoBuyGamifyState();
   if (!safe.activeRecovery || safe.activeRecovery.completedAt) return;
-  const deadlineMs = new Date(safe.activeRecovery.deadline).getTime();
-  if (Number.isFinite(deadlineMs) && deadlineMs < Date.now()) {
-    saveNoBuyGamifyStateAndSync(safe);
-    return;
-  }
   const candidate = recoveryCandidate || row;
   if (!isRecoveryWearEligible(safe.activeRecovery, candidate, wornDateIso)) {
     return;
@@ -18521,7 +18528,7 @@ const openNoBuyGameDialog = (stats) => {
   const topTrigger = topTriggerSummary[0] || null;
   const recentActions = buildNoBuyActionEntries(gamify, 10);
   const fullActionHistory = buildNoBuyActionEntries(gamify, Number.POSITIVE_INFINITY);
-  const recoveryActive = recovery && !recovery.completedAt;
+  const recoveryActive = isNoBuyRecoveryActive(recovery);
   const recoveryDaysLeft = recoveryActive
     ? Math.max(0, Math.ceil((new Date(recovery.deadline).getTime() - Date.now()) / 86400000))
     : null;
