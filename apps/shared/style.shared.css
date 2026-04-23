@@ -462,6 +462,24 @@ table.mobile-action-grid .btn {
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
 }
 
+#add-column,
+#toggle-columns,
+#go-top,
+#go-bottom,
+#add-row,
+#add-row-bottom {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: max-content;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  align-self: center;
+  white-space: nowrap;
+}
+
 .signedout-greeting {
   width: 100%;
   text-align: center;
@@ -2577,7 +2595,7 @@ body[data-viewer="true"] .viewer-banner {
 /* PLATFORM:mobile */
 .footer-actions {
   display: grid;
-  grid-template-columns: repeat(2, 140px);
+  grid-template-columns: repeat(2, max-content);
   gap: 10px;
   width: 100%;
   justify-content: center;
@@ -2587,7 +2605,6 @@ body[data-viewer="true"] .viewer-banner {
 
 #go-top,
 #go-bottom {
-  width: 140px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2597,7 +2614,7 @@ body[data-viewer="true"] .viewer-banner {
 #add-row,
 #add-row-bottom,
 #delete-selected-bottom {
-  width: 140px;
+  width: auto;
 }
 
 #delete-selected-bottom {
