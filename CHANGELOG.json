@@ -1,5 +1,15 @@
 [
   {
+    "version": "2.1.6",
+    "date": "2026-04-23",
+    "changes": [
+      "Aligned the No-Buy temptation and buying-reason dropdowns around one shared reason list so both controls expose the same core options instead of drifting apart",
+      "Cleaned up the shared No-Buy reason labels and ordering by renaming Promo/Sale to Promo, removing Marketed from the UI, and regrouping the reasons into a more logical flow",
+      "Toned down utility actions across the main toolbar and table controls by switching Add Column, Edit Columns, Go to Top / Bottom, and Add Row to a lighter compact secondary treatment",
+      "Shipped routine release maintenance: version references updated to 2.1.6 across web, shared, and Tauri metadata"
+    ]
+  },
+  {
     "version": "2.1.5",
     "date": "2026-04-17",
     "changes": [

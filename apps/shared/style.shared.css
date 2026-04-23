@@ -462,24 +462,6 @@ table.mobile-action-grid .btn {
   box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
 }
 
-#add-column,
-#toggle-columns,
-#go-top,
-#go-bottom,
-#add-row,
-#add-row-bottom {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  min-width: max-content;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  justify-self: center;
-  align-self: center;
-  white-space: nowrap;
-}
-
 .signedout-greeting {
   width: 100%;
   text-align: center;
@@ -2604,17 +2586,24 @@ body[data-viewer="true"] .viewer-banner {
 /* /PLATFORM:mobile */
 
 #go-top,
-#go-bottom {
+#go-bottom,
+#add-row,
+#add-row-bottom {
   display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: max-content;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  justify-self: center;
+  align-self: center;
   text-align: center;
+  white-space: nowrap;
 }
 
-#add-row,
-#add-row-bottom,
 #delete-selected-bottom {
-  width: auto;
+  width: 140px;
 }
 
 #delete-selected-bottom {
@@ -2731,7 +2720,7 @@ body[data-readonly="true"] .footer-actions .btn {
 
 body[data-readonly="true"] #go-top,
 body[data-readonly="true"] #go-bottom {
-  width: 140px;
+  width: fit-content;
 }
 
 body[data-auth="signed-out"][data-readonly="true"] #go-bottom {
