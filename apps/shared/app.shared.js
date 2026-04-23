@@ -2388,6 +2388,22 @@ const PRE_BUY_REASON_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const NO_BUY_REASON_OPTIONS = [
+  { value: "sale", label: "Sale" },
+  { value: "promo", label: "Promo" },
+  { value: "gooddeal", label: "Good deal" },
+  { value: "gotpaid", label: "Got paid/Extra money" },
+  { value: "rarefind", label: "Rare find" },
+  { value: "drop", label: "New drop" },
+  { value: "fomo", label: "FOMO" },
+  { value: "boredom", label: "Boredom" },
+  { value: "other", label: "Other" },
+];
+
+const renderNoBuyReasonSelectOptions = () => NO_BUY_REASON_OPTIONS.map((option) =>
+  `<option value="${option.value}">${option.label}</option>`
+).join("");
+
 const saveNoBuyGamifyStateAndSync = (nextState) => {
   saveNoBuyGamifyState(nextState);
   if (currentUser && !isViewerSession && !state.readOnly) scheduleSync();
@@ -14137,7 +14153,7 @@ const noBuyReasonLabel = (value) => {
     drop: "New drop",
     gotpaid: "Got paid/Extra money",
     marketed: "Marketed",
-    promo: "Promo/Sale",
+    promo: "Promo",
     other: "Other",
   };
   if (map[key]) return map[key];
@@ -15142,7 +15158,7 @@ const buildNoBuyHelpHtml = () => {
       { label: "Buy logging rule", value: "Only the buy buttons inside the no-buy flow create a buy event inside the game." },
       { label: "Temptation logging rule", value: "Temptation pressure only updates when you use Tempted today or the Pre-Buy Check flow." },
       { label: "Impulse pressure", value: "Pressure driven more by emotion or immediacy, like boredom, FOMO, or a new drop." },
-      { label: "Planned pressure", value: "Pressure driven by more deliberate shopping logic, like sale, good deal, rare find, marketed, or promo." },
+      { label: "Planned pressure", value: "Pressure driven by more deliberate shopping logic, like sale, good deal, rare find, got paid, or promo." },
       { label: "Wear logging and recovery", value: "Both Worn today and row-level Log Wear feed the same recovery logic now, so either wear path can advance an active recovery mission." },
       { label: "Recovery eligibility", value: "A recovery wear counts once per unique shirt when that shirt is either never worn, at 0-1 lifetime wears, or has not been worn in 30+ days. Rewearing the same qualifying shirt does not add progress twice." },
     ]
@@ -18695,26 +18711,14 @@ const openNoBuyGameDialog = (stats) => {
         <label class="insights-sim-label" for="nobuy-trigger">Temptation trigger</label>
         <select id="nobuy-trigger" class="insights-queue-sim-date">
           <option value="" selected disabled>Select reason</option>
-          <option value="sale">Sale</option>
-          <option value="gooddeal">Good deal</option>
-          <option value="rarefind">Rare find</option>
-          <option value="fomo">FOMO</option>
-          <option value="boredom">Boredom</option>
-          <option value="drop">New drop</option>
-          <option value="other">Other</option>
+          ${renderNoBuyReasonSelectOptions()}
         </select>
       </div>
       <div class="no-buy-select-group">
         <label class="insights-sim-label" for="nobuy-buy-reason">Buying reason</label>
         <select id="nobuy-buy-reason" class="insights-queue-sim-date">
           <option value="" selected disabled>Select reason</option>
-          <option value="gooddeal">Good deal</option>
-          <option value="rarefind">Rare find</option>
-          <option value="boredom">Boredom</option>
-          <option value="gotpaid">Got paid/Extra money</option>
-          <option value="marketed">Marketed</option>
-          <option value="promo">Promo/Sale</option>
-          <option value="other">Other</option>
+          ${renderNoBuyReasonSelectOptions()}
         </select>
       </div>
     </div>
