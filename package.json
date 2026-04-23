@@ -1,7 +1,7 @@
 {
   "name": "shirt-tracker",
   "private": true,
-  "version": "2.1.5",
+  "version": "2.1.6",
   "type": "module",
   "scripts": {
     "build:web-root": "node scripts/build-web-root.mjs",
