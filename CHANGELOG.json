@@ -6,6 +6,7 @@
       "Aligned the No-Buy temptation and buying-reason dropdowns around one shared reason list so both controls expose the same core options instead of drifting apart",
       "Cleaned up the shared No-Buy reason labels and ordering by renaming Promo/Sale to Promo, removing Marketed from the UI, and regrouping the reasons into a more logical flow",
       "Toned down utility actions across the main toolbar and table controls by switching Add Column, Edit Columns, Go to Top / Bottom, and Add Row to a lighter compact secondary treatment",
+      "Matched the mobile-only bottom table action rows to the top-of-table button formatting so Go to Top, Add Row, and the lower utility pills use the same compact centered treatment on mobile",
       "Shipped routine release maintenance: version references updated to 2.1.6 across web, shared, and Tauri metadata"
     ]
   },
