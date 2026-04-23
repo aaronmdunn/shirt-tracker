@@ -468,13 +468,9 @@ table.mobile-action-grid .btn {
 #go-bottom,
 #add-row,
 #add-row-bottom {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
+  width: auto;
   min-width: 0;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
   white-space: nowrap;
 }
 
@@ -2593,7 +2589,7 @@ body[data-viewer="true"] .viewer-banner {
 /* PLATFORM:mobile */
 .footer-actions {
   display: grid;
-  grid-template-columns: repeat(2, max-content);
+  grid-template-columns: repeat(2, 140px);
   gap: 10px;
   width: 100%;
   justify-content: center;
