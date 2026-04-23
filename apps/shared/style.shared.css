@@ -2594,6 +2594,7 @@ body[data-viewer="true"] .viewer-banner {
   text-align: center;
 }
 
+#add-row,
 #add-row-bottom,
 #delete-selected-bottom {
   width: 140px;
