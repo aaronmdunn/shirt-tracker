@@ -471,10 +471,12 @@ table.mobile-action-grid .btn {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
-  min-width: 0;
+  min-width: max-content;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  justify-self: center;
+  align-self: center;
   white-space: nowrap;
 }
 
