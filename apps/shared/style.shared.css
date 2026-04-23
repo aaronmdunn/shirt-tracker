@@ -2612,6 +2612,23 @@ body[data-viewer="true"] .viewer-banner {
 }
 
 /* PLATFORM:mobile */
+#delete-selected-bottom,
+#bulk-tags,
+#select-all-rows {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: max-content;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  align-self: center;
+  white-space: nowrap;
+}
+/* /PLATFORM:mobile */
+
+/* PLATFORM:mobile */
 .footer-actions .stat-cell {
   margin-left: auto;
 }
