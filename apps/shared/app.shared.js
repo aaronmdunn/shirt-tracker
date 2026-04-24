@@ -18640,23 +18640,15 @@ const openNoBuyGameDialog = (stats) => {
     if (!entries.length) return "";
     const topEntries = entries.slice(0, 6);
     const maxWindowCount = Math.max(1, ...topEntries.map((entry) => Math.max(entry.recent || 0, entry.prior || 0)));
-    return `<div style="display:grid; gap:10px; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb, var(--panel) 90%, #eef4fb)">
-      <div class="stats-row stats-sub"><span class="stats-label">Trend graph</span><span class="stats-value">Recent ${noBuyTrendCompareDays}d vs prior ${noBuyTrendCompareDays}d</span></div>
-      <div class="stats-hint" style="margin:0">Each row is one trigger or buy reason inside the same chart, with the recent window layered above the prior one.</div>
-      <div style="display:grid; gap:10px">${topEntries.map((entry, idx) => {
+    return `<div class="insights-action-list" style="margin-top:8px">${topEntries.map((entry, idx) => {
       const recentPct = Math.round((Math.max(0, Number(entry.recent || 0)) / maxWindowCount) * 100);
       const priorPct = Math.round((Math.max(0, Number(entry.prior || 0)) / maxWindowCount) * 100);
-      return `<div style="display:grid; gap:5px">
+      return `<div style="display:grid; gap:6px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:color-mix(in srgb, var(--panel) 88%, #eef4fb)">
         <div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} total · ${esc(entry.direction)}</span></div>
-        <div style="position:relative; height:22px; border-radius:11px; overflow:hidden; background:linear-gradient(180deg, rgba(180, 192, 206, 0.18), rgba(226, 233, 241, 0.46))">
-            <div style="position:absolute; left:0; bottom:4px; height:6px; width:${priorPct}%; border-radius:999px; background:linear-gradient(90deg, #d7deea 0%, #aab7ca 100%)"></div>
-            <div style="position:absolute; left:0; top:4px; height:8px; width:${recentPct}%; border-radius:999px; background:linear-gradient(90deg, #4fc3c8 0%, #56a8ff 100%)"></div>
-        </div>
-        <div class="stats-row stats-sub"><span class="stats-label">Recent ${noBuyTrendCompareDays}d ${entry.recent}</span><span class="stats-value">Prior ${noBuyTrendCompareDays}d ${entry.prior}</span></div>
+        <div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${recentPct}%; background:linear-gradient(90deg, #4fc3c8 0%, #56a8ff 100%)"></div></div><span class="stats-progress-label">Recent ${noBuyTrendCompareDays}d ${entry.recent}</span></div>
+        <div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${priorPct}%; background:linear-gradient(90deg, #d7deea 0%, #aab7ca 100%)"></div></div><span class="stats-progress-label">Prior ${noBuyTrendCompareDays}d ${entry.prior}</span></div>
       </div>`;
-    }).join("")}</div>
-      <div class="stats-row stats-sub"><span class="stats-label">Legend</span><span class="stats-value"><span style="color:#56a8ff">Recent</span> over <span style="color:#8c98aa">Prior</span></span></div>
-    </div>`;
+    }).join("")}</div>`;
   };
 
   content.innerHTML = `
@@ -18771,7 +18763,7 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
-      ? `${renderNoBuyTrendGraph(trends)}<div class="insights-action-list" style="margin-top:8px">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} · ${esc(entry.direction)}</span></div>`).join("")}</div>`
+      ? `<div class="stats-hint">Bar length compares the last ${noBuyTrendCompareDays} days against the ${noBuyTrendCompareDays} days before that for your top recent triggers and buy reasons.</div>${renderNoBuyTrendGraph(trends)}<div class="insights-action-list" style="margin-top:8px">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} · ${esc(entry.direction)}</span></div>`).join("")}</div>`
       : `<div class="stats-hint">No trend data yet. Use Tempted today and Log buy now to capture both temptation and purchase reasons.</div>`}
 
     <div class="stats-section-title" style="margin-top:8px">Pressure mix (30d)</div>
