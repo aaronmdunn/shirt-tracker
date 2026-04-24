@@ -2396,6 +2396,7 @@ const NO_BUY_REASON_OPTIONS = [
   { value: "rarefind", label: "Rare find" },
   { value: "drop", label: "New drop" },
   { value: "fomo", label: "FOMO" },
+  { value: "lowmood", label: "Low mood" },
   { value: "boredom", label: "Boredom" },
   { value: "other", label: "Other" },
 ];
@@ -14149,6 +14150,7 @@ const noBuyReasonLabel = (value) => {
     gooddeal: "Good deal",
     rarefind: "Rare find",
     fomo: "FOMO",
+    lowmood: "Low mood",
     boredom: "Boredom",
     drop: "New drop",
     gotpaid: "Got paid/Extra money",
@@ -18907,6 +18909,7 @@ const openStatsDialog = () => {
       ? Math.round((stats.top5Expensive.reduce((sum, item) => sum + Math.max(0, Number(item.price || 0)), 0) / stats.totalCost) * 100)
       : 0;
     let block = row("Total value", formatCurrency(stats.totalCost));
+    block += row("Total sold", formatCurrency(s.soldStats?.totalRevenue || 0));
     block += row("Mean price", formatCurrency(stats.meanPrice));
     block += row("Median price", formatCurrency(stats.medianPrice));
     if (stats.priceStdDev > 0) {
@@ -18971,6 +18974,7 @@ const openStatsDialog = () => {
     // Mobile: compact pricing — totals only, no top 5 lists or std dev
     if (s.isInventory && s.top5Expensive.length) {
       let block = row("Total value", formatCurrency(s.totalCost));
+      block += row("Total sold", formatCurrency(s.soldStats?.totalRevenue || 0));
       block += row("Mean price", formatCurrency(s.meanPrice));
       block += row("Median price", formatCurrency(s.medianPrice));
       html += section(block);
