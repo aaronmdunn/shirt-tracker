@@ -18635,6 +18635,21 @@ const openNoBuyGameDialog = (stats) => {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
+  const noBuyTrendCompareDays = 7;
+  const renderNoBuyTrendGraph = (entries) => {
+    if (!entries.length) return "";
+    const topEntries = entries.slice(0, 6);
+    const maxWindowCount = Math.max(1, ...topEntries.map((entry) => Math.max(entry.recent || 0, entry.prior || 0)));
+    return `<div class="insights-action-list" style="margin-top:8px">${topEntries.map((entry, idx) => {
+      const recentPct = Math.round((Math.max(0, Number(entry.recent || 0)) / maxWindowCount) * 100);
+      const priorPct = Math.round((Math.max(0, Number(entry.prior || 0)) / maxWindowCount) * 100);
+      return `<div style="display:grid; gap:6px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:color-mix(in srgb, var(--panel) 88%, #eef4fb)">
+        <div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} total · ${esc(entry.direction)}</span></div>
+        <div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${recentPct}%; background:linear-gradient(90deg, #4fc3c8 0%, #56a8ff 100%)"></div></div><span class="stats-progress-label">Recent ${noBuyTrendCompareDays}d ${entry.recent}</span></div>
+        <div class="stats-progress"><div class="stats-progress-track"><div class="stats-progress-fill" style="width:${priorPct}%; background:linear-gradient(90deg, #d7deea 0%, #aab7ca 100%)"></div></div><span class="stats-progress-label">Prior ${noBuyTrendCompareDays}d ${entry.prior}</span></div>
+      </div>`;
+    }).join("")}</div>`;
+  };
 
   content.innerHTML = `
     <div class="stats-hint">Daily anti-buy loop: use Pre-Buy Check before marketplace browsing, build streak XP, use cooldown before impulse buys, and complete recovery missions if you buy.</div>
@@ -18748,7 +18763,7 @@ const openNoBuyGameDialog = (stats) => {
 
     <div class="stats-section-title" style="margin-top:8px">Trends (30d)</div>
     ${trends.length
-      ? `<div class="insights-action-list">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} · ${esc(entry.direction)}</span></div>`).join("")}</div>`
+      ? `<div class="stats-hint">Bar length compares the last ${noBuyTrendCompareDays} days against the ${noBuyTrendCompareDays} days before that for your top recent triggers and buy reasons.</div>${renderNoBuyTrendGraph(trends)}<div class="insights-action-list" style="margin-top:8px">${trends.slice(0, 6).map((entry, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(entry.label)}</span><span class="stats-value">${entry.count} · ${esc(entry.direction)}</span></div>`).join("")}</div>`
       : `<div class="stats-hint">No trend data yet. Use Tempted today and Log buy now to capture both temptation and purchase reasons.</div>`}
 
     <div class="stats-section-title" style="margin-top:8px">Pressure mix (30d)</div>
