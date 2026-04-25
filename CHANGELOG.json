@@ -7,6 +7,9 @@
       "Cleaned up the shared No-Buy reason labels and ordering by renaming Promo/Sale to Promo, removing Marketed from the UI, and regrouping the reasons into a more logical flow",
       "Toned down utility actions across the main toolbar and table controls by switching Add Column, Edit Columns, Go to Top / Bottom, and Add Row to a lighter compact secondary treatment",
       "Matched the mobile-only bottom table action rows to the top-of-table button formatting so Go to Top, Add Row, and the lower utility pills use the same compact centered treatment on mobile",
+      "Fixed the Insights \"View all for-sale items\" action so it opens the full exact-tagged list without throwing a scope error",
+      "Expanded the Sold flow with a Trade checkbox plus a conditional \"Traded for\" field, allowing non-cash swaps to be recorded without fake sale prices while preserving optional cash add-ons",
+      "Updated sold-history surfaces so trades display correctly in the recycle bin, event log, and sold archive insights instead of being forced into cash-only wording",
       "Shipped routine release maintenance: version references updated to 2.1.6 across web, shared, and Tauri metadata"
     ]
   },
