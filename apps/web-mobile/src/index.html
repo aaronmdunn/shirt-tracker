@@ -831,8 +831,16 @@
         <h3>Sold Item</h3>
         <div class="sold-dialog-name" id="sold-dialog-name"></div>
         <div class="dialog-row">
-          <label for="sold-price-input">Selling price</label>
+          <label for="sold-price-input" id="sold-price-label">Selling price</label>
           <input id="sold-price-input" type="text" inputmode="decimal" placeholder="$45.00">
+        </div>
+        <label class="sold-trade-toggle" for="sold-trade-checkbox">
+          <input id="sold-trade-checkbox" type="checkbox">
+          Trade
+        </label>
+        <div class="dialog-row" id="sold-traded-for-row" hidden>
+          <label for="sold-traded-for-input">Traded for</label>
+          <input id="sold-traded-for-input" type="text" placeholder="What did you get in return?">
         </div>
         <div class="dialog-row">
           <label for="sold-buyer-input">Sold to</label>
