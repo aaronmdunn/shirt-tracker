@@ -691,7 +691,11 @@ const storyCancelButton = document.getElementById("story-cancel");
 const storySaveButton = document.getElementById("story-save");
 const soldDialog = document.getElementById("sold-dialog");
 const soldDialogName = document.getElementById("sold-dialog-name");
+const soldPriceLabel = document.getElementById("sold-price-label");
 const soldPriceInput = document.getElementById("sold-price-input");
+const soldTradeCheckbox = document.getElementById("sold-trade-checkbox");
+const soldTradedForRow = document.getElementById("sold-traded-for-row");
+const soldTradedForInput = document.getElementById("sold-traded-for-input");
 const soldBuyerInput = document.getElementById("sold-buyer-input");
 const soldMarketplaceInput = document.getElementById("sold-marketplace-input");
 const soldCancelButton = document.getElementById("sold-cancel");
@@ -1235,6 +1239,8 @@ const addToDeletedRows = (rows, fromTabId, fromTabName, mode, options = {}) => {
         id: options.sale.id || createId(),
         soldAt: options.sale.soldAt || now,
         price: Number(options.sale.price || 0),
+        isTrade: Boolean(options.sale.isTrade),
+        tradedFor: String(options.sale.tradedFor || "").trim(),
         buyer: String(options.sale.buyer || "").trim(),
         marketplace: String(options.sale.marketplace || "").trim(),
       };
@@ -1251,9 +1257,24 @@ const getDeletedEntrySale = (entry) => {
     id: String(entry.sale.id || ""),
     soldAt: String(entry.sale.soldAt || entry.deletedAt || ""),
     price: Number.isFinite(price) && price >= 0 ? price : 0,
+    isTrade: Boolean(entry.sale.isTrade),
+    tradedFor: String(entry.sale.tradedFor || "").trim(),
     buyer: String(entry.sale.buyer || "").trim(),
     marketplace: String(entry.sale.marketplace || "").trim(),
   };
+};
+
+const formatSoldOutcome = (sale) => {
+  if (!sale || typeof sale !== "object") return "";
+  const price = Number(sale.price);
+  const safePrice = Number.isFinite(price) && price >= 0 ? price : 0;
+  const tradedFor = String(sale.tradedFor || "").trim();
+  if (sale.isTrade) {
+    return tradedFor
+      ? `Trade for: ${tradedFor}${safePrice > 0 ? ` + ${formatCurrency(safePrice)}` : ""}`
+      : `Trade${safePrice > 0 ? ` + ${formatCurrency(safePrice)}` : ""}`;
+  }
+  return `Sold for: ${formatCurrency(safePrice)}`;
 };
 
 const buildSoldItemRecord = (row, columns, sale, fromTabName) => {
@@ -1264,6 +1285,8 @@ const buildSoldItemRecord = (row, columns, sale, fromTabName) => {
     id: String(sale.id || createId()),
     soldAt: String(sale.soldAt || new Date().toISOString()),
     price: Number(sale.price || 0),
+    isTrade: Boolean(sale.isTrade),
+    tradedFor: String(sale.tradedFor || "").trim(),
     buyer: String(sale.buyer || "").trim(),
     marketplace: String(sale.marketplace || "").trim(),
     name: String(values.name || getRowName(row) || "Unnamed").trim() || "Unnamed",
@@ -2843,9 +2866,20 @@ const closeSoldDialog = () => {
   activeSoldRowId = null;
   if (soldDialogName) soldDialogName.textContent = "";
   if (soldPriceInput) soldPriceInput.value = "";
+  if (soldTradeCheckbox) soldTradeCheckbox.checked = false;
+  if (soldTradedForInput) soldTradedForInput.value = "";
   if (soldBuyerInput) soldBuyerInput.value = "";
   if (soldMarketplaceInput) soldMarketplaceInput.value = "";
+  updateSoldTradeFields();
   closeDialog(soldDialog);
+};
+
+const updateSoldTradeFields = () => {
+  const isTrade = Boolean(soldTradeCheckbox?.checked);
+  if (soldTradedForRow) soldTradedForRow.hidden = !isTrade;
+  if (soldPriceLabel) soldPriceLabel.textContent = isTrade ? "Cash price (optional for trades)" : "Selling price";
+  if (soldPriceInput) soldPriceInput.placeholder = isTrade ? "$45.00 (optional)" : "$45.00";
+  if (!isTrade && soldTradedForInput) soldTradedForInput.value = "";
 };
 
 const openSoldDialog = (rowId) => {
@@ -2855,8 +2889,11 @@ const openSoldDialog = (rowId) => {
   activeSoldRowId = rowId;
   if (soldDialogName) soldDialogName.textContent = getRowName(row);
   soldPriceInput.value = "";
+  if (soldTradeCheckbox) soldTradeCheckbox.checked = false;
+  if (soldTradedForInput) soldTradedForInput.value = "";
   soldBuyerInput.value = "";
   soldMarketplaceInput.value = "";
+  updateSoldTradeFields();
   resetDialogScroll(soldDialog);
   openDialog(soldDialog);
   window.setTimeout(() => {
@@ -2872,7 +2909,19 @@ const saveSoldDialog = () => {
     closeSoldDialog();
     return;
   }
-  const price = parseCurrency(soldPriceInput.value);
+  const isTrade = Boolean(soldTradeCheckbox?.checked);
+  const tradedFor = String(soldTradedForInput?.value || "").trim();
+  let price = parseCurrency(soldPriceInput.value);
+  if (isTrade) {
+    if (!tradedFor) {
+      alert("Enter what the item was traded for.");
+      soldTradedForInput?.focus();
+      return;
+    }
+    if (price === null && !String(soldPriceInput.value || "").trim()) {
+      price = 0;
+    }
+  }
   if (price === null || price < 0) {
     alert("Enter a valid selling price.");
     soldPriceInput.focus();
@@ -2882,6 +2931,8 @@ const saveSoldDialog = () => {
     id: createId(),
     soldAt: new Date().toISOString(),
     price,
+    isTrade,
+    tradedFor,
     buyer: String(soldBuyerInput?.value || "").trim(),
     marketplace: String(soldMarketplaceInput?.value || "").trim(),
   };
@@ -2892,8 +2943,8 @@ const saveSoldDialog = () => {
   state.rows = state.rows.filter((item) => item.id !== activeSoldRowId);
   if (state.rows.length === 0) state.rows.push(defaultRow());
   addEventLog(
-    "Sold row",
-    `${rowName} - ${formatCurrency(price)}${sale.buyer ? ` to ${sale.buyer}` : ""}${sale.marketplace ? ` via ${sale.marketplace}` : ""}`,
+    isTrade ? "Traded row" : "Sold row",
+    `${rowName} - ${formatSoldOutcome(sale)}${sale.buyer ? ` to ${sale.buyer}` : ""}${sale.marketplace ? ` via ${sale.marketplace}` : ""}`,
     snapshotRow(row)
   );
   updateShirtUpdateDate();
@@ -3029,7 +3080,7 @@ const renderRecycleBin = () => {
     }
     if (sale) {
       const saleLine = document.createElement("div");
-      saleLine.textContent = `Sold for: ${formatCurrency(sale.price)}${sale.buyer ? ` - Buyer: ${sale.buyer}` : ""}${sale.marketplace ? ` - Marketplace: ${sale.marketplace}` : ""}`;
+      saleLine.textContent = `${formatSoldOutcome(sale)}${sale.buyer ? ` - Buyer: ${sale.buyer}` : ""}${sale.marketplace ? ` - Marketplace: ${sale.marketplace}` : ""}`;
       details.appendChild(saleLine);
     }
     const actions = document.createElement("div");
@@ -10521,6 +10572,13 @@ if (soldSaveButton) {
   });
 }
 
+if (soldTradeCheckbox) {
+  soldTradeCheckbox.addEventListener("change", () => {
+    updateSoldTradeFields();
+    if (soldTradeCheckbox.checked) soldTradedForInput?.focus();
+  });
+}
+
 if (soldDialog) {
   soldDialog.addEventListener("cancel", (event) => {
     event.preventDefault();
@@ -11098,6 +11156,8 @@ const collectAllStats = () => {
         soldAt: new Date(soldMs).toISOString(),
         soldMs,
         price: Number.isFinite(price) && price >= 0 ? price : 0,
+        isTrade: Boolean(item.isTrade),
+        tradedFor: String(item.tradedFor || "").trim(),
         buyer: String(item.buyer || "").trim(),
         marketplace: String(item.marketplace || "").trim(),
         name: String(item.name || "Unnamed").trim() || "Unnamed",
@@ -17697,7 +17757,7 @@ const openInsightsDialog = (stats, options = {}) => {
       .map((row) => `${row.label} ${row.count}`)
       .join(" · ");
     const soldLead = Array.isArray(soldStats.recentItems) && soldStats.recentItems.length
-      ? `${soldStats.recentItems[0].name} (${formatCurrency(soldStats.recentItems[0].price || 0)})`
+      ? `${soldStats.recentItems[0].name} (${soldStats.recentItems[0].isTrade ? (soldStats.recentItems[0].tradedFor || "Trade") : formatCurrency(soldStats.recentItems[0].price || 0)})`
       : "n/a";
     const soldBuyerLead = Array.isArray(soldStats.topBuyers) && soldStats.topBuyers.length
       ? `${soldStats.topBuyers[0].name} (${soldStats.topBuyers[0].count})`
@@ -18009,7 +18069,7 @@ const openInsightsDialog = (stats, options = {}) => {
     : `<div class="stats-hint">No sold history logged yet.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Last items sold</div>
       ${Array.isArray(soldStats.recentItems) && soldStats.recentItems.length
-    ? `<div class="insights-action-list">${soldStats.recentItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab || item.brand || "Unknown")}) - ${esc(item.type || "Unknown")}</span><span class="stats-value">${new Date(item.soldAt).toLocaleDateString()} · ${formatCurrency(item.price || 0)}${item.buyer ? ` · ${esc(item.buyer)}` : ""}${item.marketplace ? ` · ${esc(item.marketplace)}` : ""}</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${soldStats.recentItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab || item.brand || "Unknown")}) - ${esc(item.type || "Unknown")}</span><span class="stats-value">${new Date(item.soldAt).toLocaleDateString()} · ${item.isTrade ? esc(item.tradedFor ? `Trade for ${item.tradedFor}` : "Trade") : formatCurrency(item.price || 0)}${item.isTrade && item.price > 0 ? ` · ${formatCurrency(item.price)} cash` : ""}${item.buyer ? ` · ${esc(item.buyer)}` : ""}${item.marketplace ? ` · ${esc(item.marketplace)}` : ""}</span></div>`).join("")}</div>`
     : `<div class="stats-hint">No sold items have been logged yet.</div>`}
       <div id="insights-detail-marketplace" class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
@@ -18252,7 +18312,8 @@ const openInsightsDialog = (stats, options = {}) => {
   const forSaleAllButton = content.querySelector("[data-insights-for-sale-all]");
   if (forSaleAllButton) {
     forSaleAllButton.addEventListener("click", () => {
-      openTaggedItemsDialog(forSaleStats.items || [], FOR_SALE_TAG);
+      const items = Array.isArray(behavior?.forSaleStats?.items) ? behavior.forSaleStats.items : [];
+      openTaggedItemsDialog(items, FOR_SALE_TAG);
     });
   }
 

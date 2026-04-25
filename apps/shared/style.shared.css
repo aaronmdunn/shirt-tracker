@@ -1533,6 +1533,13 @@ td[data-label="Preview"] {
   font-size: 0.82rem;
 }
 
+.sold-trade-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
 #story-label {
   display: block;
   width: 100%;
