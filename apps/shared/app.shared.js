@@ -18252,7 +18252,8 @@ const openInsightsDialog = (stats, options = {}) => {
   const forSaleAllButton = content.querySelector("[data-insights-for-sale-all]");
   if (forSaleAllButton) {
     forSaleAllButton.addEventListener("click", () => {
-      openTaggedItemsDialog(forSaleStats.items || [], FOR_SALE_TAG);
+      const items = Array.isArray(behavior?.forSaleStats?.items) ? behavior.forSaleStats.items : [];
+      openTaggedItemsDialog(items, FOR_SALE_TAG);
     });
   }
 
