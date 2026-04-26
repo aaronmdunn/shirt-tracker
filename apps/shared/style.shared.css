@@ -1524,6 +1524,11 @@ td[data-label="Preview"] {
   max-width: 420px;
 }
 
+#sold-items-dialog {
+  max-width: 690px;
+  width: 92vw;
+}
+
 #sold-dialog .dialog-body {
   gap: 12px;
 }
