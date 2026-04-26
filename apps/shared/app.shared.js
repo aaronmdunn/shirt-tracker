@@ -14039,9 +14039,35 @@ const defaultNoBuyGamifyState = () => ({
   },
 });
 
+const NO_BUY_LEVEL_XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200];
+
 const computeNoBuyLevel = (xp) => {
   const safeXp = Math.max(0, Number(xp || 0));
-  return Math.floor(Math.sqrt(safeXp / 100)) + 1;
+  for (let idx = NO_BUY_LEVEL_XP_THRESHOLDS.length - 1; idx >= 0; idx--) {
+    if (safeXp >= NO_BUY_LEVEL_XP_THRESHOLDS[idx]) return idx + 1;
+  }
+  return 1;
+};
+
+const getNoBuyMaxLevel = () => NO_BUY_LEVEL_XP_THRESHOLDS.length;
+
+const getNoBuyLevelFloorXp = (level) => {
+  const safeLevel = Math.max(1, Number(level || 1));
+  return NO_BUY_LEVEL_XP_THRESHOLDS[Math.min(safeLevel - 1, NO_BUY_LEVEL_XP_THRESHOLDS.length - 1)] || 0;
+};
+
+const getNoBuyNextLevelXp = (level) => {
+  const safeLevel = Math.max(1, Number(level || 1));
+  return safeLevel >= getNoBuyMaxLevel() ? null : NO_BUY_LEVEL_XP_THRESHOLDS[safeLevel];
+};
+
+const getNoBuyLevelProgressPct = (xp, level) => {
+  const safeXp = Math.max(0, Number(xp || 0));
+  const floorXp = getNoBuyLevelFloorXp(level);
+  const nextXp = getNoBuyNextLevelXp(level);
+  if (nextXp === null) return 100;
+  const span = Math.max(1, nextXp - floorXp);
+  return Math.max(0, Math.min(100, ((safeXp - floorXp) / span) * 100));
 };
 
 const normalizeRecoveryDeadlineIso = (value) => {
@@ -14950,6 +14976,64 @@ const openNoBuyHistoryDialog = (entries) => {
   resetDialogScroll(dialog);
 };
 
+const openNoBuyLevelsDialog = (gamify) => {
+  const safe = normalizeNoBuyGamifyState(gamify || {});
+  const progressPct = getNoBuyLevelProgressPct(safe.xp, safe.level);
+  const nextLevelXp = getNoBuyNextLevelXp(safe.level);
+  let dialog = document.getElementById("no-buy-levels-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "no-buy-levels-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>No-Buy Levels</h3>
+        <div id="no-buy-levels-summary" class="stats-hint"></div>
+        <div id="no-buy-levels-progress"></div>
+        <div id="no-buy-levels-list" class="insights-action-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="no-buy-levels-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+    const closeButton = dialog.querySelector("#no-buy-levels-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#no-buy-levels-summary");
+  const progress = dialog.querySelector("#no-buy-levels-progress");
+  const list = dialog.querySelector("#no-buy-levels-list");
+  if (!summary || !progress || !list) return;
+
+  summary.textContent = nextLevelXp === null
+    ? `Lv${safe.level} · ${safe.xp} XP. You have reached the level cap.`
+    : `Lv${safe.level} · ${safe.xp} XP. ${Math.max(0, nextLevelXp - safe.xp)} XP left until Lv${safe.level + 1}.`;
+
+  progress.innerHTML = `
+    <div class="stats-progress no-buy-level-progress">
+      <div class="stats-progress-track"><div class="stats-progress-fill" style="width:${progressPct}%"></div></div>
+      <div class="stats-progress-label">${nextLevelXp === null ? `${safe.xp}/${safe.xp}` : `${safe.xp}/${nextLevelXp}`}</div>
+    </div>
+  `;
+
+  list.innerHTML = NO_BUY_LEVEL_XP_THRESHOLDS.map((threshold, index) => {
+    const level = index + 1;
+    const status = level < safe.level
+      ? "Reached"
+      : level === safe.level
+        ? "Current"
+        : `${Math.max(0, threshold - safe.xp)} XP away`;
+    return `<div class="stats-row stats-sub${level === safe.level ? " no-buy-level-row-current" : ""}"><span class="stats-label">Lv${level}</span><span class="stats-value">${threshold} total XP · ${status}</span></div>`;
+  }).join("");
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
 const escapeHelpHtml = (str) => String(str || "")
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -15289,7 +15373,7 @@ const buildNoBuyHelpHtml = () => {
     [
       { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
       { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery." },
+      { label: "XP and level", value: `Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery. Levels now cap at ${getNoBuyMaxLevel()} with rising XP thresholds.` },
       { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
@@ -18775,6 +18859,8 @@ const openNoBuyGameDialog = (stats) => {
       : cleanWeekTemptations === 0
         ? "Clean week"
         : "Pressure active";
+  const levelProgressPct = getNoBuyLevelProgressPct(gamify.xp, gamify.level);
+  const nextLevelXp = getNoBuyNextLevelXp(gamify.level);
   const cleanBadgeNote = cleanMonthBuys === 0
     ? `${cleanWeekTemptations} temptation day${cleanWeekTemptations === 1 ? "" : "s"} in last 7 days`
     : `${cleanMonthBuys} buy${cleanMonthBuys === 1 ? "" : "s"} logged this month`;
@@ -18834,6 +18920,11 @@ const openNoBuyGameDialog = (stats) => {
         <div class="insights-score-title">XP & level</div>
         <div class="insights-score-value">Lv${gamify.level} · ${gamify.xp} XP</div>
         <div class="insights-score-note">Total no-buy days banked: ${gamify.noBuyDaysTotal}</div>
+        <button type="button" class="stats-link-button no-buy-level-link" id="nobuy-open-levels">${nextLevelXp === null ? `Max level reached (${getNoBuyMaxLevel()})` : `${Math.max(0, nextLevelXp - gamify.xp)} XP to Lv${gamify.level + 1} (${nextLevelXp} total)`}</button>
+        <div class="stats-progress no-buy-level-progress">
+          <div class="stats-progress-track"><div class="stats-progress-fill" style="width:${levelProgressPct}%"></div></div>
+          <div class="stats-progress-label">${nextLevelXp === null ? `${gamify.xp}/${gamify.xp}` : `${gamify.xp}/${nextLevelXp}`}</div>
+        </div>
       </div>
       <div class="insights-score-card">
         <div class="insights-score-title">Streak shields</div>
@@ -18957,8 +19048,15 @@ const openNoBuyGameDialog = (stats) => {
   const exportBtn = content.querySelector("#nobuy-export-log");
   const helpBtn = content.querySelector("#nobuy-help");
   const fullHistoryBtn = content.querySelector("#nobuy-open-full-history");
+  const levelsBtn = content.querySelector("#nobuy-open-levels");
   const triggerSelect = content.querySelector("#nobuy-trigger");
   const buyReasonSelect = content.querySelector("#nobuy-buy-reason");
+
+  if (levelsBtn) {
+    levelsBtn.addEventListener("click", () => {
+      openNoBuyLevelsDialog(gamify);
+    });
+  }
 
   if (startCooldownBtn) {
     startCooldownBtn.addEventListener("click", () => {
