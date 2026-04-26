@@ -11219,6 +11219,7 @@ const collectAllStats = () => {
     totalItems: soldItems.length,
     totalRevenue: soldRevenue,
     averagePrice: soldItems.length ? soldRevenue / soldItems.length : 0,
+    allItems: soldItems,
     recentItems: soldItems.slice(0, 5),
     byMonth: soldByMonth,
     topBuyers: soldTopBuyers,
@@ -12629,6 +12630,77 @@ const openTaggedItemsDialog = (items, tagLabel) => {
     left.textContent = `${index + 1}. ${item.name} (${item.tab})${item.type ? ` - ${item.type}` : ""}`;
 
     rowEl.appendChild(left);
+    list.appendChild(rowEl);
+  });
+
+  openDialog(dialog);
+  resetDialogScroll(dialog);
+};
+
+const openSoldItemsDialog = (items) => {
+  const soldItems = Array.isArray(items) ? items.slice() : [];
+
+  let dialog = document.getElementById("sold-items-dialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "sold-items-dialog";
+    dialog.innerHTML = `
+      <div class="dialog-body">
+        <h3>All Sold Items</h3>
+        <div id="sold-items-summary" class="stats-hint"></div>
+        <div id="sold-items-list" class="wear-history-list"></div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="sold-items-close" class="btn">Close</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const closeButton = dialog.querySelector("#sold-items-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        closeDialog(dialog);
+      });
+    }
+  }
+
+  const summary = dialog.querySelector("#sold-items-summary");
+  const list = dialog.querySelector("#sold-items-list");
+  if (!list) return;
+  list.textContent = "";
+
+  if (!soldItems.length) {
+    if (summary) summary.textContent = "No sold items have been logged yet.";
+    const empty = document.createElement("div");
+    empty.className = "stats-hint";
+    empty.textContent = "No sold items to show.";
+    list.appendChild(empty);
+    openDialog(dialog);
+    resetDialogScroll(dialog);
+    return;
+  }
+
+  if (summary) {
+    summary.textContent = `${soldItems.length} sold ${soldItems.length === 1 ? "item" : "items"} in archive`;
+  }
+
+  soldItems.forEach((item, index) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "wear-history-item";
+
+    const left = document.createElement("span");
+    left.className = "wear-history-name";
+    left.textContent = `${index + 1}. ${item.name} (${item.tab || item.brand || "Unknown"})${item.type ? ` - ${item.type}` : ""}`;
+
+    const right = document.createElement("span");
+    right.className = "wear-history-date";
+    const soldSummary = item.isTrade
+      ? (item.tradedFor ? `Trade for ${item.tradedFor}` : "Trade")
+      : formatCurrency(item.price || 0);
+    right.textContent = `${new Date(item.soldAt).toLocaleDateString()} | ${soldSummary}${item.isTrade && item.price > 0 ? ` | ${formatCurrency(item.price)} cash` : ""}${item.buyer ? ` | ${item.buyer}` : ""}${item.marketplace ? ` | ${item.marketplace}` : ""}`;
+
+    rowEl.appendChild(left);
+    rowEl.appendChild(right);
     list.appendChild(rowEl);
   });
 
@@ -17650,6 +17722,7 @@ const openInsightsDialog = (stats, options = {}) => {
     totalItems: 0,
     totalRevenue: 0,
     averagePrice: 0,
+    allItems: [],
     recentItems: [],
     byMonth: [],
     topBuyers: [],
@@ -18069,7 +18142,7 @@ const openInsightsDialog = (stats, options = {}) => {
     : `<div class="stats-hint">No sold history logged yet.</div>`}
       <div class="stats-section-title" style="margin-top:8px">Last items sold</div>
       ${Array.isArray(soldStats.recentItems) && soldStats.recentItems.length
-    ? `<div class="insights-action-list">${soldStats.recentItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab || item.brand || "Unknown")}) - ${esc(item.type || "Unknown")}</span><span class="stats-value">${new Date(item.soldAt).toLocaleDateString()} · ${item.isTrade ? esc(item.tradedFor ? `Trade for ${item.tradedFor}` : "Trade") : formatCurrency(item.price || 0)}${item.isTrade && item.price > 0 ? ` · ${formatCurrency(item.price)} cash` : ""}${item.buyer ? ` · ${esc(item.buyer)}` : ""}${item.marketplace ? ` · ${esc(item.marketplace)}` : ""}</span></div>`).join("")}</div>`
+    ? `<div class="insights-action-list">${soldStats.recentItems.map((item, idx) => `<div class="stats-row stats-sub"><span class="stats-label">${idx + 1}. ${esc(item.name)} (${esc(item.tab || item.brand || "Unknown")}) - ${esc(item.type || "Unknown")}</span><span class="stats-value">${new Date(item.soldAt).toLocaleDateString()} · ${item.isTrade ? esc(item.tradedFor ? `Trade for ${item.tradedFor}` : "Trade") : formatCurrency(item.price || 0)}${item.isTrade && item.price > 0 ? ` · ${formatCurrency(item.price)} cash` : ""}${item.buyer ? ` · ${esc(item.buyer)}` : ""}${item.marketplace ? ` · ${esc(item.marketplace)}` : ""}</span></div>`).join("")}</div>${soldStats.totalItems > soldStats.recentItems.length ? `<button type="button" class="stats-link-button" data-insights-sold-all="1">View all sold items</button>` : ""}`
     : `<div class="stats-hint">No sold items have been logged yet.</div>`}
       <div id="insights-detail-marketplace" class="stats-section-title" style="margin-top:8px">Marketplace tag details</div>
       <div class="stats-hint">Breaks down marketplace-tagged inventory by load, inactivity, value concentration, and whether tagged pieces still perform well enough to keep.</div>
@@ -18314,6 +18387,14 @@ const openInsightsDialog = (stats, options = {}) => {
     forSaleAllButton.addEventListener("click", () => {
       const items = Array.isArray(behavior?.forSaleStats?.items) ? behavior.forSaleStats.items : [];
       openTaggedItemsDialog(items, FOR_SALE_TAG);
+    });
+  }
+
+  const soldAllButton = content.querySelector("[data-insights-sold-all]");
+  if (soldAllButton) {
+    soldAllButton.addEventListener("click", () => {
+      const items = Array.isArray(soldStats?.allItems) ? soldStats.allItems : [];
+      openSoldItemsDialog(items);
     });
   }
 

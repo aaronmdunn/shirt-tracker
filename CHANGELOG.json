@@ -10,6 +10,8 @@
       "Fixed the Insights \"View all for-sale items\" action so it opens the full exact-tagged list without throwing a scope error",
       "Expanded the Sold flow with a Trade checkbox plus a conditional \"Traded for\" field, allowing non-cash swaps to be recorded without fake sale prices while preserving optional cash add-ons",
       "Updated sold-history surfaces so trades display correctly in the recycle bin, event log, and sold archive insights instead of being forced into cash-only wording",
+      "Added a View all sold items action in the sold archive so the 5-item preview can open the full sold-history list in a dedicated dialog",
+      "Widened the full sold-history dialog by roughly 50% so trade, buyer, marketplace, and cash-add-on details fit more comfortably",
       "Shipped routine release maintenance: version references updated to 2.1.6 across web, shared, and Tauri metadata"
     ]
   },
