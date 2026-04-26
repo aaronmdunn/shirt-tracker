@@ -14591,15 +14591,28 @@ const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
   const safe = normalizeNoBuyGamifyState(state);
   const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
   const counts = {};
-  safe.dailyCheckins.forEach((entry) => {
-    if (!entry?.tempted) return;
-    const key = String(entry.dateKey || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
-    const ms = new Date(`${key}T12:00:00`).getTime();
-    if (!Number.isFinite(ms) || ms < threshold) return;
-    const trigger = String(entry.trigger || "other").trim() || "other";
-    counts[trigger] = (counts[trigger] || 0) + 1;
-  });
+  const temptationActions = Array.isArray(safe.actionLog)
+    ? safe.actionLog.filter((entry) => String(entry?.type || "") === "temptation")
+    : [];
+  if (temptationActions.length) {
+    temptationActions.forEach((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const trigger = String(entry?.reason || "other").trim() || "other";
+      counts[trigger] = (counts[trigger] || 0) + 1;
+    });
+  } else {
+    // Fallback for older state snapshots that predate temptation action-log entries.
+    safe.dailyCheckins.forEach((entry) => {
+      if (!entry?.tempted) return;
+      const key = String(entry.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+      const ms = new Date(`${key}T12:00:00`).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const trigger = String(entry.trigger || "other").trim() || "other";
+      counts[trigger] = (counts[trigger] || 0) + 1;
+    });
+  }
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([label, count]) => ({ label, count }));

@@ -14,6 +14,7 @@
       "Added next-level progress messaging in the No-Buy game so the XP card now shows how much XP remains until the next level, or when max level is reached",
       "Made the No-Buy next-level XP line clickable so it opens a compact levels dialog with the full 10-level XP ladder",
       "Added progress bars to the No-Buy XP card and levels dialog so current progress toward the next level is visible at a glance",
+      "Fixed Boss trigger counts to use real temptation hits from the No-Buy action log instead of collapsing multiple same-day temptations into a single daily check-in count",
       "Shipped routine release maintenance: version references updated to 2.1.7 across web, shared, and Tauri metadata"
     ]
   },
