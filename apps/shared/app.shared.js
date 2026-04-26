@@ -36,7 +36,7 @@ const LAST_FULL_BACKUP_ERROR_KEY = "shirts-last-full-backup-error";
 const LAST_FULL_BACKUP_ERROR_AT_KEY = "shirts-last-full-backup-error-at";
 const BACKUP_HEALTH_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 const DESKTOP_DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const APP_VERSION = "2.1.6";
+const APP_VERSION = "2.1.7";
 const IS_WEB_BUILD = true;
 const PLATFORM = "__PLATFORM__"; // replaced at build time with "desktop" or "mobile"
 const NETLIFY_BASE = (window.__TAURI__ || window.__TAURI_INTERNALS__) ? "https://shirt-tracker.com" : "";
@@ -4459,7 +4459,7 @@ const buildCloudPayload = () => {
     shirtUpdateDate: shirtUpdateTimestamp || null,
     publicShareId: getOrCreatePublicShareId(),
     publicShareVisibility,
-    version: "2.1.6",
+    version: "2.1.7",
     deletedRows: purgeExpiredDeletedRows(),
   };
   if (wishlistTabs.length > 0) {
@@ -10998,30 +10998,50 @@ const collectAllStats = () => {
       return { label, count };
     });
 
-  // --- Purchase streak and no-buy streak (both day-based) ---
+  // --- Purchase streak and no-buy streak (manual no-buy purchase events, day-based) ---
   let currentStreak = 0;
   let longestStreak = 0;
   let noBuyCurrentDays = 0;
   let noBuyLongestDays = 0;
-  if (allDatedItems.length) {
-    // Get unique calendar dates (YYYY-MM-DD) when items were added, sorted ascending
-    const addDateSet = new Set();
-    allDatedItems.forEach(({ date }) => {
-      addDateSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
+  const noBuyGamify = normalizeNoBuyGamifyState(loadNoBuyGamifyState());
+  const purchaseDateSet = new Set();
+  const actionPurchaseEvents = Array.isArray(noBuyGamify.actionLog)
+    ? noBuyGamify.actionLog.filter((entry) => String(entry?.type || "") === "purchase")
+    : [];
+  if (actionPurchaseEvents.length) {
+    actionPurchaseEvents.forEach((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms)) return;
+      const date = new Date(ms);
+      purchaseDateSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
     });
-    const sortedAddDates = Array.from(addDateSet).sort();
-    const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const todayStr = toDateStr(new Date());
+  } else if (Array.isArray(noBuyGamify.buyLog)) {
+    noBuyGamify.buyLog.forEach((entry) => {
+      const dateKey = String(entry?.dateKey || "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+        purchaseDateSet.add(dateKey);
+        return;
+      }
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms)) return;
+      const date = new Date(ms);
+      purchaseDateSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`);
+    });
+  }
+  const sortedPurchaseDates = Array.from(purchaseDateSet).sort();
+  const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const todayStr = toDateStr(new Date());
+  const dayDiffFromKeys = (laterKey, earlierKey) => Math.floor((new Date(`${laterKey}T00:00:00`) - new Date(`${earlierKey}T00:00:00`)) / 86400000);
 
-    // --- Current purchase streak: consecutive days with adds, counting backward from today ---
+  if (sortedPurchaseDates.length) {
+    // Current purchase streak: consecutive days with logged purchase events, counting backward from today.
     let pStreak = 0;
     const checkDate = new Date();
     for (let i = 0; i < 3650; i++) {
-      if (addDateSet.has(toDateStr(checkDate))) {
+      if (purchaseDateSet.has(toDateStr(checkDate))) {
         pStreak++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else if (i === 0) {
-        // Today has no adds — check if yesterday continues
         checkDate.setDate(checkDate.getDate() - 1);
       } else {
         break;
@@ -11029,11 +11049,10 @@ const collectAllStats = () => {
     }
     currentStreak = pStreak;
 
-    // --- Longest purchase streak: longest run of consecutive add-dates ---
     let run = 1;
     let best = 1;
-    for (let i = 1; i < sortedAddDates.length; i++) {
-      const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000);
+    for (let i = 1; i < sortedPurchaseDates.length; i++) {
+      const gap = dayDiffFromKeys(sortedPurchaseDates[i], sortedPurchaseDates[i - 1]);
       if (gap === 1) {
         run++;
       } else {
@@ -11041,20 +11060,40 @@ const collectAllStats = () => {
       }
       if (run > best) best = run;
     }
-    longestStreak = sortedAddDates.length > 0 ? best : 0;
+    longestStreak = best;
 
-    // --- No-buy streak: days since last add ---
-    const lastAddDate = sortedAddDates[sortedAddDates.length - 1];
-    if (lastAddDate < todayStr) {
-      noBuyCurrentDays = Math.floor((new Date(todayStr + "T00:00:00") - new Date(lastAddDate + "T00:00:00")) / 86400000);
+    const lastPurchaseDate = sortedPurchaseDates[sortedPurchaseDates.length - 1];
+    if (lastPurchaseDate < todayStr) {
+      noBuyCurrentDays = dayDiffFromKeys(todayStr, lastPurchaseDate);
     }
-
-    // --- Longest no-buy streak: largest gap between consecutive add dates ---
-    for (let i = 1; i < sortedAddDates.length; i++) {
-      const gap = Math.floor((new Date(sortedAddDates[i] + "T00:00:00") - new Date(sortedAddDates[i - 1] + "T00:00:00")) / 86400000) - 1;
+    for (let i = 1; i < sortedPurchaseDates.length; i++) {
+      const gap = dayDiffFromKeys(sortedPurchaseDates[i], sortedPurchaseDates[i - 1]) - 1;
       if (gap > noBuyLongestDays) noBuyLongestDays = gap;
     }
     if (noBuyCurrentDays > noBuyLongestDays) noBuyLongestDays = noBuyCurrentDays;
+    noBuyLongestDays = Math.max(noBuyLongestDays, Math.max(0, Number(noBuyGamify.longestStreak || 0)));
+  } else {
+    const savedCurrentNoBuy = Math.max(
+      0,
+      Number(noBuyGamify.currentStreak || 0),
+      Number(noBuyGamify.lastObservedStreak || 0)
+    );
+    const savedReferenceDate = String(
+      noBuyGamify.lastSyncDate
+      || noBuyGamify.lastXpDate
+      || noBuyGamify.lastNoBuyDate
+      || ""
+    );
+    if (savedCurrentNoBuy > 0 && /^\d{4}-\d{2}-\d{2}$/.test(savedReferenceDate)) {
+      noBuyCurrentDays = Math.max(0, savedCurrentNoBuy + dayDiffFromKeys(todayStr, savedReferenceDate));
+    } else {
+      noBuyCurrentDays = savedCurrentNoBuy;
+    }
+    noBuyLongestDays = Math.max(
+      0,
+      Number(noBuyGamify.longestStreak || 0),
+      noBuyCurrentDays
+    );
   }
 
   // --- Collection diversity index (Shannon entropy on types + fandoms) ---
