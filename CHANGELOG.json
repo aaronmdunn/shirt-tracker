@@ -12,6 +12,8 @@
       "Updated sold-history surfaces so trades display correctly in the recycle bin, event log, and sold archive insights instead of being forced into cash-only wording",
       "Added a View all sold items action in the sold archive so the 5-item preview can open the full sold-history list in a dedicated dialog",
       "Widened the full sold-history dialog by roughly 50% so trade, buyer, marketplace, and cash-add-on details fit more comfortably",
+      "Fixed no-buy streak stats so adding inventory rows no longer counts as an automatic purchase and only explicit no-buy buy events break the streak",
+      "Kept add-date history for inventory analytics while moving purchase/no-buy streak calculations onto the manual no-buy purchase log, so trades and gifts can be added without punishing the streak",
       "Shipped routine release maintenance: version references updated to 2.1.6 across web, shared, and Tauri metadata"
     ]
   },
