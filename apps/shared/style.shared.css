@@ -3884,11 +3884,17 @@ input[type="date"].stats-date-input {
 #advanced-stats-dialog,
 #tag-maintenance-dialog,
 #first-wear-lag-dialog,
+#no-buy-levels-dialog,
 #pre-buy-check-dialog,
 #no-buy-game-dialog,
 #insights-dialog {
   max-width: 710px;
   width: 92vw;
+}
+
+#no-buy-levels-dialog {
+  max-width: 440px;
+  width: min(440px, 92vw);
 }
 
 #stats-coaching-help-dialog {
@@ -3902,6 +3908,7 @@ input[type="date"].stats-date-input {
 #advanced-stats-dialog .dialog-body,
 #tag-maintenance-dialog .dialog-body,
 #first-wear-lag-dialog .dialog-body,
+#no-buy-levels-dialog .dialog-body,
 #stats-coaching-help-dialog .dialog-body,
 #no-buy-history-dialog .dialog-body,
 #pre-buy-check-dialog .dialog-body,
@@ -3922,6 +3929,7 @@ input[type="date"].stats-date-input {
 #advanced-stats-dialog .dialog-actions,
 #tag-maintenance-dialog .dialog-actions,
 #first-wear-lag-dialog .dialog-actions,
+#no-buy-levels-dialog .dialog-actions,
 #stats-coaching-help-dialog .dialog-actions,
 #no-buy-history-dialog .dialog-actions,
 #pre-buy-check-dialog .dialog-actions,
@@ -3953,6 +3961,20 @@ input[type="date"].stats-date-input {
   font-size: 0.78rem;
   padding: 7px 12px;
   white-space: nowrap;
+}
+
+.no-buy-level-link {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.no-buy-level-progress {
+  margin-top: 8px;
+}
+
+.no-buy-level-row-current {
+  background: linear-gradient(180deg, rgba(116, 162, 255, 0.14) 0%, rgba(255, 255, 255, 0.98) 100%);
+  border-radius: 10px;
 }
 
 #no-buy-game-dialog .no-buy-trigger-row {

@@ -12,6 +12,8 @@
       "Kept add-date history for inventory analytics while moving purchase/no-buy streak calculations onto the manual no-buy purchase log, so trades and gifts can be added without punishing the streak",
       "Replaced the open-ended No-Buy XP formula with a real 10-level progression ladder so leveling has a clear cap and gets harder as you climb",
       "Added next-level progress messaging in the No-Buy game so the XP card now shows how much XP remains until the next level, or when max level is reached",
+      "Made the No-Buy next-level XP line clickable so it opens a compact levels dialog with the full 10-level XP ladder",
+      "Added progress bars to the No-Buy XP card and levels dialog so current progress toward the next level is visible at a glance",
       "Shipped routine release maintenance: version references updated to 2.1.7 across web, shared, and Tauri metadata"
     ]
   },
