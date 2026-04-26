@@ -14039,9 +14039,21 @@ const defaultNoBuyGamifyState = () => ({
   },
 });
 
+const NO_BUY_LEVEL_XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200];
+
 const computeNoBuyLevel = (xp) => {
   const safeXp = Math.max(0, Number(xp || 0));
-  return Math.floor(Math.sqrt(safeXp / 100)) + 1;
+  for (let idx = NO_BUY_LEVEL_XP_THRESHOLDS.length - 1; idx >= 0; idx--) {
+    if (safeXp >= NO_BUY_LEVEL_XP_THRESHOLDS[idx]) return idx + 1;
+  }
+  return 1;
+};
+
+const getNoBuyMaxLevel = () => NO_BUY_LEVEL_XP_THRESHOLDS.length;
+
+const getNoBuyNextLevelXp = (level) => {
+  const safeLevel = Math.max(1, Number(level || 1));
+  return safeLevel >= getNoBuyMaxLevel() ? null : NO_BUY_LEVEL_XP_THRESHOLDS[safeLevel];
 };
 
 const normalizeRecoveryDeadlineIso = (value) => {
@@ -15289,7 +15301,7 @@ const buildNoBuyHelpHtml = () => {
     [
       { label: "Risk right now", value: "A plain-language summary of the biggest current risk drivers, such as a hot trigger, no cooldown buffer, or an active recovery window." },
       { label: "Current streak", value: "Your active no-buy run and your longest run so far." },
-      { label: "XP and level", value: "Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery." },
+      { label: "XP and level", value: `Gamified progress earned from protecting no-buy days, converting a logged temptation into a cooldown once per day, and completing recovery. Levels now cap at ${getNoBuyMaxLevel()} with rising XP thresholds.` },
       { label: "Streak shields", value: "Shields banked every 10 no-buy days so the game rewards restraint instead of advertising permission to buy." },
       { label: "Next milestone", value: "The next checkpoint on the streak ladder: 7, 14, 30, 60, or 90 days." },
       { label: "Cooldown", value: "Shows whether a cooldown is active and how much time remains." },
@@ -18775,6 +18787,7 @@ const openNoBuyGameDialog = (stats) => {
       : cleanWeekTemptations === 0
         ? "Clean week"
         : "Pressure active";
+  const nextLevelXp = getNoBuyNextLevelXp(gamify.level);
   const cleanBadgeNote = cleanMonthBuys === 0
     ? `${cleanWeekTemptations} temptation day${cleanWeekTemptations === 1 ? "" : "s"} in last 7 days`
     : `${cleanMonthBuys} buy${cleanMonthBuys === 1 ? "" : "s"} logged this month`;
@@ -18834,6 +18847,7 @@ const openNoBuyGameDialog = (stats) => {
         <div class="insights-score-title">XP & level</div>
         <div class="insights-score-value">Lv${gamify.level} · ${gamify.xp} XP</div>
         <div class="insights-score-note">Total no-buy days banked: ${gamify.noBuyDaysTotal}</div>
+        <div class="insights-score-note">${nextLevelXp === null ? `Max level reached (${getNoBuyMaxLevel()})` : `${Math.max(0, nextLevelXp - gamify.xp)} XP to Lv${gamify.level + 1} (${nextLevelXp} total)`}</div>
       </div>
       <div class="insights-score-card">
         <div class="insights-score-title">Streak shields</div>
