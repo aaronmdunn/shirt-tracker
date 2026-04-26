@@ -2406,6 +2406,7 @@ const PRE_BUY_REASON_OPTIONS = [
   { value: "gooddeal", label: "Good deal" },
   { value: "rarefind", label: "Rare find" },
   { value: "fomo", label: "FOMO" },
+  { value: "lowmood", label: "Low mood" },
   { value: "boredom", label: "Boredom" },
   { value: "drop", label: "New drop" },
   { value: "other", label: "Other" },
@@ -14591,15 +14592,28 @@ const getNoBuyTriggerSummary = (state, lookbackDays = 30) => {
   const safe = normalizeNoBuyGamifyState(state);
   const threshold = Date.now() - (Math.max(1, Number(lookbackDays) || 1) * 86400000);
   const counts = {};
-  safe.dailyCheckins.forEach((entry) => {
-    if (!entry?.tempted) return;
-    const key = String(entry.dateKey || "");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
-    const ms = new Date(`${key}T12:00:00`).getTime();
-    if (!Number.isFinite(ms) || ms < threshold) return;
-    const trigger = String(entry.trigger || "other").trim() || "other";
-    counts[trigger] = (counts[trigger] || 0) + 1;
-  });
+  const temptationActions = Array.isArray(safe.actionLog)
+    ? safe.actionLog.filter((entry) => String(entry?.type || "") === "temptation")
+    : [];
+  if (temptationActions.length) {
+    temptationActions.forEach((entry) => {
+      const ms = new Date(String(entry?.at || "")).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const trigger = String(entry?.reason || "other").trim() || "other";
+      counts[trigger] = (counts[trigger] || 0) + 1;
+    });
+  } else {
+    // Fallback for older state snapshots that predate temptation action-log entries.
+    safe.dailyCheckins.forEach((entry) => {
+      if (!entry?.tempted) return;
+      const key = String(entry.dateKey || "");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+      const ms = new Date(`${key}T12:00:00`).getTime();
+      if (!Number.isFinite(ms) || ms < threshold) return;
+      const trigger = String(entry.trigger || "other").trim() || "other";
+      counts[trigger] = (counts[trigger] || 0) + 1;
+    });
+  }
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([label, count]) => ({ label, count }));
@@ -15456,9 +15470,6 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
   const content = dialog.querySelector("#pre-buy-check-content");
   if (!content) return;
   let selectedReason = "";
-  let candidateName = "";
-  let candidateBrand = "";
-  let candidateType = "";
   const inventoryEntries = loadInventoryEntriesForPreBuy();
 
   const render = () => {
@@ -15534,23 +15545,6 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         >${esc(option.label)}</button>`).join("")}</div>
       <div class="stats-hint pre-buy-check-reason-read">${esc(reasonRead)}</div>
 
-      <div class="stats-section-title" style="margin-top:10px">What are you looking at?</div>
-      <div class="pre-buy-input-grid">
-        <label class="pre-buy-input-card">
-          <span class="pre-buy-input-label">Item name</span>
-          <input type="text" id="prebuy-item-name" class="pre-buy-input" placeholder="Optional, but useful" value="${esc(candidateName)}">
-        </label>
-        <label class="pre-buy-input-card">
-          <span class="pre-buy-input-label">Brand</span>
-          <input type="text" id="prebuy-item-brand" class="pre-buy-input" placeholder="Brand or tab" value="${esc(candidateBrand)}">
-        </label>
-        <label class="pre-buy-input-card">
-          <span class="pre-buy-input-label">Type</span>
-          <input type="text" id="prebuy-item-type" class="pre-buy-input" placeholder="Camp shirt, polo, flannel" value="${esc(candidateType)}">
-        </label>
-      </div>
-      <div id="prebuy-duplicate-read"></div>
-
       <div class="insights-score-grid" style="margin-top:10px">
         <div class="insights-score-card">
           <div class="insights-score-title">Streak at risk</div>
@@ -15606,39 +15600,6 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
       });
     });
 
-    const duplicateRead = content.querySelector("#prebuy-duplicate-read");
-    const itemNameInput = content.querySelector("#prebuy-item-name");
-    const itemBrandInput = content.querySelector("#prebuy-item-brand");
-    const itemTypeInput = content.querySelector("#prebuy-item-type");
-    const updateDuplicateRead = () => {
-      candidateName = String(itemNameInput?.value || "").trim();
-      candidateBrand = String(itemBrandInput?.value || "").trim();
-      candidateType = String(itemTypeInput?.value || "").trim();
-      if (!duplicateRead) return;
-      const duplicateSnapshot = buildPreBuyDuplicateSnapshot({ name: candidateName, brand: candidateBrand, type: candidateType }, inventoryEntries);
-      duplicateRead.innerHTML = duplicateSnapshot
-        ? `
-          <div class="pre-buy-duplicate-card risk-${String(duplicateSnapshot.riskLevel || "clear").toLowerCase()}">
-            <div class="pre-buy-duplicate-head">
-              <span class="pre-buy-duplicate-title">Duplicate friction</span>
-              <span class="pre-buy-duplicate-badge">${esc(duplicateSnapshot.riskLevel)}</span>
-            </div>
-            <div class="pre-buy-duplicate-note">${esc(duplicateSnapshot.note)}</div>
-            <div class="pre-buy-duplicate-meta">
-              <span>${duplicateSnapshot.sameTypeCount} same type</span>
-              <span>${duplicateSnapshot.sameBrandCount} same brand</span>
-              <span>${duplicateSnapshot.similarCount} close match${duplicateSnapshot.similarCount === 1 ? "" : "es"}</span>
-            </div>
-            ${duplicateSnapshot.topMatches.length ? `<div class="insights-action-list pre-buy-duplicate-list">${duplicateSnapshot.topMatches.map((match, index) => `<div class="stats-row stats-sub"><span class="stats-label">${index + 1}. ${esc(`${match.name} (${match.brand}) - ${match.type}`)}</span><span class="stats-value">${match.wearCount} wear${match.wearCount === 1 ? "" : "s"} · ${esc(match.reasons.join(" · "))}</span></div>`).join("")}</div>` : ""}
-          </div>`
-        : `<div class="pre-buy-duplicate-card is-empty"><div class="pre-buy-duplicate-note">Add a name, brand, or type for a sharper duplicate read before you buy or park it.</div></div>`;
-    };
-    [itemNameInput, itemBrandInput, itemTypeInput].forEach((input) => {
-      if (!input) return;
-      input.addEventListener("input", updateDuplicateRead);
-    });
-    updateDuplicateRead();
-
     const holdButton = content.querySelector("#prebuy-hold");
     if (holdButton) {
       holdButton.addEventListener("click", () => {
@@ -15658,16 +15619,11 @@ const openPreBuyCheckDialog = (sourceStats = null) => {
         saveNoBuyGamifyStateAndSync(next);
         closeDialog(dialog);
         if (appMode !== "wishlist") switchAppMode("wishlist");
-        let itemName = String(candidateName || "").trim();
-        if (!itemName) {
-          itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
-        }
+        const itemName = await showTextPrompt("Park It In Wishlist", "Item name", "");
         if (itemName !== null && String(itemName).trim()) {
           addWishlistDraftFromPreBuy({
             name: itemName,
             reason: selectedReason,
-            brand: candidateBrand,
-            type: candidateType,
           });
           if (PLATFORM === "mobile") showToast("Parked in Wishlist.");
         }
