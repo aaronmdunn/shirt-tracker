@@ -2406,6 +2406,7 @@ const PRE_BUY_REASON_OPTIONS = [
   { value: "gooddeal", label: "Good deal" },
   { value: "rarefind", label: "Rare find" },
   { value: "fomo", label: "FOMO" },
+  { value: "lowmood", label: "Low mood" },
   { value: "boredom", label: "Boredom" },
   { value: "drop", label: "New drop" },
   { value: "other", label: "Other" },
