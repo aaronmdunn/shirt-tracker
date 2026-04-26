@@ -15016,7 +15016,7 @@ const openNoBuyLevelsDialog = (gamify) => {
   progress.innerHTML = `
     <div class="stats-progress no-buy-level-progress">
       <div class="stats-progress-track"><div class="stats-progress-fill" style="width:${progressPct}%"></div></div>
-      <div class="stats-progress-label">${Math.round(progressPct)}%</div>
+      <div class="stats-progress-label">${nextLevelXp === null ? `${safe.xp}/${safe.xp}` : `${safe.xp}/${nextLevelXp}`}</div>
     </div>
   `;
 
@@ -18860,7 +18860,6 @@ const openNoBuyGameDialog = (stats) => {
         ? "Clean week"
         : "Pressure active";
   const levelProgressPct = getNoBuyLevelProgressPct(gamify.xp, gamify.level);
-  const currentLevelFloorXp = getNoBuyLevelFloorXp(gamify.level);
   const nextLevelXp = getNoBuyNextLevelXp(gamify.level);
   const cleanBadgeNote = cleanMonthBuys === 0
     ? `${cleanWeekTemptations} temptation day${cleanWeekTemptations === 1 ? "" : "s"} in last 7 days`
@@ -18924,7 +18923,7 @@ const openNoBuyGameDialog = (stats) => {
         <button type="button" class="stats-link-button no-buy-level-link" id="nobuy-open-levels">${nextLevelXp === null ? `Max level reached (${getNoBuyMaxLevel()})` : `${Math.max(0, nextLevelXp - gamify.xp)} XP to Lv${gamify.level + 1} (${nextLevelXp} total)`}</button>
         <div class="stats-progress no-buy-level-progress">
           <div class="stats-progress-track"><div class="stats-progress-fill" style="width:${levelProgressPct}%"></div></div>
-          <div class="stats-progress-label">${nextLevelXp === null ? "Max" : `${Math.max(0, gamify.xp - currentLevelFloorXp)}/${Math.max(1, nextLevelXp - currentLevelFloorXp)}`}</div>
+          <div class="stats-progress-label">${nextLevelXp === null ? `${gamify.xp}/${gamify.xp}` : `${gamify.xp}/${nextLevelXp}`}</div>
         </div>
       </div>
       <div class="insights-score-card">
