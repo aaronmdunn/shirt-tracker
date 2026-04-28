@@ -10997,6 +10997,7 @@ const collectAllStats = () => {
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
           allDatedItems.push({
             date: d,
+            row: entry.row,
             tab: tab.name,
             name: getCellValue(entry, "Name") || "Unnamed",
             type: getCellValue(entry, "Type") || "",
