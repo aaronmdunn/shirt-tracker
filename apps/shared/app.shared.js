@@ -10769,6 +10769,22 @@ const collectAllStats = () => {
       lastWorn: wearLog.length ? wearLog[wearLog.length - 1] : null,
     };
   };
+  const getLifetimeWearData = (row) => {
+    const rawWearLog = Array.isArray(row?.wearLog) && row.wearLog.length
+      ? row.wearLog
+      : (row?.lastWorn ? [row.lastWorn] : []);
+    const wearLog = rawWearLog
+      .map((stamp) => new Date(stamp).getTime())
+      .filter((ms) => Number.isFinite(ms))
+      .sort((a, b) => a - b)
+      .map((ms) => new Date(ms).toISOString());
+    const storedWearCount = Math.max(0, Number(row?.wearCount || 0));
+    return {
+      wearLog,
+      wearCount: Math.max(storedWearCount, wearLog.length),
+      lastWorn: wearLog.length ? wearLog[wearLog.length - 1] : null,
+    };
+  };
 
   // --- Reusable stat helpers (work on any row subset) ---
   const tallyFrom = (subset, colName, options = {}) => {
@@ -11157,7 +11173,7 @@ const collectAllStats = () => {
   // --- Recently added (rows with createdAt) ---
   allDatedItems.sort((a, b) => b.date - a.date);
   const allRecentlyAdded = allDatedItems.map((item) => {
-    const analyticsWear = getAnalyticsWearData(item.row || {});
+    const analyticsWear = getLifetimeWearData(item.row || {});
     return {
       name: item.name,
       tab: item.tab,
@@ -11170,7 +11186,7 @@ const collectAllStats = () => {
     };
   });
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => {
-    const analyticsWear = getAnalyticsWearData(item.row || {});
+    const analyticsWear = getLifetimeWearData(item.row || {});
     return {
       name: item.name,
       tab: item.tab,
