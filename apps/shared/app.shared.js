@@ -10769,6 +10769,22 @@ const collectAllStats = () => {
       lastWorn: wearLog.length ? wearLog[wearLog.length - 1] : null,
     };
   };
+  const getLifetimeWearData = (row) => {
+    const rawWearLog = Array.isArray(row?.wearLog) && row.wearLog.length
+      ? row.wearLog
+      : (row?.lastWorn ? [row.lastWorn] : []);
+    const wearLog = rawWearLog
+      .map((stamp) => new Date(stamp).getTime())
+      .filter((ms) => Number.isFinite(ms))
+      .sort((a, b) => a - b)
+      .map((ms) => new Date(ms).toISOString());
+    const storedWearCount = Math.max(0, Number(row?.wearCount || 0));
+    return {
+      wearLog,
+      wearCount: Math.max(storedWearCount, wearLog.length),
+      lastWorn: wearLog.length ? wearLog[wearLog.length - 1] : null,
+    };
+  };
 
   // --- Reusable stat helpers (work on any row subset) ---
   const tallyFrom = (subset, colName, options = {}) => {
@@ -10981,6 +10997,7 @@ const collectAllStats = () => {
           monthlyAdds[key] = (monthlyAdds[key] || 0) + 1;
           allDatedItems.push({
             date: d,
+            row: entry.row,
             tab: tab.name,
             name: getCellValue(entry, "Name") || "Unnamed",
             type: getCellValue(entry, "Type") || "",
@@ -11157,7 +11174,7 @@ const collectAllStats = () => {
   // --- Recently added (rows with createdAt) ---
   allDatedItems.sort((a, b) => b.date - a.date);
   const allRecentlyAdded = allDatedItems.map((item) => {
-    const analyticsWear = getAnalyticsWearData(item.row || {});
+    const analyticsWear = getLifetimeWearData(item.row || {});
     return {
       name: item.name,
       tab: item.tab,
@@ -11170,7 +11187,7 @@ const collectAllStats = () => {
     };
   });
   const top5RecentlyAdded = allDatedItems.slice(0, 5).map((item) => {
-    const analyticsWear = getAnalyticsWearData(item.row || {});
+    const analyticsWear = getLifetimeWearData(item.row || {});
     return {
       name: item.name,
       tab: item.tab,
@@ -19394,8 +19411,9 @@ const openStatsDialog = () => {
   // --- Recently added ---
   if (s.recentlyAdded.length) {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
-    const recentWornCount = s.recentlyAdded.filter((item) => Number(item?.wearCount || 0) > 0).length;
-    const recentUnwornCount = s.recentlyAdded.length - recentWornCount;
+    const allAddedItems = Array.isArray(s.allRecentlyAdded) ? s.allRecentlyAdded : [];
+    const recentWornCount = allAddedItems.filter((item) => Number(item?.wearCount || 0) > 0).length;
+    const recentUnwornCount = allAddedItems.length - recentWornCount;
     addedBlock += `<div class="stats-hint">${recentWornCount} already entered rotation · ${recentUnwornCount} still waiting for a first wear.</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
