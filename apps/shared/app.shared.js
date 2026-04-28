@@ -19394,8 +19394,9 @@ const openStatsDialog = () => {
   // --- Recently added ---
   if (s.recentlyAdded.length) {
     let addedBlock = `<div class="stats-section-title">Recently added</div>`;
-    const recentWornCount = s.recentlyAdded.filter((item) => Number(item?.wearCount || 0) > 0).length;
-    const recentUnwornCount = s.recentlyAdded.length - recentWornCount;
+    const allAddedItems = Array.isArray(s.allRecentlyAdded) ? s.allRecentlyAdded : [];
+    const recentWornCount = allAddedItems.filter((item) => Number(item?.wearCount || 0) > 0).length;
+    const recentUnwornCount = allAddedItems.length - recentWornCount;
     addedBlock += `<div class="stats-hint">${recentWornCount} already entered rotation · ${recentUnwornCount} still waiting for a first wear.</div>`;
     s.recentlyAdded.forEach((item) => {
       const date = new Date(item.createdAt).toLocaleDateString();
