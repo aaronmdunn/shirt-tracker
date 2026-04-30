@@ -3,6 +3,7 @@
     "version": "2.1.8",
     "date": "2026-04-28",
     "changes": [
+      "Added a generated root robots.txt for the deployed web app that disallows Netlify function routes, admin-ish paths, and common WordPress probe URLs from polite crawler indexing",
       "Removed the old request-access prompt from the signed-out login helper copy and trimmed the message down to a simpler 'Please login to continue' on desktop and mobile",
       "Fixed Recently Added activation counts so they reflect the full 'View all added shirts' dataset instead of only the 5-item preview summary",
       "Corrected Recently Added rotation status to use lifetime wear history for each added item, avoiding false unworn counts from the app-era analytics cutoff and missing source-row linkage",

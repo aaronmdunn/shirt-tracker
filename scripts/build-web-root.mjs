@@ -50,6 +50,24 @@ const redirects = `# Auth callbacks and share links — route to JS redirect pag
 /d/* /d/index.html 200
 `;
 
+const robotsTxt = `User-agent: *
+Allow: /
+
+Disallow: /.netlify/functions/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /auth-redirect.html
+
+# Common WordPress probe paths
+Disallow: /wp-admin
+Disallow: /wp-admin/
+Disallow: /wp-login.php
+Disallow: /wp-content/
+Disallow: /wp-includes/
+Disallow: /wp-json/
+Disallow: /xmlrpc.php
+`;
+
 const copyDir = (src, dest) => {
   if (!fs.existsSync(src)) {
     throw new Error(`Missing source directory: ${src}`);
@@ -208,6 +226,7 @@ inlineSources(outDesktop);
 inlineSources(outMobile);
 
 fs.writeFileSync(path.join(outDir, "_redirects"), redirects, "utf8");
+fs.writeFileSync(path.join(outDir, "robots.txt"), robotsTxt, "utf8");
 
 const authRedirectHtml = `<!DOCTYPE html>
 <html lang="en">

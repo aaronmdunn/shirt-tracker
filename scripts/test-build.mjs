@@ -8,8 +8,9 @@
  *   5. CHANGELOG.json is valid and matches the current version
  *   6. Version strings are consistent across all source files
  *   7. _redirects file is generated correctly
- *   8. Shared CSS file exists with balanced platform markers
- *   9. Built CSS outputs contain no platform markers or cross-platform selectors
+ *   8. robots.txt is generated correctly
+ *   9. Shared CSS file exists with balanced platform markers
+ *  10. Built CSS outputs contain no platform markers or cross-platform selectors
  *
  * Usage:  node scripts/test-build.mjs
  * Exit 0 on success, exit 1 on any failure.
@@ -88,6 +89,10 @@ test("web-root/m/index.html exists", () => {
 
 test("web-root/_redirects exists", () => {
   assert.ok(fileExists("apps/web-root/_redirects"), "Missing _redirects file");
+});
+
+test("web-root/robots.txt exists", () => {
+  assert.ok(fileExists("apps/web-root/robots.txt"), "Missing robots.txt file");
 });
 
 test("web-root/auth-redirect.html exists", () => {
@@ -351,6 +356,26 @@ test("_redirects contains auth redirect rules", () => {
   assert.ok(redirects, "Could not read _redirects");
   assert.ok(redirects.includes("?type=invite"), "Missing invite auth redirect");
   assert.ok(redirects.includes("?type=recovery"), "Missing recovery auth redirect");
+});
+
+console.log("\n--- robots.txt ---\n");
+
+test("robots.txt disallows non-public app paths", () => {
+  const robots = readFile("apps/web-root/robots.txt");
+  assert.ok(robots, "Could not read robots.txt");
+  assert.ok(robots.includes("Disallow: /.netlify/functions/"), "Missing Netlify functions disallow");
+  assert.ok(robots.includes("Disallow: /admin/"), "Missing admin disallow");
+  assert.ok(robots.includes("Disallow: /auth-redirect.html"), "Missing auth redirect disallow");
+});
+
+test("robots.txt disallows common WordPress probe paths", () => {
+  const robots = readFile("apps/web-root/robots.txt");
+  assert.ok(robots, "Could not read robots.txt");
+  assert.ok(robots.includes("Disallow: /wp-admin/"), "Missing wp-admin disallow");
+  assert.ok(robots.includes("Disallow: /wp-login.php"), "Missing wp-login disallow");
+  assert.ok(robots.includes("Disallow: /wp-content/"), "Missing wp-content disallow");
+  assert.ok(robots.includes("Disallow: /wp-includes/"), "Missing wp-includes disallow");
+  assert.ok(robots.includes("Disallow: /xmlrpc.php"), "Missing xmlrpc disallow");
 });
 
 // ═══════════════════════════════════════════════════
