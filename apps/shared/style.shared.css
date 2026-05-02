@@ -654,7 +654,7 @@ body[data-auth="signed-out"] table,
 body[data-auth="signed-out"] .totals-row,
 body[data-auth="signed-out"] .footer-actions,
 body[data-auth="signed-out"] .footer-stats,
-body[data-auth="signed-out"] .footer-panels > :not(.footer-note),
+body[data-auth="signed-out"] .footer-panels > :not(.footer-legal-stack),
 body[data-auth="signed-out"] .update-box,
 body[data-auth="signed-out"] .empty-state {
   display: none !important;
@@ -832,6 +832,28 @@ body[data-auth="signed-out"] .footer-note p {
 
 body[data-auth="signed-out"] .footer-version-line {
   display: block;
+}
+
+.footer-legal-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.netlify-badge-row {
+  display: none;
+  justify-content: center;
+}
+
+body[data-auth="signed-out"] .netlify-badge-row {
+  display: flex;
+}
+
+.netlify-badge-row img {
+  display: block;
+  width: min(180px, 100%);
+  height: auto;
 }
 
 /* PLATFORM:desktop */
